@@ -24,6 +24,9 @@ class PoliticianVoteStats(BaseModel):
     votes_attended_pct: float | None = None
     party_line_voting_pct: float | None = None
     free_vote_participation_pct: float | None = None
+    votes_eligible: int | None = None
+    votes_cast: int | None = None
+    dissent_count: int | None = None
 
 
 class PoliticianDetail(PoliticianListItem):

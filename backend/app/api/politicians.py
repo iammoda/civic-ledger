@@ -5,7 +5,16 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import get_db
-from app.models import Chamber, CommitteeMembership, Party, Person, PersonMembership
+from app.models import (
+    Bill,
+    Chamber,
+    CommitteeMembership,
+    LegislatureSession,
+    Party,
+    Person,
+    PersonMembership,
+    PersonStats,
+)
 from app.schemas.common import MembershipSummary, PageMeta
 from app.schemas.politicians import (
     CommitteeMembershipSummary,
@@ -121,6 +130,24 @@ def get_politician(slug: str, db: Session = Depends(get_db)) -> PoliticianDetail
     if person_record is None:
         raise HTTPException(status_code=404, detail="Politician not found")
 
+    stats_row = db.scalar(
+        select(PersonStats)
+        .join(LegislatureSession, PersonStats.session_id == LegislatureSession.id)
+        .where(PersonStats.person_id == person_record.id)
+        .order_by(
+            LegislatureSession.parliament_number.desc(),
+            LegislatureSession.session_number.desc(),
+        )
+        .limit(1)
+    )
+    sponsored_bill_numbers = list(
+        db.scalars(
+            select(Bill.number)
+            .where(Bill.sponsor_person_id == person_record.id)
+            .order_by(Bill.introduced_on.desc().nullslast())
+        )
+    )
+
     current_membership = _current_membership(person_record)
     memberships = [
         MembershipSummary(
@@ -185,10 +212,13 @@ def get_politician(slug: str, db: Session = Depends(get_db)) -> PoliticianDetail
             )
             for membership in person_record.committee_memberships
         ],
-        sponsored_bill_numbers=[],
+        sponsored_bill_numbers=sponsored_bill_numbers,
         stats=PoliticianVoteStats(
-            votes_attended_pct=None,
-            party_line_voting_pct=None,
+            votes_attended_pct=stats_row.attendance_pct if stats_row else None,
+            party_line_voting_pct=stats_row.party_line_pct if stats_row else None,
             free_vote_participation_pct=None,
+            votes_eligible=stats_row.votes_eligible if stats_row else None,
+            votes_cast=stats_row.votes_cast if stats_row else None,
+            dissent_count=stats_row.dissent_count if stats_row else None,
         ),
     )

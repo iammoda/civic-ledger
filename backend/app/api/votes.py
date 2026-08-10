@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import get_db
-from app.models import Ballot, Chamber, LegislatureSession, Vote
+from app.models import Ballot, Chamber, LegislatureSession, Party, Vote
 from app.schemas.common import PageMeta
 from app.schemas.votes import BallotItem, PartyBreakdown, VoteDetail, VoteListItem
 
@@ -75,14 +75,20 @@ def get_vote(chamber: str, session: str, number: str, db: Session = Depends(get_
     if vote is None:
         raise HTTPException(status_code=404, detail="Vote not found")
 
+    party_names: dict[str, str] = {
+        slug: name for slug, name in db.execute(select(Party.slug, Party.name_en)).all()
+    }
+
     party_totals: dict[str, PartyBreakdown] = defaultdict(
         lambda: PartyBreakdown(party_slug="unknown", party_name=None)
     )
     ballots: list[BallotItem] = []
+    dissents: dict[str, int] = defaultdict(int)
     for ballot in vote.ballots:
         party_slug = ballot.party_slug or "unknown"
         summary = party_totals[party_slug]
         summary.party_slug = party_slug
+        summary.party_name = party_names.get(party_slug)
         if ballot.ballot == "yea":
             summary.yea += 1
         elif ballot.ballot == "nay":
@@ -91,6 +97,8 @@ def get_vote(chamber: str, session: str, number: str, db: Session = Depends(get_
             summary.paired += 1
         else:
             summary.absent += 1
+        if ballot.broke_party_line:
+            dissents[party_slug] += 1
 
         ballots.append(
             BallotItem(
@@ -101,6 +109,11 @@ def get_vote(chamber: str, session: str, number: str, db: Session = Depends(get_
                 broke_party_line=ballot.broke_party_line,
             )
         )
+
+    for party_slug, summary in party_totals.items():
+        cast_yn = summary.yea + summary.nay
+        if cast_yn:
+            summary.disagreement_pct = round(100.0 * dissents[party_slug] / cast_yn, 1)
 
     return VoteDetail(
         chamber=vote.chamber.slug,

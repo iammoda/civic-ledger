@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 from app.models.base import Base, TimestampMixin, utcnow
 
@@ -146,8 +147,16 @@ class Bill(Base, TimestampMixin):
     bill_type: Mapped[str] = mapped_column(String(32), default="government")
     is_omnibus: Mapped[bool] = mapped_column(Boolean, default=False)
     introduced_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    legisinfo_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     legisinfo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     summary_source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    text_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Machine-readable LEGISinfo status code, e.g. "RoyalAssentGiven".
+    status_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    is_law: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Lifecycle outcome: pending | enacted | defeated_vote | died_committee |
+    # died_order_paper | died_senate | withdrawn | not_proceeded_with
+    outcome: Mapped[str] = mapped_column(String(32), default="pending", index=True)
 
     session: Mapped[LegislatureSession] = relationship(back_populates="bills")
     chamber: Mapped[Chamber] = relationship(back_populates="bills")
@@ -155,6 +164,7 @@ class Bill(Base, TimestampMixin):
     votes: Mapped[list["Vote"]] = relationship(back_populates="bill")
     text_sources: Mapped[list["BillTextSource"]] = relationship(back_populates="bill")
     analyses: Mapped[list["AnalysisResult"]] = relationship(back_populates="bill")
+    death: Mapped["BillDeath | None"] = relationship(back_populates="bill", uselist=False)
 
     __table_args__ = (UniqueConstraint("session_id", "number", "chamber_id", name="uq_bill_session_number_chamber"),)
 
@@ -188,6 +198,10 @@ class Vote(Base, TimestampMixin):
     nay_total: Mapped[int] = mapped_column(Integer, default=0)
     paired_total: Mapped[int] = mapped_column(Integer, default=0)
     vote_type: Mapped[str] = mapped_column(String(32), default="whipped")
+    # Direction normalization (Phase 2 fills these): what a Yea ballot means
+    # for the underlying matter — "advance" | "block" | None (unknown).
+    yea_effect: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    plain_meaning_en: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     session: Mapped[LegislatureSession] = relationship(back_populates="votes")
@@ -331,3 +345,169 @@ class IngestionRun(Base, TimestampMixin):
     item_count: Mapped[int] = mapped_column(Integer, default=0)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class BillDeath(Base, TimestampMixin):
+    """How a bill died and who is attributable. One row per dead bill."""
+
+    __tablename__ = "bill_deaths"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    bill_id: Mapped[int] = mapped_column(ForeignKey("bills.id"), unique=True, index=True)
+    # defeated_vote | died_committee | died_order_paper | died_senate |
+    # withdrawn | not_proceeded_with
+    mechanism: Mapped[str] = mapped_column(String(32), index=True)
+    # Legislative stage at death, e.g. "second-reading", "committee", "senate".
+    stage: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    occurred_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # The recorded division that killed it, if any.
+    kill_vote_id: Mapped[int | None] = mapped_column(ForeignKey("votes.id"), nullable=True, index=True)
+    committee_id: Mapped[int | None] = mapped_column(ForeignKey("committees.id"), nullable=True, index=True)
+    # Neutral, factual attribution note ("Died when Parliament was dissolved
+    # on ...", "Defeated at second reading 152-128").
+    attribution_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    bill: Mapped[Bill] = relationship(back_populates="death")
+    kill_vote: Mapped[Vote | None] = relationship()
+    committee: Mapped[Committee | None] = relationship()
+
+
+class PersonRole(Base, TimestampMixin):
+    """Cabinet/critic/officer roles over time — who is responsible for what."""
+
+    __tablename__ = "person_roles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("people.id"), index=True)
+    # minister | parliamentary_secretary | critic | house_officer
+    role_type: Mapped[str] = mapped_column(String(32), index=True)
+    title_en: Mapped[str] = mapped_column(String(255))
+    title_fr: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Normalized portfolio slug, e.g. "housing", "finance" — joinable to topics.
+    portfolio_slug: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    started_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    ended_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    person: Mapped[Person] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("person_id", "role_type", "title_en", "started_on", name="uq_person_role"),
+    )
+
+
+class RepresentationEvent(Base, TimestampMixin):
+    """Notable representation changes: floor crossings, resignations, deaths."""
+
+    __tablename__ = "representation_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("people.id"), index=True)
+    # floor_crossing | resignation | death | elected | seat_vacated
+    event_type: Mapped[str] = mapped_column(String(32), index=True)
+    occurred_on: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    from_party_id: Mapped[int | None] = mapped_column(ForeignKey("parties.id"), nullable=True)
+    to_party_id: Mapped[int | None] = mapped_column(ForeignKey("parties.id"), nullable=True)
+    details_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    person: Mapped[Person] = relationship()
+    from_party: Mapped[Party | None] = relationship(foreign_keys=[from_party_id])
+    to_party: Mapped[Party | None] = relationship(foreign_keys=[to_party_id])
+
+    __table_args__ = (
+        UniqueConstraint("person_id", "event_type", "occurred_on", name="uq_representation_event"),
+    )
+
+
+class Topic(Base, TimestampMixin):
+    """Curated topic taxonomy (~25-30 topics) users can follow."""
+
+    __tablename__ = "topics"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    name_en: Mapped[str] = mapped_column(String(128))
+    name_fr: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    description_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Comma-separated colloquial aliases ("carbon tax" -> fuel charge).
+    aliases_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    entity_links: Mapped[list["EntityTopic"]] = relationship(back_populates="topic")
+
+
+class EntityTopic(Base, TimestampMixin):
+    """Polymorphic link of content (bill/vote/petition/...) to a topic."""
+
+    __tablename__ = "entity_topics"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("topics.id"), index=True)
+    entity_type: Mapped[str] = mapped_column(String(32), index=True)
+    entity_id: Mapped[int] = mapped_column(Integer, index=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # How the link was made: llm | subject_code | manual
+    source: Mapped[str] = mapped_column(String(32), default="llm")
+
+    topic: Mapped[Topic] = relationship(back_populates="entity_links")
+
+    __table_args__ = (
+        UniqueConstraint("topic_id", "entity_type", "entity_id", name="uq_entity_topic"),
+    )
+
+
+class Embedding(Base, TimestampMixin):
+    """pgvector embedding for any entity; powers search/Ask/topic matching."""
+
+    __tablename__ = "embeddings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    entity_type: Mapped[str] = mapped_column(String(32), index=True)
+    entity_id: Mapped[int] = mapped_column(Integer, index=True)
+    # Hash of the embedded text — re-embed only when content changes.
+    content_hash: Mapped[str] = mapped_column(String(64))
+    model_name: Mapped[str] = mapped_column(String(128))
+    vector: Mapped[list[float]] = mapped_column(Vector(1536))
+
+    __table_args__ = (
+        UniqueConstraint("entity_type", "entity_id", name="uq_embedding_entity"),
+    )
+
+
+class Document(Base, TimestampMixin):
+    """Provenance record for any ingested source document."""
+
+    __tablename__ = "documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_system: Mapped[str] = mapped_column(String(64), index=True)
+    source_url: Mapped[str] = mapped_column(String(1000))
+    document_type: Mapped[str] = mapped_column(String(64), index=True)
+    entity_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    checksum: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+
+class PersonStats(Base, TimestampMixin):
+    """Derived accountability stats per person per session (nightly job)."""
+
+    __tablename__ = "person_stats"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("people.id"), index=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("legislature_sessions.id"), index=True)
+    votes_eligible: Mapped[int] = mapped_column(Integer, default=0)
+    votes_cast: Mapped[int] = mapped_column(Integer, default=0)
+    attendance_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    party_line_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dissent_count: Mapped[int] = mapped_column(Integer, default=0)
+    computed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    person: Mapped[Person] = relationship()
+    session: Mapped[LegislatureSession] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("person_id", "session_id", name="uq_person_stats_session"),
+    )
