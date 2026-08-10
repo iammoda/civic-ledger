@@ -540,3 +540,37 @@ class GlossaryTerm(Base, TimestampMixin):
     definition_fr: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Readability grade of the definition (Flesch-Kincaid).
     reading_grade: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class UserProfile(Base, TimestampMixin):
+    """App profile for a better-auth user. Privacy: we store only the
+    derived riding — never the postal code or address itself."""
+
+    __tablename__ = "user_profiles"
+
+    # better-auth user.id (text); no cross-metadata FK on purpose.
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    riding_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    province_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    mp_person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True, index=True)
+    # simple | standard | expert
+    reading_level: Mapped[str] = mapped_column(String(16), default="standard")
+
+    mp: Mapped[Person | None] = relationship()
+
+
+class UserFollow(Base, TimestampMixin):
+    """Explicit follows: topics, MPs, bills, or saved Ask questions."""
+
+    __tablename__ = "user_follows"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    # topic | person | bill | question
+    target_type: Mapped[str] = mapped_column(String(16), index=True)
+    # topic slug / person slug / "session/number" / free-text question
+    target_ref: Mapped[str] = mapped_column(String(500))
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "target_type", "target_ref", name="uq_user_follow"),
+    )

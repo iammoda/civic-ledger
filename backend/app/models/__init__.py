@@ -25,6 +25,8 @@ from app.models.entities import (
     RepresentationEvent,
     Speech,
     Topic,
+    UserFollow,
+    UserProfile,
     Vote,
 )
 
@@ -55,5 +57,7 @@ __all__ = [
     "RepresentationEvent",
     "Speech",
     "Topic",
+    "UserFollow",
+    "UserProfile",
     "Vote",
 ]

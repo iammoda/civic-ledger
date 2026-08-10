@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.models import Embedding
 from app.models.base import Base
@@ -11,7 +12,11 @@ from app.models.base import Base
 
 @pytest.fixture()
 def db() -> Session:
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},  # TestClient uses threads
+        poolclass=StaticPool,
+    )
     # Embedding needs pgvector; exclude it from SQLite test schema.
     tables = [t for name, t in Base.metadata.tables.items() if name != "embeddings"]
     Base.metadata.create_all(engine, tables=tables)

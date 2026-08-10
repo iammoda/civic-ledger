@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { AuthWidget } from "@/components/auth-widget";
+
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/ask", label: "Ask" },
@@ -15,17 +17,20 @@ export function SiteHeader() {
         <Link href="/" className="text-lg font-semibold tracking-tight">
           Civic Ledger
         </Link>
-        <nav className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-full px-4 py-2 transition hover:bg-slate-900 hover:text-white"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="flex items-center gap-4">
+          <nav className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-full px-4 py-2 transition hover:bg-slate-900 hover:text-white"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          <AuthWidget />
+        </div>
       </div>
     </header>
   );

@@ -8,13 +8,16 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "better-auth": "^1.6.26",
     "next": "16.2.11",
+    "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.13.10",
+    "@types/pg": "^8.21.0",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "eslint": "^9.25.1",

@@ -25,6 +25,8 @@ from app.models import (
     RepresentationEvent,
     Speech,
     Topic,
+    UserFollow,
+    UserProfile,
     Vote,
 )
 from app.models.base import Base
@@ -57,5 +59,7 @@ __all__ = [
     "RepresentationEvent",
     "Speech",
     "Topic",
+    "UserFollow",
+    "UserProfile",
     "Vote",
 ]
