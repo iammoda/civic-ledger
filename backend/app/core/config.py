@@ -19,8 +19,12 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
+    anthropic_model: str = Field(default="claude-sonnet-5", alias="ANTHROPIC_MODEL")
+    anthropic_fast_model: str = Field(default="claude-haiku-4-5", alias="ANTHROPIC_FAST_MODEL")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-4.1-mini", alias="OPENAI_MODEL")
+    embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
+    llm_monthly_budget_usd: float = Field(default=200.0, alias="LLM_MONTHLY_BUDGET_USD")
     backend_cors_origins: str = Field(
         default="http://localhost:3000",
         alias="BACKEND_CORS_ORIGINS",

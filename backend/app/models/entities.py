@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base, TimestampMixin, utcnow
 
 
 class Jurisdiction(Base, TimestampMixin):
@@ -326,7 +326,7 @@ class IngestionRun(Base, TimestampMixin):
     source_name: Mapped[str] = mapped_column(String(64), index=True)
     job_name: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32), default="pending")
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     item_count: Mapped[int] = mapped_column(Integer, default=0)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)

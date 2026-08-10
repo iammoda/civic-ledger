@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import get_db
-from app.models import Bill, Vote
+from app.models import Bill, Chamber, LegislatureSession, Vote
 from app.schemas.bills import BillDetail, BillListItem
 from app.schemas.common import AnalysisState, DataGap, PageMeta
 from app.schemas.votes import VoteListItem
@@ -22,40 +22,40 @@ def list_bills(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict:
+    query = select(Bill)
+    if chamber:
+        query = query.join(Chamber, Bill.chamber_id == Chamber.id).where(Chamber.slug == chamber)
+    if bill_type:
+        query = query.where(Bill.bill_type == bill_type)
+
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     bills = db.scalars(
-        select(Bill)
-        .options(selectinload(Bill.session), selectinload(Bill.chamber), selectinload(Bill.sponsor))
+        query.options(selectinload(Bill.session), selectinload(Bill.chamber), selectinload(Bill.sponsor))
         .order_by(Bill.introduced_on.desc().nullslast(), Bill.number)
         .offset(offset)
         .limit(limit)
     ).all()
 
-    items: list[BillListItem] = []
-    for bill in bills:
-        if chamber and bill.chamber.slug != chamber:
-            continue
-        if bill_type and bill.bill_type != bill_type:
-            continue
-
-        items.append(
-            BillListItem(
-                session=bill.session.label,
-                chamber=bill.chamber.slug,
-                number=bill.number,
-                title_en=bill.title_en,
-                short_title_en=bill.short_title_en,
-                status_en=bill.status_en,
-                bill_type=bill.bill_type,
-                introduced_on=bill.introduced_on,
-                sponsor_slug=bill.sponsor.slug if bill.sponsor else None,
-                sponsor_name=bill.sponsor.full_name if bill.sponsor else None,
-                is_omnibus=bill.is_omnibus,
-            )
+    items = [
+        BillListItem(
+            session=bill.session.label,
+            chamber=bill.chamber.slug,
+            number=bill.number,
+            title_en=bill.title_en,
+            short_title_en=bill.short_title_en,
+            status_en=bill.status_en,
+            bill_type=bill.bill_type,
+            introduced_on=bill.introduced_on,
+            sponsor_slug=bill.sponsor.slug if bill.sponsor else None,
+            sponsor_name=bill.sponsor.full_name if bill.sponsor else None,
+            is_omnibus=bill.is_omnibus,
         )
+        for bill in bills
+    ]
 
     return {
         "items": [item.model_dump() for item in items],
-        "meta": PageMeta(total=len(items), limit=limit, offset=offset).model_dump(),
+        "meta": PageMeta(total=total, limit=limit, offset=offset).model_dump(),
     }
 
 
@@ -63,7 +63,8 @@ def list_bills(
 def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> BillDetail:
     bill = db.scalar(
         select(Bill)
-        .where(Bill.number == number)
+        .join(LegislatureSession, Bill.session_id == LegislatureSession.id)
+        .where(Bill.number == number, LegislatureSession.label == session)
         .options(
             selectinload(Bill.session),
             selectinload(Bill.chamber),
@@ -73,7 +74,7 @@ def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> BillDe
             selectinload(Bill.votes).selectinload(Vote.session),
         )
     )
-    if bill is None or bill.session.label != session:
+    if bill is None:
         raise HTTPException(status_code=404, detail="Bill not found")
 
     analyses = [

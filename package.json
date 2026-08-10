@@ -5,11 +5,10 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently -n frontend,api,worker,scheduler -c blue,green,magenta,yellow \"npm run dev --workspace frontend\" \"PYTHONPATH=backend python3 -m uvicorn app.main:app --reload\" \"PYTHONPATH=backend python3 -m app.workers.main\" \"PYTHONPATH=backend python3 -m app.ingestion.scheduler\"",
+    "dev": "concurrently -n frontend,api,worker -c blue,green,magenta \"npm run dev --workspace frontend\" \"PYTHONPATH=backend python3 -m uvicorn app.main:app --reload\" \"PYTHONPATH=backend python3 -m arq app.workers.main.WorkerSettings\"",
     "dev:frontend": "npm run dev --workspace frontend",
     "dev:backend": "PYTHONPATH=backend python3 -m uvicorn app.main:app --reload",
-    "worker": "PYTHONPATH=backend python3 -m app.workers.main",
-    "scheduler": "PYTHONPATH=backend python3 -m app.ingestion.scheduler",
+    "worker": "PYTHONPATH=backend python3 -m arq app.workers.main.WorkerSettings",
     "ingest:full": "PYTHONPATH=backend python3 -m app.ingestion.run --full",
     "ingest:incremental": "PYTHONPATH=backend python3 -m app.ingestion.run --incremental",
     "test:backend": "PYTHONPATH=backend python3 -m pytest backend/tests"

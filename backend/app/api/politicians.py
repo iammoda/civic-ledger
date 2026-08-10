@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import get_db
-from app.models import CommitteeMembership, Person, PersonMembership
+from app.models import Chamber, CommitteeMembership, Party, Person, PersonMembership
 from app.schemas.common import MembershipSummary, PageMeta
 from app.schemas.politicians import (
     CommitteeMembershipSummary,
@@ -34,26 +34,43 @@ def list_politicians(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict:
-    query = (
-        select(Person)
-        .options(selectinload(Person.memberships).selectinload(PersonMembership.party), selectinload(Person.chamber))
+    query = select(Person)
+    if chamber:
+        query = query.join(Chamber, Person.chamber_id == Chamber.id).where(Chamber.slug == chamber)
+    if party:
+        query = query.where(
+            Person.memberships.any(
+                and_(
+                    PersonMembership.is_current.is_(True),
+                    PersonMembership.party.has(Party.slug == party),
+                )
+            )
+        )
+    if province:
+        query = query.where(
+            Person.memberships.any(
+                and_(
+                    PersonMembership.is_current.is_(True),
+                    PersonMembership.province_code == province,
+                )
+            )
+        )
+
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    people = db.scalars(
+        query.options(
+            selectinload(Person.memberships).selectinload(PersonMembership.party),
+            selectinload(Person.chamber),
+        )
         .order_by(Person.full_name)
         .offset(offset)
         .limit(limit)
-    )
-    people = db.scalars(query).all()
+    ).all()
 
-    filtered: list[PoliticianListItem] = []
+    items: list[PoliticianListItem] = []
     for person_record in people:
         membership = _current_membership(person_record)
-        if party and (not membership or not membership.party or membership.party.slug != party):
-            continue
-        if province and (not membership or membership.province_code != province):
-            continue
-        if chamber and (not person_record.chamber or person_record.chamber.slug != chamber):
-            continue
-
-        filtered.append(
+        items.append(
             PoliticianListItem(
                 slug=person_record.slug,
                 full_name=person_record.full_name,
@@ -85,8 +102,8 @@ def list_politicians(
         )
 
     return {
-        "items": [item.model_dump() for item in filtered],
-        "meta": PageMeta(total=len(filtered), limit=limit, offset=offset).model_dump(),
+        "items": [item.model_dump() for item in items],
+        "meta": PageMeta(total=total, limit=limit, offset=offset).model_dump(),
     }
 
 
@@ -102,8 +119,6 @@ def get_politician(slug: str, db: Session = Depends(get_db)) -> PoliticianDetail
         )
     )
     if person_record is None:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail="Politician not found")
 
     current_membership = _current_membership(person_record)

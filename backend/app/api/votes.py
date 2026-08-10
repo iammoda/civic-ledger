@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import get_db
-from app.models import Ballot, Vote
+from app.models import Ballot, Chamber, LegislatureSession, Vote
 from app.schemas.common import PageMeta
 from app.schemas.votes import BallotItem, PartyBreakdown, VoteDetail, VoteListItem
 
@@ -23,38 +23,38 @@ def list_votes(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict:
+    query = select(Vote)
+    if chamber:
+        query = query.join(Chamber, Vote.chamber_id == Chamber.id).where(Chamber.slug == chamber)
+    if result:
+        query = query.where(Vote.result == result)
+
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     votes = db.scalars(
-        select(Vote)
-        .options(selectinload(Vote.chamber), selectinload(Vote.session))
+        query.options(selectinload(Vote.chamber), selectinload(Vote.session))
         .order_by(Vote.occurred_on.desc())
         .offset(offset)
         .limit(limit)
     ).all()
 
-    items: list[VoteListItem] = []
-    for vote in votes:
-        if chamber and vote.chamber.slug != chamber:
-            continue
-        if result and vote.result != result:
-            continue
-
-        items.append(
-            VoteListItem(
-                chamber=vote.chamber.slug,
-                session=vote.session.label,
-                number=vote.number,
-                occurred_on=vote.occurred_on,
-                description_en=vote.description_en,
-                result=vote.result,
-                yea_total=vote.yea_total,
-                nay_total=vote.nay_total,
-                vote_type=vote.vote_type,
-            )
+    items = [
+        VoteListItem(
+            chamber=vote.chamber.slug,
+            session=vote.session.label,
+            number=vote.number,
+            occurred_on=vote.occurred_on,
+            description_en=vote.description_en,
+            result=vote.result,
+            yea_total=vote.yea_total,
+            nay_total=vote.nay_total,
+            vote_type=vote.vote_type,
         )
+        for vote in votes
+    ]
 
     return {
         "items": [item.model_dump() for item in items],
-        "meta": PageMeta(total=len(items), limit=limit, offset=offset).model_dump(),
+        "meta": PageMeta(total=total, limit=limit, offset=offset).model_dump(),
     }
 
 
@@ -62,7 +62,9 @@ def list_votes(
 def get_vote(chamber: str, session: str, number: str, db: Session = Depends(get_db)) -> VoteDetail:
     vote = db.scalar(
         select(Vote)
-        .where(Vote.number == number)
+        .join(Chamber, Vote.chamber_id == Chamber.id)
+        .join(LegislatureSession, Vote.session_id == LegislatureSession.id)
+        .where(Vote.number == number, Chamber.slug == chamber, LegislatureSession.label == session)
         .options(
             selectinload(Vote.chamber),
             selectinload(Vote.session),
@@ -70,7 +72,7 @@ def get_vote(chamber: str, session: str, number: str, db: Session = Depends(get_
             selectinload(Vote.ballots).selectinload(Ballot.person),
         )
     )
-    if vote is None or vote.chamber.slug != chamber or vote.session.label != session:
+    if vote is None:
         raise HTTPException(status_code=404, detail="Vote not found")
 
     party_totals: dict[str, PartyBreakdown] = defaultdict(
