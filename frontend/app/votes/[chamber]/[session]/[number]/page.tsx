@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
 import { PartyBreakdownChart } from "@/components/party-breakdown-chart";
+import { PlainMeaning } from "@/components/plain-meaning";
 import { ProceduralContext } from "@/components/procedural-context";
 import { getVote } from "@/lib/api";
 
@@ -25,7 +26,9 @@ export default async function VoteDetailPage({
       title={`Vote ${vote.number}`}
       description={vote.description_en}
     >
-      <section className="grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
+      <PlainMeaning plainMeaning={vote.plain_meaning_en} yeaEffect={vote.yea_effect} />
+
+      <section className="mt-6 grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
         <ProceduralContext voteType={vote.vote_type} />
         <div className="glass-card rounded-[2rem] p-6">
           <h2 className="text-xl font-semibold">Party breakdown</h2>

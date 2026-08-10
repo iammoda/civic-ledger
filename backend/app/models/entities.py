@@ -511,3 +511,32 @@ class PersonStats(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("person_id", "session_id", name="uq_person_stats_session"),
     )
+
+
+class LlmUsage(Base, TimestampMixin):
+    """Cost ledger: one row per LLM call. Powers the spend dashboard and
+    the hard monthly budget cap."""
+
+    __tablename__ = "llm_usage"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    model_name: Mapped[str] = mapped_column(String(128), index=True)
+    job_name: Mapped[str] = mapped_column(String(128), index=True)
+    entity_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class GlossaryTerm(Base, TimestampMixin):
+    """Plain-language definitions for parliamentary/legal jargon."""
+
+    __tablename__ = "glossary_terms"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    term: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    definition_en: Mapped[str] = mapped_column(Text)
+    definition_fr: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Readability grade of the definition (Flesch-Kincaid).
+    reading_grade: Mapped[float | None] = mapped_column(Float, nullable=True)

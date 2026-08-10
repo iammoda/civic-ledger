@@ -64,6 +64,8 @@ export type VoteListItem = {
 export type VoteDetail = VoteListItem & {
   related_bill_number?: string | null;
   source_url?: string | null;
+  yea_effect?: string | null;
+  plain_meaning_en?: string | null;
   party_breakdown: Array<{
     party_slug: string;
     party_name?: string | null;

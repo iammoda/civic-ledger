@@ -11,6 +11,7 @@ callers must treat analysis as a Data Gap, never fabricate.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 from typing import Any
 
 from anthropic import Anthropic
@@ -20,6 +21,16 @@ from app.core.config import get_settings
 
 
 settings = get_settings()
+
+
+@dataclass(slots=True)
+class StructuredResult:
+    """Parsed structured output plus token usage for the cost ledger."""
+
+    data: dict[str, Any]
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class LLMClient:
@@ -37,7 +48,7 @@ class LLMClient:
         schema: dict[str, Any],
         system: str | None = None,
         max_tokens: int = 4096,
-    ) -> dict[str, Any]:
+    ) -> StructuredResult:
         """Return schema-conforming JSON by forcing a tool call."""
         if self.client is None:
             raise RuntimeError("ANTHROPIC_API_KEY is not configured")
@@ -56,9 +67,15 @@ class LLMClient:
             ],
             tool_choice={"type": "tool", "name": "emit_analysis"},
         )
+        usage = getattr(response, "usage", None)
         for block in response.content:
             if block.type == "tool_use":
-                return dict(block.input)
+                return StructuredResult(
+                    data=dict(block.input),
+                    model=self.model,
+                    input_tokens=getattr(usage, "input_tokens", 0) or 0,
+                    output_tokens=getattr(usage, "output_tokens", 0) or 0,
+                )
         raise RuntimeError(f"Model returned no tool_use block: {json.dumps([b.type for b in response.content])}")
 
 

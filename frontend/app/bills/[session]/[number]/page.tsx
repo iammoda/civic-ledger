@@ -2,17 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DataGap } from "@/components/data-gap";
-import { EvidenceBadge } from "@/components/evidence-badge";
 import { PageShell } from "@/components/page-shell";
+import { PlainSummaryCard } from "@/components/plain-summary-card";
 import { SectorImpactList } from "@/components/sector-impact-list";
 import { getBill } from "@/lib/api";
-
-function formatAnalysisTitle(key: string) {
-  return key
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
 
 export default async function BillDetailPage({
   params
@@ -26,37 +19,30 @@ export default async function BillDetailPage({
     notFound();
   }
 
+  const plainSummary = bill.analyses.find(
+    (analysis) => analysis.analysis_type === "plain_summary" && analysis.status === "published"
+  );
+  const pendingGap = bill.data_gaps.find((gap) => gap.code === "analysis_pending");
+
   return (
     <PageShell
       eyebrow={`${bill.chamber.toUpperCase()} · ${bill.session}`}
-      title={`${bill.number} · ${bill.title_en}`}
+      title={`${bill.number} · ${bill.short_title_en ?? bill.title_en}`}
       description={bill.status_en ?? "Status pending"}
     >
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="glass-card rounded-[2rem] p-6">
-          <h2 className="text-xl font-semibold">Plain-language analysis</h2>
+          <h2 className="text-xl font-semibold">In plain language</h2>
           <div className="mt-4 space-y-4">
-            {bill.analyses.length ? (
-              bill.analyses.map((analysis) => (
-                <div key={analysis.analysis_type} className="rounded-3xl border border-black/10 bg-white p-5">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-medium">{formatAnalysisTitle(analysis.analysis_type)}</h3>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs uppercase tracking-[0.16em] text-slate-600">
-                      {analysis.status}
-                    </span>
-                    {typeof analysis.payload?.evidence_quality === "string" ? (
-                      <EvidenceBadge value={analysis.payload.evidence_quality} />
-                    ) : null}
-                  </div>
-                  <pre className="mt-4 overflow-x-auto whitespace-pre-wrap text-sm leading-7 text-slate-600">
-                    {JSON.stringify(analysis.payload, null, 2)}
-                  </pre>
-                </div>
-              ))
+            {plainSummary ? (
+              <PlainSummaryCard analysis={plainSummary} />
             ) : (
               <DataGap
-                title="Analysis pending"
-                detail="This bill is wired for summary, framing, omnibus, and sector-impact results, but none have been published yet."
+                title={pendingGap?.label ?? "Analysis pending"}
+                detail={
+                  pendingGap?.detail ??
+                  "The plain-language summary for this bill has not been generated yet."
+                }
               />
             )}
           </div>

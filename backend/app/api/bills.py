@@ -9,9 +9,21 @@ from app.models import Bill, Chamber, LegislatureSession, Vote
 from app.schemas.bills import BillDetail, BillListItem
 from app.schemas.common import AnalysisState, DataGap, PageMeta
 from app.schemas.votes import VoteListItem
+from app.services.lazy import enqueue
 
 
 router = APIRouter(prefix="/bills", tags=["bills"])
+
+
+def _session_clauses(label: str) -> list:
+    """'45-1' -> column filters. label is a Python property, not a column."""
+    parliament, _, session_no = label.partition("-")
+    if not (parliament.isdigit() and session_no.isdigit()):
+        raise HTTPException(status_code=404, detail="Invalid session")
+    return [
+        LegislatureSession.parliament_number == int(parliament),
+        LegislatureSession.session_number == int(session_no),
+    ]
 
 
 @router.get("")
@@ -60,11 +72,11 @@ def list_bills(
 
 
 @router.get("/{session}/{number}", response_model=BillDetail)
-def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> BillDetail:
+async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> BillDetail:
     bill = db.scalar(
         select(Bill)
         .join(LegislatureSession, Bill.session_id == LegislatureSession.id)
-        .where(Bill.number == number, LegislatureSession.label == session)
+        .where(Bill.number == number, *_session_clauses(session))
         .options(
             selectinload(Bill.session),
             selectinload(Bill.chamber),
@@ -90,12 +102,20 @@ def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> BillDe
     ]
 
     data_gaps = []
-    if not analyses:
+    has_summary = any(a.analysis_type == "plain_summary" and a.status == "published" for a in analyses)
+    if not has_summary:
+        # Lazy-analysis engine: first view triggers generation; cached forever.
+        queued = await enqueue("analyze_bill_job", bill.id)
         data_gaps.append(
             DataGap(
                 code="analysis_pending",
-                label="Analysis pending",
-                detail="AI-generated bill analysis has not completed for this bill yet.",
+                label="Plain-language summary on its way" if queued else "Analysis pending",
+                detail=(
+                    "We're writing the plain-language summary for this bill right now — "
+                    "check back in a minute."
+                    if queued
+                    else "AI-generated bill analysis has not completed for this bill yet."
+                ),
             )
         )
 

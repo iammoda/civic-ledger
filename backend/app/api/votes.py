@@ -60,11 +60,19 @@ def list_votes(
 
 @router.get("/{chamber}/{session}/{number}", response_model=VoteDetail)
 def get_vote(chamber: str, session: str, number: str, db: Session = Depends(get_db)) -> VoteDetail:
+    parliament, _, session_no = session.partition("-")
+    if not (parliament.isdigit() and session_no.isdigit()):
+        raise HTTPException(status_code=404, detail="Invalid session")
     vote = db.scalar(
         select(Vote)
         .join(Chamber, Vote.chamber_id == Chamber.id)
         .join(LegislatureSession, Vote.session_id == LegislatureSession.id)
-        .where(Vote.number == number, Chamber.slug == chamber, LegislatureSession.label == session)
+        .where(
+            Vote.number == number,
+            Chamber.slug == chamber,
+            LegislatureSession.parliament_number == int(parliament),
+            LegislatureSession.session_number == int(session_no),
+        )
         .options(
             selectinload(Vote.chamber),
             selectinload(Vote.session),
@@ -127,6 +135,8 @@ def get_vote(chamber: str, session: str, number: str, db: Session = Depends(get_
         vote_type=vote.vote_type,
         related_bill_number=vote.bill.number if vote.bill else None,
         source_url=vote.source_url,
+        yea_effect=vote.yea_effect,
+        plain_meaning_en=vote.plain_meaning_en,
         party_breakdown=list(party_totals.values()),
         ballots=ballots,
     )
