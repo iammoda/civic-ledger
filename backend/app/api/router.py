@@ -1,9 +1,10 @@
 from fastapi import APIRouter
 
-from app.api import bills, committees, debates, politicians, votes
+from app.api import bills, committees, debates, politicians, search, votes
 
 
 api_router = APIRouter(prefix="/v1")
+api_router.include_router(search.router)
 api_router.include_router(politicians.router)
 api_router.include_router(votes.router)
 api_router.include_router(bills.router)

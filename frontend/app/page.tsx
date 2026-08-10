@@ -10,15 +10,50 @@ export default async function HomePage() {
 
   return (
     <PageShell
-      eyebrow="V1 Federal Launch"
-      title="Canadian legislative accountability with procedural context"
-      description="Browse federal politicians, bills, votes, and committees with chamber-aware data gaps and room for AI analysis to land cleanly."
+      eyebrow="Canada · Federal"
+      title="Who is responsible — and what did they do about it?"
+      description="Type your problem in plain words. See how your MP voted, which bills lived or died, and who's accountable — with sources for everything."
     >
+      <section className="mb-10">
+        <form action="/ask" method="get" className="glass-card rounded-[2rem] p-8">
+          <label htmlFor="home-q" className="text-sm uppercase tracking-[0.22em] text-accent">
+            Ask anything
+          </label>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <input
+              id="home-q"
+              name="q"
+              minLength={8}
+              maxLength={500}
+              required
+              placeholder="I can't afford rent — who is responsible?"
+              className="w-full rounded-full border border-black/10 bg-white px-6 py-4 text-lg outline-none focus:border-accent"
+            />
+            <button type="submit" className="rounded-full bg-slate-900 px-8 py-4 text-base font-medium text-white">
+              Ask
+            </button>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2 text-sm">
+            {["Why are groceries so expensive?", "What happened to pharmacare?", "Is anyone fixing housing?"].map(
+              (example) => (
+                <Link
+                  key={example}
+                  href={`/ask?q=${encodeURIComponent(example)}`}
+                  className="rounded-full border border-black/10 px-4 py-2 text-slate-600 transition hover:border-accent hover:text-accent"
+                >
+                  {example}
+                </Link>
+              )
+            )}
+          </div>
+        </form>
+      </section>
+
       <section className="mb-10 grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
         <div className="glass-card rounded-[2rem] p-8">
-          <p className="text-sm uppercase tracking-[0.22em] text-accent">Now shipping</p>
+          <p className="text-sm uppercase tracking-[0.22em] text-accent">The record</p>
           <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight">
-            House and Senate scaffolding, common schema, internal API, and a consumer shell built around data gaps instead of silent failure.
+            Every vote translated into plain language. Every dead bill with a cause of death. Every claim cited to the official record.
           </h2>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/bills" className="rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white">
@@ -26,6 +61,9 @@ export default async function HomePage() {
             </Link>
             <Link href="/votes" className="rounded-full border border-black/10 px-5 py-3 text-sm font-medium">
               Explore votes
+            </Link>
+            <Link href="/search" className="rounded-full border border-black/10 px-5 py-3 text-sm font-medium">
+              Search everything
             </Link>
           </div>
         </div>

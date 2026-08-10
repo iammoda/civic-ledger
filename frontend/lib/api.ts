@@ -210,3 +210,52 @@ export function getCommittee(slug: string) {
 export function getDebate(chamber: string, debateDate: string) {
   return fetchApi<DebateDetail>(`/debates/${chamber}/${debateDate}`);
 }
+
+export type SearchResultItem = {
+  entity_type: string;
+  title: string;
+  snippet: string;
+  url_path: string;
+  score: number;
+  outcome?: string | null;
+};
+
+export type SearchResponse = {
+  query: string;
+  results: SearchResultItem[];
+};
+
+export function searchContent(q: string) {
+  return fetchApi<SearchResponse>(`/search?q=${encodeURIComponent(q)}`);
+}
+
+export type AskEvidenceItem = SearchResultItem & { index: number };
+
+export type AskResponse = {
+  question: string;
+  answer_sentence?: string | null;
+  answer_detail?: string | null;
+  jurisdiction_level: string;
+  jurisdiction_note?: string | null;
+  responsible_ministry?: string | null;
+  evidence: AskEvidenceItem[];
+  cited_indexes: number[];
+  generated: boolean;
+};
+
+export async function askQuestion(question: string): Promise<AskResponse | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as AskResponse;
+  } catch {
+    return null;
+  }
+}

@@ -125,6 +125,19 @@ async def analyze_new_content(ctx: dict[str, Any]) -> None:
         db.close()
 
 
+async def embed_new_content(ctx: dict[str, Any]) -> None:
+    """Embed new/changed bills and votes for hybrid search + Ask retrieval."""
+    from app.db.session import SessionLocal
+    from app.llm.embeddings import embed_pending
+
+    db = SessionLocal()
+    try:
+        await embed_pending(db, entity_type="bill")
+        await embed_pending(db, entity_type="vote")
+    finally:
+        db.close()
+
+
 class WorkerSettings:
     functions = [
         ingest_incremental,
@@ -134,10 +147,12 @@ class WorkerSettings:
         analyze_bill_job,
         normalize_vote_job,
         analyze_new_content,
+        embed_new_content,
     ]
     cron_jobs = [
         cron(ingest_incremental, minute={0, 30}),
         cron(analyze_new_content, minute={45}),  # hourly eager pass
+        cron(embed_new_content, minute={50}),  # hourly, after analysis
         cron(compute_stats, hour={7}, minute={15}),  # nightly, 07:15 UTC
         cron(refresh_politicians, weekday=0, hour={6}, minute={0}),  # Mondays
     ]

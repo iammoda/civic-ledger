@@ -2,11 +2,10 @@ import Link from "next/link";
 
 const navItems = [
   { href: "/", label: "Home" },
-  { href: "/politicians", label: "Politicians" },
-  { href: "/votes", label: "Votes" },
-  { href: "/bills", label: "Bills" },
-  { href: "/committees", label: "Committees" },
-  { href: "/about-data", label: "About Data" }
+  { href: "/ask", label: "Ask" },
+  { href: "/politicians", label: "MPs" },
+  { href: "/bills", label: "Bills & Votes" },
+  { href: "/about-data", label: "About the Data" }
 ];
 
 export function SiteHeader() {
