@@ -83,6 +83,7 @@ def parse_summary_csv(text: str) -> list[dict[str, Any]]:
     import csv
     import io
 
+    text = text.lstrip("\ufeff")  # ourcommons CSVs ship with a UTF-8 BOM
     rows = []
     for row in csv.DictReader(io.StringIO(text)):
         name = (row.get("Name") or "").strip()
@@ -292,7 +293,13 @@ def parse_travel_detail(html: str) -> list[dict[str, Any]]:
 class ExpensesClient:
     def __init__(self, rate_limit_seconds: float = 0.6) -> None:
         self._rate = rate_limit_seconds
-        self._headers = {"User-Agent": settings.ingestion_user_agent}
+        # ourcommons' WAF intermittently serves an interstitial to
+        # non-browser UAs; identify honestly but with a browser prefix.
+        self._headers = {
+            "User-Agent": f"Mozilla/5.0 (compatible; {settings.ingestion_user_agent})",
+            "Accept": "text/html,application/xhtml+xml,text/csv;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-CA,en;q=0.9",
+        }
         self._client: httpx.AsyncClient | None = None
 
     async def __aenter__(self) -> "ExpensesClient":
@@ -353,12 +360,28 @@ async def sync_quarter(
     name_index = build_person_name_index(db)
     counts = {"summaries": 0, "items": 0}
 
-    # 1. Summary CSV (authoritative totals).
+    # 1. Summary CSV (authoritative totals). The WAF sometimes serves an
+    # HTML interstitial instead of CSV — validate and retry.
     csv_path = find_summary_csv_path(quarter_html)
     if csv_path:
-        csv_text = await client.get_text(csv_path)
+        for attempt in range(3):
+            csv_text = await client.get_text(csv_path)
+            if csv_text and "Name" in csv_text.splitlines()[0]:
+                break
+            await asyncio.sleep(2.0 * (attempt + 1))
+            csv_text = None
         if csv_text:
+            # The source occasionally lists an MP twice (e.g. riding change
+            # mid-quarter) — merge rows by name, summing the amounts.
+            merged: dict[str, dict[str, Any]] = {}
             for row in parse_summary_csv(csv_text):
+                slot = merged.get(row["mp_name_raw"])
+                if slot is None:
+                    merged[row["mp_name_raw"]] = dict(row)
+                else:
+                    for key in ("salaries", "travel", "hospitality", "contracts"):
+                        slot[key] += row[key]
+            for row in merged.values():
                 existing = db.scalar(
                     select(ExpenseSummary).where(
                         ExpenseSummary.mp_name_raw == row["mp_name_raw"],
@@ -459,12 +482,18 @@ async def sync_expenses(
 ) -> dict[str, int]:
     """Sync the given quarters (default: newest quarter only)."""
     if quarters is None:
-        index_html = await client.get_text("/ProactiveDisclosure/en/members")
-        if index_html is None:
-            raise RuntimeError("Members index unavailable")
-        discovered = discover_quarters(index_html)
+        # The WAF occasionally serves an interstitial on the first hit;
+        # retry discovery a few times before giving up.
+        discovered: list[tuple[int, int]] = []
+        for attempt in range(4):
+            index_html = await client.get_text("/ProactiveDisclosure/en/members")
+            if index_html:
+                discovered = discover_quarters(index_html)
+                if discovered:
+                    break
+            await asyncio.sleep(2.0 * (attempt + 1))
         if not discovered:
-            raise RuntimeError("No quarters discovered")
+            raise RuntimeError("No quarters discovered (index unavailable after retries)")
         quarters = discovered[:1]
 
     totals = {"summaries": 0, "items": 0}

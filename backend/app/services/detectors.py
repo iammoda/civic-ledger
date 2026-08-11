@@ -377,8 +377,9 @@ def run_all_detectors(db: Session) -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 def detect_expense_outliers(db: Session) -> int:
-    """An MP's quarterly category total is far above their caucus median
-    (>= multiplier x median AND above an absolute floor)."""
+    """An MP's quarterly category total is far above the House-wide median
+    (>= multiplier x median AND above an absolute floor). House-wide, not
+    caucus: small caucuses make medians meaningless."""
     from statistics import median
 
     from app.core.config import get_settings
@@ -387,24 +388,28 @@ def detect_expense_outliers(db: Session) -> int:
     settings = get_settings()
     summaries = db.scalars(select(ExpenseSummary)).all()
 
-    # caucus -> (fy, q) -> category -> [values]
-    buckets: dict[tuple[str, int, int, str], list[float]] = defaultdict(list)
+    # (fy, q) -> category -> [nonzero values across the whole House]
+    buckets: dict[tuple[int, int, str], list[float]] = defaultdict(list)
     for s in summaries:
-        if not s.caucus:
-            continue
         for category in ("travel", "hospitality", "contracts"):
-            buckets[(s.caucus, s.fiscal_year, s.quarter, category)].append(getattr(s, category))
+            value = getattr(s, category)
+            if value > 0:
+                buckets[(s.fiscal_year, s.quarter, category)].append(value)
 
-    medians = {key: median(values) for key, values in buckets.items() if len(values) >= 5}
+    medians = {
+        key: median(values)
+        for key, values in buckets.items()
+        if len(values) >= 20 and median(values) >= 500
+    }
 
     created = 0
     for s in summaries:
-        if not s.caucus or s.person_id is None:
+        if s.person_id is None:
             continue
         for category in ("travel", "hospitality", "contracts"):
             value = getattr(s, category)
-            med = medians.get((s.caucus, s.fiscal_year, s.quarter, category))
-            if med is None or med <= 0:
+            med = medians.get((s.fiscal_year, s.quarter, category))
+            if med is None:
                 continue
             if value < settings.expense_outlier_floor:
                 continue
@@ -417,14 +422,14 @@ def detect_expense_outliers(db: Session) -> int:
             ratio = value / med
             headline = (
                 f"{person.full_name}'s {category} expenses were ${value:,.0f} in "
-                f"Q{s.quarter} {s.fiscal_year} — about {ratio:.1f}x the {s.caucus} caucus "
+                f"Q{s.quarter} {s.fiscal_year} — about {ratio:.1f}x the House-wide "
                 f"median of ${med:,.0f}."
             )
             detail = (
                 "Source: House of Commons Members' Expenditures quarterly report. "
-                "High spending can have legitimate causes (large ridings, critic "
-                "roles, by-election timing) — this flag marks a statistical "
-                "outlier for human review, nothing more."
+                "High spending can have legitimate causes (large or remote "
+                "ridings, critic roles, by-election timing) — this flag marks a "
+                "statistical outlier for human review, nothing more."
             )
             if _upsert_flag(
                 db,
@@ -438,8 +443,9 @@ def detect_expense_outliers(db: Session) -> int:
                     "quarter": s.quarter,
                     "category": category,
                     "amount": round(value, 2),
-                    "caucus_median": round(med, 2),
+                    "house_median": round(med, 2),
                     "ratio": round(ratio, 2),
+                    "caucus": s.caucus,
                     "source_url": s.source_url,
                 },
                 person_id=s.person_id,

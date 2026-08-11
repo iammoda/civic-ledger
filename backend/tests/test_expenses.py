@@ -159,10 +159,10 @@ def _item(db, person, *, category="contract", amount, supplier=None, fy=2025, q=
 def test_expense_outlier_detector(db) -> None:
     jane = _mp(db)
     _summary(db, jane, travel=60000)
-    # 5 caucus peers around the median.
-    for i in range(5):
+    # 20+ House-wide peers around the median (caucus is irrelevant).
+    for i in range(22):
         peer = _mp(db, slug=f"peer-{i}", name=f"Peer {i}", family=f"Peer{i}")
-        _summary(db, peer, travel=10000 + i * 500)
+        _summary(db, peer, caucus="Conservative" if i % 2 else "Liberal", travel=10000 + i * 200)
     db.commit()
 
     created = detect_expense_outliers(db)
@@ -170,7 +170,7 @@ def test_expense_outlier_detector(db) -> None:
     flag = db.scalar(select(IntegrityFlag))
     assert flag.detector == "expense_outlier"
     assert flag.status == "pending_review"
-    assert "caucus median" in flag.headline_en
+    assert "House-wide" in flag.headline_en
     assert flag.evidence["ratio"] > 2.5
     assert detect_expense_outliers(db) == 0  # Dedupe.
 
