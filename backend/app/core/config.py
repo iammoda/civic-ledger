@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     llm_monthly_budget_usd: float = Field(default=200.0, alias="LLM_MONTHLY_BUDGET_USD")
+    # Comma-separated admin emails (review queue, corrections).
+    admin_emails: str = Field(default="", alias="ADMIN_EMAILS")
+    # Registry of Lobbyists communications export (CSV or ZIP of CSV).
+    lobby_export_url: str = Field(
+        default="https://lobbycanada.gc.ca/media/exports/communications_ocl_cal.zip",
+        alias="LOBBY_EXPORT_URL",
+    )
+    # Elections Canada contributions export (CSV or ZIP of CSV).
+    contributions_export_url: str = Field(default="", alias="CONTRIBUTIONS_EXPORT_URL")
     backend_cors_origins: str = Field(
         default="http://localhost:3000",
         alias="BACKEND_CORS_ORIGINS",
@@ -39,6 +48,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.backend_cors_origins.split(",") if origin.strip()]
+
+    @property
+    def admin_email_set(self) -> set[str]:
+        return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
 
 
 @lru_cache

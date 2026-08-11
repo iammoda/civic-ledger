@@ -282,3 +282,32 @@ export function listPetitions(params?: { state?: string; topic?: string }) {
   const qs = searchParams.toString();
   return fetchApi<PaginatedResponse<PetitionItem>>(`/petitions${qs ? `?${qs}` : ""}`);
 }
+
+export type MoneyResponse = {
+  slug: string;
+  full_name: string;
+  lobbying_total: number;
+  lobbying_last_12mo: number;
+  top_clients: Array<{ name: string; count: number }>;
+  recent_communications: Array<{
+    comm_date?: string | null;
+    client_name?: string | null;
+    registrant_name?: string | null;
+    subjects?: string | null;
+  }>;
+  donations_total: number;
+  donations_count: number;
+  top_donors: Array<{ name: string; total: number; count: number }>;
+  flags: Array<{
+    detector: string;
+    headline_en: string;
+    detail_en?: string | null;
+    confidence?: number | null;
+    created_at_date?: string | null;
+  }>;
+  sources_note: string;
+};
+
+export function getPoliticianMoney(slug: string) {
+  return fetchApi<MoneyResponse>(`/politicians/${slug}/money`);
+}

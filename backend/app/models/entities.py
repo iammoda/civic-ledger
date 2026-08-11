@@ -598,3 +598,107 @@ class Petition(Base, TimestampMixin):
     source_url: Mapped[str] = mapped_column(String(500))
 
     sponsor: Mapped[Person | None] = relationship()
+
+
+class Organization(Base, TimestampMixin):
+    """A company/org appearing in lobbying or contribution records."""
+
+    __tablename__ = "organizations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(500), index=True)
+    normalized_name: Mapped[str] = mapped_column(String(500), unique=True, index=True)
+
+    lobby_communications: Mapped[list["LobbyCommunication"]] = relationship(back_populates="client_org")
+
+
+class LobbyCommunication(Base, TimestampMixin):
+    """One communication report from the Registry of Lobbyists: a lobbyist
+    (for a client org) contacted a designated public office holder."""
+
+    __tablename__ = "lobby_communications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Registry communication number, e.g. "12345-selection" per DPOH row.
+    source_ref: Mapped[str] = mapped_column(String(64), index=True)
+    comm_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    client_org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True, index=True)
+    client_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    registrant_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    dpoh_name: Mapped[str] = mapped_column(String(255), index=True)
+    dpoh_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    institution: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Matched MP/senator, when the DPOH is a parliamentarian we track.
+    dpoh_person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True, index=True)
+    # Registry subject-matter codes, comma-separated (official taxonomy).
+    subjects: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    client_org: Mapped[Organization | None] = relationship(back_populates="lobby_communications")
+    dpoh_person: Mapped[Person | None] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("source_ref", "dpoh_name", name="uq_lobby_comm_ref_dpoh"),
+    )
+
+
+class Contribution(Base, TimestampMixin):
+    """A political contribution (Elections Canada financial returns)."""
+
+    __tablename__ = "contributions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contributor_name: Mapped[str] = mapped_column(String(255), index=True)
+    normalized_contributor: Mapped[str] = mapped_column(String(255), index=True)
+    contributor_city: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    contributor_province: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    amount: Mapped[float] = mapped_column(Float, default=0.0)
+    received_on: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    recipient_name: Mapped[str] = mapped_column(String(255), index=True)
+    recipient_party: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    recipient_person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True, index=True)
+    # e.g. "candidate", "party", "riding_association"
+    recipient_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    source_fingerprint: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+
+    recipient_person: Mapped[Person | None] = relationship()
+
+
+class IntegrityFlag(Base, TimestampMixin):
+    """A pattern-detector finding. NOTHING publishes without human review:
+    status pending_review -> published | dismissed (admin decision)."""
+
+    __tablename__ = "integrity_flags"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    detector: Mapped[str] = mapped_column(String(64), index=True)
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True, index=True)
+    bill_id: Mapped[int | None] = mapped_column(ForeignKey("bills.id"), nullable=True, index=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True, index=True)
+    # Neutral factual headline + detail. Never accusatory language.
+    headline_en: Mapped[str] = mapped_column(String(500))
+    detail_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Evidence: structured references to the underlying records.
+    evidence: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    # Dedupe key so re-running detectors doesn't duplicate flags.
+    fingerprint: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(24), default="pending_review", index=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    person: Mapped[Person | None] = relationship()
+    bill: Mapped["Bill | None"] = relationship()
+    organization: Mapped[Organization | None] = relationship()
+
+
+class Correction(Base, TimestampMixin):
+    """Public corrections/dispute submissions (in-app; no email)."""
+
+    __tablename__ = "corrections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_url: Mapped[str] = mapped_column(String(1000))
+    message: Mapped[str] = mapped_column(Text)
+    contact: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default="open", index=True)
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)

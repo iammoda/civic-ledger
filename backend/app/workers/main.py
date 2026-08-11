@@ -181,6 +181,57 @@ async def embed_new_content(ctx: dict[str, Any]) -> None:
         db.close()
 
 
+async def sync_influence_job(ctx: dict[str, Any]) -> None:
+    """Weekly: lobbying communications + contributions exports (config URLs).
+    WAF-blocked or empty downloads fail the audit row honestly."""
+    from datetime import datetime, timezone
+
+    from app.core.config import get_settings
+    from app.db.session import SessionLocal
+    from app.ingestion.influence import download_export, sync_contributions, sync_lobby_communications
+    from app.models import IngestionRun
+
+    settings = get_settings()
+    db = SessionLocal()
+    try:
+        for source, url, sync_fn in (
+            ("lobby_registry", settings.lobby_export_url, sync_lobby_communications),
+            ("elections_canada", settings.contributions_export_url, sync_contributions),
+        ):
+            if not url:
+                continue
+            run = IngestionRun(source_name=source, job_name=f"{source}_sync", status="running")
+            db.add(run)
+            db.commit()
+            try:
+                csv_text = await download_export(url)
+                if csv_text is None:
+                    raise RuntimeError(f"Download failed or empty: {url}")
+                run.item_count = sync_fn(db, csv_text)
+                run.status = "succeeded"
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                run.status = "failed"
+                run.error_message = str(exc)[:2000]
+            finally:
+                run.finished_at = datetime.now(timezone.utc)
+                db.commit()
+    finally:
+        db.close()
+
+
+async def run_detectors_job(ctx: dict[str, Any]) -> None:
+    """Nightly integrity detectors -> pending_review flags."""
+    from app.db.session import SessionLocal
+    from app.services.detectors import run_all_detectors
+
+    db = SessionLocal()
+    try:
+        run_all_detectors(db)
+    finally:
+        db.close()
+
+
 class WorkerSettings:
     functions = [
         ingest_incremental,
@@ -192,6 +243,8 @@ class WorkerSettings:
         analyze_new_content,
         embed_new_content,
         sync_petitions_job,
+        sync_influence_job,
+        run_detectors_job,
     ]
     cron_jobs = [
         cron(ingest_incremental, minute={0, 30}),
@@ -199,7 +252,9 @@ class WorkerSettings:
         cron(embed_new_content, minute={50}),  # hourly, after analysis
         cron(sync_petitions_job, hour={5}, minute={30}),  # daily 05:30 UTC
         cron(compute_stats, hour={7}, minute={15}),  # nightly, 07:15 UTC
+        cron(run_detectors_job, hour={8}, minute={0}),  # nightly, after stats
         cron(refresh_politicians, weekday=0, hour={6}, minute={0}),  # Mondays
+        cron(sync_influence_job, weekday=1, hour={4}, minute={0}),  # Tuesdays
     ]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     job_timeout = 3600 * 6

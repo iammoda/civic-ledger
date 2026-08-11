@@ -69,3 +69,11 @@ def require_user(user: AuthUser | None = Depends(get_current_user)) -> AuthUser:
     if user is None:
         raise HTTPException(status_code=401, detail="Sign in required")
     return user
+
+
+def require_admin(user: AuthUser = Depends(require_user)) -> AuthUser:
+    from app.core.config import get_settings
+
+    if user.email.lower() not in get_settings().admin_email_set:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
