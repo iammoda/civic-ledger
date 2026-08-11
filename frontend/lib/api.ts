@@ -311,3 +311,50 @@ export type MoneyResponse = {
 export function getPoliticianMoney(slug: string) {
   return fetchApi<MoneyResponse>(`/politicians/${slug}/money`);
 }
+
+export type BallotRecord = {
+  vote_number: string;
+  session: string;
+  chamber: string;
+  occurred_on: string;
+  description_en: string;
+  plain_meaning_en?: string | null;
+  ballot: string;
+  ballot_effect?: string | null;
+  result?: string | null;
+  broke_party_line: boolean;
+  party_context?: string | null;
+  bill_number?: string | null;
+};
+
+export type VotingRecordResponse = {
+  slug: string;
+  full_name: string;
+  total_ballots: number;
+  dissent_count: number;
+  items: BallotRecord[];
+};
+
+export function getPoliticianVotes(slug: string, options?: { dissentOnly?: boolean }) {
+  const qs = options?.dissentOnly ? "?dissent_only=true" : "";
+  return fetchApi<VotingRecordResponse>(`/politicians/${slug}/votes${qs}`);
+}
+
+export type ComparisonSide = {
+  slug: string;
+  full_name: string;
+  party?: string | null;
+  riding?: string | null;
+  attendance_pct?: number | null;
+  party_line_pct?: number | null;
+  dissent_count?: number | null;
+  votes_cast?: number | null;
+  lobbying_last_12mo: number;
+  donations_total: number;
+};
+
+export function comparePoliticians(a: string, b: string) {
+  return fetchApi<{ a: ComparisonSide; b: ComparisonSide }>(
+    `/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`
+  );
+}

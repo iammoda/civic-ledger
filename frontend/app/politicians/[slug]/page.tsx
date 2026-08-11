@@ -1,14 +1,28 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DataGap } from "@/components/data-gap";
 import { MoneyInfluence } from "@/components/money-influence";
 import { PageShell } from "@/components/page-shell";
 import { StatGrid } from "@/components/stat-grid";
-import { getPolitician, getPoliticianMoney } from "@/lib/api";
+import { VotingRecord } from "@/components/voting-record";
+import { getPolitician, getPoliticianMoney, getPoliticianVotes } from "@/lib/api";
 
-export default async function PoliticianDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function PoliticianDetailPage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ votes?: string }>;
+}) {
   const { slug } = await params;
-  const [politician, money] = await Promise.all([getPolitician(slug), getPoliticianMoney(slug)]);
+  const { votes } = await searchParams;
+  const dissentOnly = votes === "dissent";
+  const [politician, money, votingRecord] = await Promise.all([
+    getPolitician(slug),
+    getPoliticianMoney(slug),
+    getPoliticianVotes(slug, { dissentOnly })
+  ]);
 
   if (!politician) {
     notFound();
@@ -70,10 +84,6 @@ export default async function PoliticianDetailPage({ params }: { params: Promise
               )}
             </div>
           </div>
-        </div>
-
-        <div className="space-y-6">
-          {money ? <MoneyInfluence money={money} /> : null}
           <div className="glass-card rounded-[2rem] p-6">
             <h2 className="text-xl font-semibold">Sponsored bills</h2>
             {politician.sponsored_bill_numbers.length ? (
@@ -87,7 +97,17 @@ export default async function PoliticianDetailPage({ params }: { params: Promise
             ) : (
               <p className="mt-4 text-sm text-slate-600">No sponsored bill data has been attached yet.</p>
             )}
+            <p className="mt-4 border-t border-black/5 pt-3 text-xs text-slate-400">
+              <Link href={`/compare?a=${politician.slug}`} className="text-accent">
+                Compare this MP with another →
+              </Link>
+            </p>
           </div>
+        </div>
+
+        <div className="space-y-6">
+          {votingRecord ? <VotingRecord record={votingRecord} slug={politician.slug} dissentOnly={dissentOnly} /> : null}
+          {money ? <MoneyInfluence money={money} /> : null}
         </div>
       </section>
     </PageShell>
