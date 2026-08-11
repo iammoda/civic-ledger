@@ -124,6 +124,64 @@ export default async function MyPage({
               </Link>
             </div>
           ) : null}
+
+          {lookup?.ladder?.length ? (
+            <div className="mt-5 border-t border-black/5 pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Everyone who represents this postal code
+              </h3>
+              <div className="mt-3 space-y-2">
+                {lookup.ladder.map((rep) => (
+                  <div key={`${rep.office}-${rep.name}`} className="rounded-2xl border border-black/5 bg-white p-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          rep.level === "federal"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : rep.level === "provincial"
+                              ? "bg-sky-50 text-sky-700"
+                              : "bg-violet-50 text-violet-700"
+                        }`}
+                      >
+                        {rep.office}
+                      </span>
+                      {rep.person_slug ? (
+                        <Link href={`/politicians/${rep.person_slug}`} className="font-medium text-accent">
+                          {rep.name}
+                        </Link>
+                      ) : (
+                        <span className="font-medium">{rep.name}</span>
+                      )}
+                      {rep.party_name ? <span className="text-slate-500">· {rep.party_name}</span> : null}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {rep.district_name}
+                      {rep.email ? (
+                        <>
+                          {" · "}
+                          <a href={`mailto:${rep.email}`} className="text-accent">
+                            {rep.email}
+                          </a>
+                        </>
+                      ) : rep.url ? (
+                        <>
+                          {" · "}
+                          <a href={rep.url} target="_blank" rel="noreferrer" className="text-accent">
+                            official page ↗
+                          </a>
+                        </>
+                      ) : null}
+                      {rep.level === "federal" && rep.person_slug ? " · full record on this site" : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Federal MPs get full accountability data here; provincial and municipal reps are contact-only
+                for now.
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="glass-card rounded-[2rem] p-6">

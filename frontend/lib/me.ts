@@ -57,9 +57,21 @@ export type PostalCandidate = {
   person_slug?: string | null;
 };
 
+export type LadderRep = {
+  level: string;
+  office: string;
+  name: string;
+  district_name?: string | null;
+  party_name?: string | null;
+  email?: string | null;
+  url?: string | null;
+  person_slug?: string | null;
+};
+
 export type PostalLookupResponse = {
   candidates: PostalCandidate[];
   ambiguous: boolean;
+  ladder: LadderRep[];
 };
 
 export type TopicItem = {

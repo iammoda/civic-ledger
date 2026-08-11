@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import AuthUser, require_user
 from app.db.session import get_db
 from app.models import Person, Topic, UserFollow, UserProfile
-from app.services.represent import lookup_postal
+from app.services.represent import lookup_postal_full
 
 
 router = APIRouter(tags=["me"])
@@ -25,17 +25,31 @@ class MpCandidateModel(BaseModel):
     person_slug: str | None = None
 
 
+class LadderRepModel(BaseModel):
+    level: str
+    office: str
+    name: str
+    district_name: str | None = None
+    party_name: str | None = None
+    email: str | None = None
+    url: str | None = None
+    person_slug: str | None = None
+
+
 class PostalLookupResponse(BaseModel):
     candidates: list[MpCandidateModel]
     ambiguous: bool
+    # Your full ladder: MP (deep data) + MPP/MLA + councillor/mayor (contact).
+    ladder: list[LadderRepModel] = []
 
 
 @router.get("/lookup/postal/{code}", response_model=PostalLookupResponse)
 async def postal_lookup(code: str, db: Session = Depends(get_db)) -> PostalLookupResponse:
     """Anonymous-first: works without an account; nothing is stored."""
-    candidates = await lookup_postal(db, code)
-    if candidates is None:
+    result = await lookup_postal_full(db, code)
+    if result is None:
         raise HTTPException(status_code=502, detail="Postal lookup unavailable or invalid postal code")
+    candidates, ladder = result
     return PostalLookupResponse(
         candidates=[
             MpCandidateModel(
@@ -48,6 +62,13 @@ async def postal_lookup(code: str, db: Session = Depends(get_db)) -> PostalLooku
             for c in candidates
         ],
         ambiguous=len(candidates) > 1,
+        ladder=[
+            LadderRepModel(
+                level=r.level, office=r.office, name=r.name, district_name=r.district_name,
+                party_name=r.party_name, email=r.email, url=r.url, person_slug=r.person_slug,
+            )
+            for r in ladder
+        ],
     )
 
 

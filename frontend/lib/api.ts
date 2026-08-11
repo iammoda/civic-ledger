@@ -396,3 +396,59 @@ export function comparePoliticians(a: string, b: string) {
     `/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`
   );
 }
+
+export type ExpenseItemModel = {
+  id: number;
+  category: string;
+  fiscal_year: number;
+  quarter: number;
+  supplier?: string | null;
+  description?: string | null;
+  occurred_on?: string | null;
+  amount: number;
+  traveller_name?: string | null;
+  traveller_type?: string | null;
+  purpose?: string | null;
+  city?: string | null;
+  source_url: string;
+  mp_name?: string | null;
+  mp_slug?: string | null;
+  flagged: boolean;
+};
+
+export type MpExpensesResponse = {
+  slug: string;
+  full_name: string;
+  quarters: Array<{
+    fiscal_year: number;
+    quarter: number;
+    salaries: number;
+    travel: number;
+    hospitality: number;
+    contracts: number;
+    total: number;
+    caucus_median_total?: number | null;
+  }>;
+  top_items: ExpenseItemModel[];
+  top_suppliers: Array<{ supplier: string; total: number; count: number }>;
+  flags: Array<{ detector: string; headline_en: string; detail_en?: string | null }>;
+  sources_note: string;
+};
+
+export function getPoliticianExpenses(slug: string) {
+  return fetchApi<MpExpensesResponse>(`/politicians/${slug}/expenses`);
+}
+
+export function searchExpenses(params: {
+  q?: string;
+  category?: string;
+  fiscal_year?: string;
+  min_amount?: string;
+  sort?: string;
+}) {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) searchParams.set(key, value);
+  }
+  return fetchApi<PaginatedResponse<ExpenseItemModel>>(`/expenses/search?${searchParams.toString()}`);
+}

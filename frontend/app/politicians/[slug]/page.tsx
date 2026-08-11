@@ -2,11 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DataGap } from "@/components/data-gap";
+import { ExpensesCard } from "@/components/expenses-card";
 import { MoneyInfluence } from "@/components/money-influence";
 import { PageShell } from "@/components/page-shell";
 import { StatGrid } from "@/components/stat-grid";
 import { VotingRecord } from "@/components/voting-record";
-import { getPolitician, getPoliticianMoney, getPoliticianVotes } from "@/lib/api";
+import { getPolitician, getPoliticianExpenses, getPoliticianMoney, getPoliticianVotes } from "@/lib/api";
 
 export default async function PoliticianDetailPage({
   params,
@@ -18,10 +19,11 @@ export default async function PoliticianDetailPage({
   const { slug } = await params;
   const { votes } = await searchParams;
   const dissentOnly = votes === "dissent";
-  const [politician, money, votingRecord] = await Promise.all([
+  const [politician, money, votingRecord, expenses] = await Promise.all([
     getPolitician(slug),
     getPoliticianMoney(slug),
-    getPoliticianVotes(slug, { dissentOnly })
+    getPoliticianVotes(slug, { dissentOnly }),
+    getPoliticianExpenses(slug)
   ]);
 
   if (!politician) {
@@ -108,6 +110,7 @@ export default async function PoliticianDetailPage({
         <div className="space-y-6">
           {votingRecord ? <VotingRecord record={votingRecord} slug={politician.slug} dissentOnly={dissentOnly} /> : null}
           {money ? <MoneyInfluence money={money} /> : null}
+          {expenses ? <ExpensesCard expenses={expenses} /> : null}
         </div>
       </section>
     </PageShell>

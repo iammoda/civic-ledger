@@ -5,6 +5,7 @@ from app.api import (
     admin,
     behavior,
     bills,
+    expenses,
     committees,
     debates,
     feed,
@@ -24,6 +25,7 @@ api_router.include_router(feed.router)
 api_router.include_router(actions.router)
 api_router.include_router(money.router)
 api_router.include_router(behavior.router)
+api_router.include_router(expenses.router)
 api_router.include_router(admin.router)
 api_router.include_router(petitions.router)
 api_router.include_router(politicians.router)

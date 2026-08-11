@@ -79,6 +79,14 @@ export default async function AskPage({
             {response.jurisdiction_note ? (
               <p className="mt-3 text-sm leading-6 text-slate-600">{response.jurisdiction_note}</p>
             ) : null}
+            {["provincial", "municipal", "mixed"].includes(response.jurisdiction_level) ? (
+              <p className="mt-3 text-sm text-slate-600">
+                <Link href="/my" className="font-medium text-accent">
+                  Find who represents you at that level →
+                </Link>{" "}
+                (enter your postal code — we show your MPP and city councillor too)
+              </p>
+            ) : null}
             {response.responsible_ministry ? (
               <p className="mt-3 text-sm text-slate-600">
                 <span className="font-medium">Responsible federally:</span> {response.responsible_ministry}

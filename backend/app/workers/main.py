@@ -220,6 +220,39 @@ async def sync_influence_job(ctx: dict[str, Any]) -> None:
         db.close()
 
 
+async def sync_expenses_job(ctx: dict[str, Any], quarters: list | None = None) -> None:
+    """Weekly: MP expense summaries + line items (current quarter by default;
+    pass explicit [(year, quarter), ...] for backfill runs)."""
+    from datetime import datetime, timezone
+
+    from app.db.session import SessionLocal
+    from app.ingestion.expenses import ExpensesClient, sync_expenses
+    from app.models import IngestionRun
+
+    db = SessionLocal()
+    try:
+        run = IngestionRun(source_name="proactive_disclosure", job_name="expenses_sync", status="running")
+        db.add(run)
+        db.commit()
+        try:
+            async with ExpensesClient() as client:
+                quarter_tuples = [tuple(q) for q in quarters] if quarters else None
+                counts = await sync_expenses(db, client, quarters=quarter_tuples)
+            run.item_count = counts["summaries"] + counts["items"]
+            run.metadata_json = counts
+            run.status = "succeeded"
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            run.status = "failed"
+            run.error_message = str(exc)[:2000]
+            raise
+        finally:
+            run.finished_at = datetime.now(timezone.utc)
+            db.commit()
+    finally:
+        db.close()
+
+
 async def run_detectors_job(ctx: dict[str, Any]) -> None:
     """Nightly integrity detectors -> pending_review flags."""
     from app.db.session import SessionLocal
@@ -256,6 +289,7 @@ class WorkerSettings:
         embed_new_content,
         sync_petitions_job,
         sync_influence_job,
+        sync_expenses_job,
         run_detectors_job,
         match_notifications_job,
     ]
@@ -269,6 +303,7 @@ class WorkerSettings:
         cron(run_detectors_job, hour={8}, minute={0}),  # nightly, after stats
         cron(refresh_politicians, weekday=0, hour={6}, minute={0}),  # Mondays
         cron(sync_influence_job, weekday=1, hour={4}, minute={0}),  # Tuesdays
+        cron(sync_expenses_job, weekday=2, hour={4}, minute={0}),  # Wednesdays
     ]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     job_timeout = 3600 * 6

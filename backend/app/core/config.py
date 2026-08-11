@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     )
     # Elections Canada contributions export (CSV or ZIP of CSV).
     contributions_export_url: str = Field(default="", alias="CONTRIBUTIONS_EXPORT_URL")
+    # Expense flag thresholds (big-ticket per single item, by category).
+    expense_big_contract: float = Field(default=25000.0, alias="EXPENSE_BIG_CONTRACT")
+    expense_big_hospitality: float = Field(default=5000.0, alias="EXPENSE_BIG_HOSPITALITY")
+    expense_big_travel: float = Field(default=15000.0, alias="EXPENSE_BIG_TRAVEL")
+    # Quarterly category total vs caucus median.
+    expense_outlier_multiplier: float = Field(default=2.5, alias="EXPENSE_OUTLIER_MULTIPLIER")
+    expense_outlier_floor: float = Field(default=10000.0, alias="EXPENSE_OUTLIER_FLOOR")
     backend_cors_origins: str = Field(
         default="http://localhost:3000",
         alias="BACKEND_CORS_ORIGINS",

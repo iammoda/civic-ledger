@@ -725,3 +725,57 @@ class Notification(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("user_id", "fingerprint", name="uq_notification_user_event"),
     )
+
+
+class ExpenseSummary(Base, TimestampMixin):
+    """Quarterly expense totals per MP (HoC Proactive Disclosure summary CSV)."""
+
+    __tablename__ = "expense_summaries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True, index=True)
+    mp_name_raw: Mapped[str] = mapped_column(String(255), index=True)  # "Alghabra, Hon. Omar"
+    constituency: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    caucus: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    fiscal_year: Mapped[int] = mapped_column(Integer, index=True)  # e.g. 2025 = FY2025-26 page year
+    quarter: Mapped[int] = mapped_column(Integer, index=True)  # 1-4
+    salaries: Mapped[float] = mapped_column(Float, default=0.0)
+    travel: Mapped[float] = mapped_column(Float, default=0.0)
+    hospitality: Mapped[float] = mapped_column(Float, default=0.0)
+    contracts: Mapped[float] = mapped_column(Float, default=0.0)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    person: Mapped[Person | None] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("mp_name_raw", "fiscal_year", "quarter", name="uq_expense_summary_mp_quarter"),
+    )
+
+
+class ExpenseItem(Base, TimestampMixin):
+    """One expense line item (travel claim / hospitality event / contract)."""
+
+    __tablename__ = "expense_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True, index=True)
+    mp_name_raw: Mapped[str] = mapped_column(String(255), index=True)
+    category: Mapped[str] = mapped_column(String(16), index=True)  # travel|hospitality|contract
+    fiscal_year: Mapped[int] = mapped_column(Integer, index=True)
+    quarter: Mapped[int] = mapped_column(Integer, index=True)
+    supplier: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True, index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occurred_on: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    amount: Mapped[float] = mapped_column(Float, default=0.0, index=True)
+    # Travel-specific context
+    traveller_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    traveller_type: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    purpose: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    claim_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_url: Mapped[str] = mapped_column(String(500))
+    fingerprint: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+
+    person: Mapped[Person | None] = relationship()
+    organization: Mapped[Organization | None] = relationship()
