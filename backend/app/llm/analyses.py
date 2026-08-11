@@ -28,7 +28,7 @@ from app.llm.readability import (
     reading_grade,
     within_hard_ceiling,
 )
-from app.models import AnalysisResult, Bill, EntityTopic, Topic, Vote
+from app.models import AnalysisResult, Bill, EntityTopic, Petition, Topic, Vote
 
 NEUTRAL_SYSTEM = (
     "You are a rigorously neutral, non-partisan civic analyst for a Canadian "
@@ -378,21 +378,52 @@ async def tag_bill_topics(db: Session, bill_id: int, *, force: bool = False) -> 
     bill = db.get(Bill, bill_id)
     if bill is None:
         return 0
+    text = " ".join(filter(None, [bill.number, bill.title_en, bill.short_title_en, bill.status_en]))
+    return await _tag_entity_topics(
+        db, entity_type="bill", entity_id=bill.id, text=text, kind="Canadian federal bill", force=force
+    )
 
+
+async def tag_petition_topics(db: Session, petition_id: int, *, force: bool = False) -> int:
+    """Tag an e-petition. Official HoC subject keywords ride along as input."""
+    petition = db.get(Petition, petition_id)
+    if petition is None:
+        return 0
+    text = " ".join(
+        filter(
+            None,
+            [petition.number, petition.title_en, petition.keywords_en, (petition.text_en or "")[:2000]],
+        )
+    )
+    return await _tag_entity_topics(
+        db,
+        entity_type="petition",
+        entity_id=petition.id,
+        text=text,
+        kind="petition to the House of Commons",
+        force=force,
+    )
+
+
+async def _tag_entity_topics(
+    db: Session, *, entity_type: str, entity_id: int, text: str, kind: str, force: bool
+) -> int:
     if not force:
         already = db.scalar(
             select(EntityTopic.id)
-            .where(EntityTopic.entity_type == "bill", EntityTopic.entity_id == bill_id, EntityTopic.source == "llm")
+            .where(
+                EntityTopic.entity_type == entity_type,
+                EntityTopic.entity_id == entity_id,
+                EntityTopic.source == "llm",
+            )
             .limit(1)
         )
         if already is not None:
             return 0
 
-    text = " ".join(filter(None, [bill.number, bill.title_en, bill.short_title_en, bill.status_en]))
-
     count = 0
     for topic, confidence in _alias_match_topics(db, text):
-        _upsert_entity_topic(db, topic, "bill", bill.id, confidence, "alias")
+        _upsert_entity_topic(db, topic, entity_type, entity_id, confidence, "alias")
         count += 1
 
     client = LLMClient(fast=True)
@@ -401,9 +432,9 @@ async def tag_bill_topics(db: Session, bill_id: int, *, force: bool = False) -> 
         taxonomy = db.scalars(select(Topic)).all()
         taxonomy_desc = "\n".join(f"- {t.slug}: {t.name_en} ({t.aliases_en or ''})" for t in taxonomy)
         prompt = (
-            "Tag this Canadian federal bill with the topics that clearly apply "
-            "(max 4). Use only slugs from the taxonomy.\n\n"
-            f"Bill: {text}\n\nTaxonomy:\n{taxonomy_desc}"
+            f"Tag this {kind} with the topics that clearly apply (max 4). "
+            "Use only slugs from the taxonomy.\n\n"
+            f"Item: {text}\n\nTaxonomy:\n{taxonomy_desc}"
         )
         result = await asyncio.to_thread(
             client.structured_response,
@@ -412,13 +443,13 @@ async def tag_bill_topics(db: Session, bill_id: int, *, force: bool = False) -> 
             system=NEUTRAL_SYSTEM,
             max_tokens=512,
         )
-        record_usage(db, result, job_name="bill_topic_tagging", entity_type="bill", entity_id=bill.id)
+        record_usage(db, result, job_name=f"{entity_type}_topic_tagging", entity_type=entity_type, entity_id=entity_id)
         valid = {t.slug: t for t in taxonomy}
         for item in result.data.get("topics") or []:
             topic = valid.get(item.get("slug"))
             if topic is None:
                 continue
-            _upsert_entity_topic(db, topic, "bill", bill.id, float(item.get("confidence") or 0.5), "llm")
+            _upsert_entity_topic(db, topic, entity_type, entity_id, float(item.get("confidence") or 0.5), "llm")
             count += 1
 
     db.commit()

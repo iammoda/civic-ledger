@@ -83,9 +83,9 @@ async def analyze_new_content(ctx: dict[str, Any]) -> None:
     """
     from app.data.topics import seed_topics
     from app.db.session import SessionLocal
-    from app.llm.analyses import analyze_bill, normalize_vote, tag_bill_topics
+    from app.llm.analyses import analyze_bill, normalize_vote, tag_bill_topics, tag_petition_topics
     from app.llm.budget import BudgetExceededError
-    from app.models import AnalysisResult, Bill, LegislatureSession, Vote
+    from app.models import AnalysisResult, Bill, EntityTopic, LegislatureSession, Petition, Vote
 
     db = SessionLocal()
     try:
@@ -113,14 +113,56 @@ async def analyze_new_content(ctx: dict[str, Any]) -> None:
             .limit(10)
         ).all()
 
+        # Untagged petitions: modest hourly batch (alias pass is free).
+        tagged_petition_ids = select(EntityTopic.entity_id).where(
+            EntityTopic.entity_type == "petition", EntityTopic.source == "llm"
+        )
+        petitions = db.scalars(
+            select(Petition)
+            .where(Petition.id.not_in(tagged_petition_ids))
+            .order_by(Petition.id.desc())
+            .limit(20)
+        ).all()
+
         try:
             for vote in votes:
                 await normalize_vote(db, vote.id)
             for bill in bills:
                 await analyze_bill(db, bill.id)
                 await tag_bill_topics(db, bill.id)
+            for petition in petitions:
+                await tag_petition_topics(db, petition.id)
         except BudgetExceededError:
             return  # Hard cap reached; resume next month.
+    finally:
+        db.close()
+
+
+async def sync_petitions_job(ctx: dict[str, Any]) -> None:
+    """Daily e-petitions sync (open sweep + recent pages + prayer texts)."""
+    from datetime import datetime, timezone
+
+    from app.db.session import SessionLocal
+    from app.ingestion.petitions import PetitionsClient, sync_petitions
+    from app.models import IngestionRun
+
+    db = SessionLocal()
+    try:
+        run = IngestionRun(source_name="ourcommons_petitions", job_name="petitions_sync", status="running")
+        db.add(run)
+        db.commit()
+        try:
+            async with PetitionsClient() as client:
+                run.item_count = await sync_petitions(db, client)
+            run.status = "succeeded"
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            run.status = "failed"
+            run.error_message = str(exc)[:2000]
+            raise
+        finally:
+            run.finished_at = datetime.now(timezone.utc)
+            db.commit()
     finally:
         db.close()
 
@@ -134,6 +176,7 @@ async def embed_new_content(ctx: dict[str, Any]) -> None:
     try:
         await embed_pending(db, entity_type="bill")
         await embed_pending(db, entity_type="vote")
+        await embed_pending(db, entity_type="petition")
     finally:
         db.close()
 
@@ -148,11 +191,13 @@ class WorkerSettings:
         normalize_vote_job,
         analyze_new_content,
         embed_new_content,
+        sync_petitions_job,
     ]
     cron_jobs = [
         cron(ingest_incremental, minute={0, 30}),
         cron(analyze_new_content, minute={45}),  # hourly eager pass
         cron(embed_new_content, minute={50}),  # hourly, after analysis
+        cron(sync_petitions_job, hour={5}, minute={30}),  # daily 05:30 UTC
         cron(compute_stats, hour={7}, minute={15}),  # nightly, 07:15 UTC
         cron(refresh_politicians, weekday=0, hour={6}, minute={0}),  # Mondays
     ]

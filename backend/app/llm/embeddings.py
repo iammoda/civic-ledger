@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.llm.base import EmbeddingClient, StructuredResult
 from app.llm.budget import record_usage
-from app.models import Bill, Embedding, Vote
+from app.models import Bill, Embedding, Petition, Vote
 
 EMBED_BATCH_SIZE = 96
 
@@ -34,6 +34,16 @@ def vote_embed_text(vote: Vote) -> str:
     return "\n".join(p for p in parts if p)
 
 
+def petition_embed_text(petition: Petition) -> str:
+    parts = [
+        petition.number,
+        petition.title_en,
+        petition.keywords_en or "",
+        (petition.text_en or "")[:4000],
+    ]
+    return "\n".join(p for p in parts if p)
+
+
 def _hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
@@ -50,6 +60,9 @@ async def embed_pending(db: Session, *, entity_type: str, limit: int = 500) -> i
     elif entity_type == "vote":
         rows = db.scalars(select(Vote).order_by(Vote.id.desc()).limit(limit * 4)).all()
         texts = {row.id: vote_embed_text(row) for row in rows}
+    elif entity_type == "petition":
+        rows = db.scalars(select(Petition).order_by(Petition.id.desc()).limit(limit * 4)).all()
+        texts = {row.id: petition_embed_text(row) for row in rows}
     else:
         raise ValueError(f"Unsupported entity_type: {entity_type}")
 

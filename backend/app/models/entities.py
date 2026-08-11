@@ -574,3 +574,27 @@ class UserFollow(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("user_id", "target_type", "target_ref", name="uq_user_follow"),
     )
+
+
+class Petition(Base, TimestampMixin):
+    """House of Commons e-petition (official petitions.ourcommons.ca)."""
+
+    __tablename__ = "petitions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    number: Mapped[str] = mapped_column(String(16), unique=True, index=True)  # "e-7601"
+    title_en: Mapped[str] = mapped_column(String(500))  # Subject line
+    text_en: Mapped[str | None] = mapped_column(Text, nullable=True)  # Prayer text
+    # Raw status from the site + normalized state: open | closed
+    status_en: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    state: Mapped[str] = mapped_column(String(16), default="open", index=True)
+    closes_at: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    signature_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Official subject keywords, comma-separated (from the HoC index).
+    keywords_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sponsor_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sponsor_person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True, index=True)
+    parliament_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_url: Mapped[str] = mapped_column(String(500))
+
+    sponsor: Mapped[Person | None] = relationship()

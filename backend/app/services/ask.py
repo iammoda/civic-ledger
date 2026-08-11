@@ -112,9 +112,10 @@ ASK_SCHEMA: dict[str, Any] = {
 
 
 def _evidence_block(evidence: list[SearchResult]) -> str:
+    kinds = {"bill": "Bill", "vote": "Vote", "petition": "Petition (open for public signature)"}
     lines = []
     for i, item in enumerate(evidence, start=1):
-        kind = "Bill" if item.entity_type == "bill" else "Vote"
+        kind = kinds.get(item.entity_type, item.entity_type)
         outcome = f" (outcome: {item.outcome.replace('_', ' ')})" if item.outcome else ""
         lines.append(f"[{i}] {kind}: {item.title}{outcome} — {item.snippet}")
     return "\n".join(lines) or "(no matching federal evidence found)"

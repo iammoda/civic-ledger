@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import func, or_, select, text as sql_text
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Bill, Embedding, Topic, Vote
+from app.models import Bill, Embedding, Petition, Topic, Vote
 
 RRF_K = 60
 
@@ -67,6 +67,25 @@ def _vote_result(vote: Vote) -> SearchResult:
     )
 
 
+def _petition_result(petition: Petition) -> SearchResult:
+    snippet_bits = []
+    if petition.state == "open":
+        snippet_bits.append(
+            f"Open for signature{f' until {petition.closes_at}' if petition.closes_at else ''}"
+        )
+        snippet_bits.append(f"{petition.signature_count:,} signatures")
+    else:
+        snippet_bits.append(petition.status_en or "Closed")
+    return SearchResult(
+        entity_type="petition",
+        entity_id=petition.id,
+        title=f"Petition {petition.number} — {petition.title_en}",
+        snippet=" · ".join(snippet_bits),
+        # External official page (also where people sign).
+        url_path=petition.source_url,
+    )
+
+
 def keyword_search(db: Session, query: str, *, limit: int = 20) -> list[SearchResult]:
     results: list[SearchResult] = []
 
@@ -97,6 +116,20 @@ def keyword_search(db: Session, query: str, *, limit: int = 20) -> list[SearchRe
             .order_by(func.ts_rank(vote_doc, ts_query).desc())
             .limit(limit)
         ).all()
+        petition_doc = func.to_tsvector(
+            "english",
+            Petition.title_en
+            + " "
+            + func.coalesce(Petition.keywords_en, "")
+            + " "
+            + func.coalesce(Petition.text_en, ""),
+        )
+        petitions = db.scalars(
+            select(Petition)
+            .where(petition_doc.op("@@")(ts_query))
+            .order_by(Petition.state.asc(), func.ts_rank(petition_doc, ts_query).desc())
+            .limit(limit)
+        ).all()
     else:
         # Dev/test fallback: per-word LIKE across the same fields.
         words = [w for w in query.split() if len(w) >= 3][:8]
@@ -121,9 +154,15 @@ def keyword_search(db: Session, query: str, *, limit: int = 20) -> list[SearchRe
             .where(or_(*clauses(Vote.description_en)))
             .limit(limit)
         ).all()
+        petitions = db.scalars(
+            select(Petition)
+            .where(or_(*clauses(Petition.title_en, Petition.keywords_en, Petition.text_en)))
+            .limit(limit)
+        ).all()
 
     results.extend(_bill_result(b) for b in bills)
     results.extend(_vote_result(v) for v in votes)
+    results.extend(_petition_result(p) for p in petitions)
     return results
 
 
@@ -155,6 +194,10 @@ def vector_search(db: Session, query_vector: list[float], *, limit: int = 20) ->
             )
             if vote is not None:
                 results.append(_vote_result(vote))
+        elif entity_type == "petition":
+            petition = db.get(Petition, entity_id)
+            if petition is not None:
+                results.append(_petition_result(petition))
     return results
 
 

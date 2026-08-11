@@ -259,3 +259,26 @@ export async function askQuestion(question: string): Promise<AskResponse | null>
     return null;
   }
 }
+
+export type PetitionItem = {
+  number: string;
+  title_en: string;
+  state: string;
+  status_en?: string | null;
+  closes_at?: string | null;
+  days_left?: number | null;
+  signature_count: number;
+  keywords: string[];
+  sponsor_name?: string | null;
+  sponsor_slug?: string | null;
+  sign_url: string;
+  topics: string[];
+};
+
+export function listPetitions(params?: { state?: string; topic?: string }) {
+  const searchParams = new URLSearchParams();
+  if (params?.state) searchParams.set("state", params.state);
+  if (params?.topic) searchParams.set("topic", params.topic);
+  const qs = searchParams.toString();
+  return fetchApi<PaginatedResponse<PetitionItem>>(`/petitions${qs ? `?${qs}` : ""}`);
+}
