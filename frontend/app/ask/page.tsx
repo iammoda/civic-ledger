@@ -1,8 +1,23 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
-import { askQuestionAuthed } from "@/lib/me";
+import { auth } from "@/lib/auth";
+import { askQuestionAuthed, authedFetch, getMe } from "@/lib/me";
+
+async function watchQuestion(formData: FormData) {
+  "use server";
+  await authedFetch("/me/follows", {
+    method: "POST",
+    body: JSON.stringify({
+      target_type: "question",
+      target_ref: String(formData.get("question") ?? "").slice(0, 500)
+    })
+  });
+  revalidatePath("/ask");
+}
 
 const JURISDICTION_LABELS: Record<string, { label: string; className: string }> = {
   federal: { label: "Federal responsibility", className: "bg-emerald-50 text-emerald-700" },
@@ -19,7 +34,14 @@ export default async function AskPage({
 }) {
   const { q } = await searchParams;
   const question = (q ?? "").trim();
-  const response = question.length >= 8 ? await askQuestionAuthed(question) : null;
+  const [session, response] = await Promise.all([
+    auth.api.getSession({ headers: await headers() }),
+    question.length >= 8 ? askQuestionAuthed(question) : Promise.resolve(null)
+  ]);
+  const me = session ? await getMe() : null;
+  const alreadyWatching = Boolean(
+    me?.follows.some((f) => f.target_type === "question" && f.target_ref === question)
+  );
   const jurisdiction = response
     ? JURISDICTION_LABELS[response.jurisdiction_level] ?? JURISDICTION_LABELS.unknown
     : null;
@@ -87,7 +109,17 @@ export default async function AskPage({
                 (enter your postal code — we show your MPP and city councillor too)
               </p>
             ) : null}
-            {response.responsible_ministry ? (
+            {response.minister ? (
+              <div className="mt-4 rounded-3xl border border-black/10 bg-white p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Responsible federally</p>
+                <p className="mt-1 text-lg font-semibold">
+                  <Link href={`/politicians/${response.minister.slug}`} className="text-accent">
+                    {response.minister.name}
+                  </Link>
+                </p>
+                <p className="text-sm text-slate-600">{response.minister.title}</p>
+              </div>
+            ) : response.responsible_ministry ? (
               <p className="mt-3 text-sm text-slate-600">
                 <span className="font-medium">Responsible federally:</span> {response.responsible_ministry}
               </p>
@@ -96,6 +128,26 @@ export default async function AskPage({
               <p className="mt-5 whitespace-pre-line border-t border-black/5 pt-5 text-sm leading-7 text-slate-700">
                 {response.answer_detail}
               </p>
+            ) : null}
+            {session && question ? (
+              alreadyWatching ? (
+                <p className="mt-4 text-sm text-emerald-700">
+                  ✓ Watching — we&apos;ll notify you when new bills relate to this.
+                </p>
+              ) : (
+                <form action={watchQuestion} className="mt-4">
+                  <input type="hidden" name="question" value={question} />
+                  <button
+                    type="submit"
+                    className="rounded-full border border-accent px-5 py-2.5 text-sm font-medium text-accent transition hover:bg-accent hover:text-white"
+                  >
+                    Watch this question
+                  </button>
+                  <span className="ml-3 text-xs text-slate-400">
+                    Get notified when new bills relate to it
+                  </span>
+                </form>
+              )
             ) : null}
             {response.generated ? (
               <p className="mt-5 text-xs text-slate-400">

@@ -279,6 +279,7 @@ export type AskResponse = {
   my_mp_name?: string | null;
   my_mp_slug?: string | null;
   mp_ballots: MpBallotItem[];
+  minister?: { name: string; slug: string; title: string } | null;
 };
 
 export async function askQuestion(question: string): Promise<AskResponse | null> {

@@ -27,6 +27,117 @@ from app.models import (
 
 LOOKBACK_DAYS = 7
 PETITION_CLOSING_DAYS = 7
+# Cosine-distance ceiling for question-follow matches (text-embedding-3-small).
+QUESTION_MATCH_MAX_DISTANCE = 0.55
+_STOPWORDS = {
+    "the", "and", "for", "that", "this", "with", "from", "have", "what", "who",
+    "why", "how", "can", "cant", "cannot", "about", "will", "are", "was", "were",
+    "not", "get", "got", "its", "any", "does", "did", "should", "would", "could",
+    "afford", "going", "being", "been", "they", "them", "their", "there",
+}
+
+
+def _significant_tokens(text: str) -> set[str]:
+    import re
+
+    return {
+        token
+        for token in re.findall(r"[a-z]{4,}", text.lower())
+        if token not in _STOPWORDS
+    }
+
+
+def _keyword_question_match(db: Session, question: str, bill: Bill) -> bool:
+    """Fallback matcher: token overlap with title + topic names/aliases."""
+    question_tokens = _significant_tokens(question)
+    if not question_tokens:
+        return False
+    bill_text = " ".join(filter(None, [bill.title_en, bill.short_title_en]))
+    topic_rows = db.execute(
+        select(Topic.name_en, Topic.aliases_en)
+        .join(EntityTopic, EntityTopic.topic_id == Topic.id)
+        .where(EntityTopic.entity_type == "bill", EntityTopic.entity_id == bill.id)
+    ).all()
+    for name, aliases in topic_rows:
+        bill_text += f" {name} {aliases or ''}"
+    return len(question_tokens & _significant_tokens(bill_text)) >= 2
+
+
+def _question_embedding(db: Session, follow: UserFollow) -> list[float] | None:
+    """Get-or-create the cached embedding for a watched question."""
+    from app.llm.base import EmbeddingClient
+    from app.models import Embedding
+
+    existing = db.scalar(
+        select(Embedding).where(
+            Embedding.entity_type == "question", Embedding.entity_id == follow.id
+        )
+    )
+    if existing is not None:
+        return list(existing.vector)
+    client = EmbeddingClient()
+    if not client.is_configured():
+        return None
+    vector = client.embed([follow.target_ref])[0]
+    import hashlib
+
+    db.add(
+        Embedding(
+            entity_type="question",
+            entity_id=follow.id,
+            content_hash=hashlib.sha256(follow.target_ref.encode()).hexdigest(),
+            model_name=client.model,
+            vector=vector,
+        )
+    )
+    db.flush()
+    return vector
+
+
+def _match_question_follow(db: Session, follow: UserFollow, cutoff: datetime) -> list[Bill]:
+    """New bills matching a watched question: vector similarity on Postgres,
+    keyword-overlap fallback everywhere else."""
+    from app.models import Embedding
+
+    new_bills = db.scalars(
+        select(Bill).options(selectinload(Bill.session)).where(Bill.created_at >= cutoff)
+    ).all()
+    if not new_bills:
+        return []
+
+    is_postgres = db.get_bind().dialect.name == "postgresql"
+    if is_postgres:
+        vector = _question_embedding(db, follow)
+        if vector is not None:
+            bill_ids = [bill.id for bill in new_bills]
+            matched_ids = {
+                row[0]
+                for row in db.execute(
+                    select(Embedding.entity_id)
+                    .where(
+                        Embedding.entity_type == "bill",
+                        Embedding.entity_id.in_(bill_ids),
+                        Embedding.vector.cosine_distance(vector) <= QUESTION_MATCH_MAX_DISTANCE,
+                    )
+                ).all()
+            }
+            vector_hits = [bill for bill in new_bills if bill.id in matched_ids]
+            # Bills without embeddings yet still get the keyword pass.
+            unembedded = [
+                bill
+                for bill in new_bills
+                if bill.id not in matched_ids
+                and db.scalar(
+                    select(Embedding.id).where(
+                        Embedding.entity_type == "bill", Embedding.entity_id == bill.id
+                    )
+                )
+                is None
+                and _keyword_question_match(db, follow.target_ref, bill)
+            ]
+            return vector_hits + unembedded
+
+    return [bill for bill in new_bills if _keyword_question_match(db, follow.target_ref, bill)]
 
 
 def _fingerprint(*parts: object) -> str:
@@ -223,6 +334,21 @@ def match_notifications(db: Session, *, now: datetime | None = None) -> int:
                     url_path=f"/politicians/{person.slug}",
                     matched_follow=matched,
                     fingerprint=_fingerprint("mp_voted", person.id, week_bucket.year, week_bucket.week),
+                ):
+                    created += 1
+
+        elif follow.target_type == "question":
+            for bill in _match_question_follow(db, follow, cutoff):
+                short_question = follow.target_ref[:80] + ("…" if len(follow.target_ref) > 80 else "")
+                if _notify(
+                    db,
+                    user_id=follow.user_id,
+                    kind="question_match",
+                    title=f"New bill may relate to your question: “{short_question}”",
+                    body=f"{bill.number} — {bill.short_title_en or bill.title_en}",
+                    url_path=f"/bills/{bill.session.label}/{bill.number}",
+                    matched_follow=matched,
+                    fingerprint=_fingerprint("question_match", follow.id, bill.id),
                 ):
                     created += 1
 

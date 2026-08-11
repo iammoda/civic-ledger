@@ -37,6 +37,7 @@ NEUTRAL_SYSTEM = (
 # (level, area) — first match wins; LLM refines when configured.
 JURISDICTION_HINTS: list[tuple[tuple[str, ...], str, str]] = [
     (("rent", "landlord", "tenant", "eviction"), "provincial", "housing & tenancy rules"),
+    (("afford housing", "housing crisis", "house prices", "housing supply", "afford a home"), "mixed", "housing (federal funding, provincial rules, municipal zoning)"),
     (("doctor", "hospital", "wait time", "surgery", "family physician"), "provincial", "health care delivery"),
     (("school", "teacher", "tuition", "curriculum"), "provincial", "education"),
     (("garbage", "trash", "pothole", "zoning", "transit route", "parking"), "municipal", "local services"),
@@ -57,6 +58,74 @@ JURISDICTION_HINTS: list[tuple[tuple[str, ...], str, str]] = [
 class JurisdictionGuess:
     level: str  # federal | provincial | municipal | mixed | unknown
     area: str | None = None
+
+
+@dataclass(slots=True)
+class ResponsibleMinister:
+    name: str
+    slug: str
+    title: str
+
+
+def _responsible_minister(
+    db: Session, evidence: list[SearchResult], question: str = ""
+) -> ResponsibleMinister | None:
+    """Deterministic: evidence-bill topics -> current minister portfolios.
+
+    Topics are ranked by (mentioned in the question itself, frequency
+    across evidence) so one off-topic evidence bill can't hijack the
+    answer."""
+    from collections import Counter
+
+    from app.models import EntityTopic, Person, PersonRole, Topic
+
+    bill_ids = [item.entity_id for item in evidence if item.entity_type == "bill"]
+    if not bill_ids:
+        return None
+    rows = db.execute(
+        select(Topic.slug, Topic.name_en, Topic.aliases_en)
+        .join(EntityTopic, EntityTopic.topic_id == Topic.id)
+        .where(EntityTopic.entity_type == "bill", EntityTopic.entity_id.in_(bill_ids))
+    ).all()
+    if not rows:
+        return None
+
+    counts = Counter(slug for slug, _, _ in rows)
+    question_lower = question.lower()
+
+    def mentioned(slug: str) -> bool:
+        for row_slug, name, aliases in rows:
+            if row_slug != slug:
+                continue
+            terms = [name.lower()] + [a.strip().lower() for a in (aliases or "").split(",")]
+            # Also match individual significant words of the topic name
+            # ("Climate & Environment" -> "climate", "environment").
+            terms.extend(word for word in name.lower().split() if len(word) >= 5)
+            return any(term and term in question_lower for term in terms)
+        return False
+
+    ranked = sorted(counts, key=lambda slug: (mentioned(slug), counts[slug]), reverse=True)
+    for slug in ranked:
+        # Guardrail: a minister card must be earned — the topic has to be
+        # named in the question itself or dominate the evidence. One
+        # off-topic bill must never produce a wrong "responsible minister".
+        if not mentioned(slug) and counts[slug] < 3:
+            continue
+        role = db.scalar(
+            select(PersonRole)
+            .where(
+                PersonRole.role_type == "minister",
+                PersonRole.is_current.is_(True),
+                PersonRole.portfolio_slug == slug,
+            )
+            .limit(1)
+        )
+        if role is None:
+            continue
+        person = db.get(Person, role.person_id)
+        if person is not None:
+            return ResponsibleMinister(name=person.full_name, slug=person.slug, title=role.title_en)
+    return None
 
 
 @dataclass(slots=True)
@@ -88,6 +157,7 @@ class AskResponse:
     my_mp_name: str | None = None
     my_mp_slug: str | None = None
     mp_ballots: list[MpBallotEvidence] = field(default_factory=list)
+    minister: ResponsibleMinister | None = None
 
 
 def _mp_ballots_for_evidence(
@@ -185,6 +255,7 @@ def _answer_gate_text(data: dict[str, Any]) -> str:
 async def ask(db: Session, question: str, *, mp_person_id: int | None = None) -> AskResponse:
     evidence = await hybrid_search(db, question, limit=10)
     guess = heuristic_jurisdiction(question)
+    minister = _responsible_minister(db, evidence, question)
 
     my_mp_name: str | None = None
     my_mp_slug: str | None = None
@@ -212,6 +283,7 @@ async def ask(db: Session, question: str, *, mp_person_id: int | None = None) ->
             my_mp_name=my_mp_name,
             my_mp_slug=my_mp_slug,
             mp_ballots=mp_ballots,
+            minister=minister,
         )
 
     ensure_budget(db)
@@ -276,4 +348,5 @@ async def ask(db: Session, question: str, *, mp_person_id: int | None = None) ->
         my_mp_name=my_mp_name,
         my_mp_slug=my_mp_slug,
         mp_ballots=mp_ballots,
+        minister=minister,
     )

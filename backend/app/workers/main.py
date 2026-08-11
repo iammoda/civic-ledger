@@ -32,15 +32,25 @@ async def ingest_full(ctx: dict[str, Any]) -> None:
 
 
 async def refresh_politicians(ctx: dict[str, Any]) -> None:
+    """Weekly: MPs + committees + memberships + cabinet roles + glossary."""
+    from app.data.glossary import seed_glossary
     from app.db.session import SessionLocal
+    from app.ingestion.committee_members import sync_committee_memberships
+    from app.ingestion.ministry import fetch_ministries_html, sync_ministers
     from app.ingestion.openparliament import OpenParliamentClient
-    from app.ingestion.sync import SyncContext, sync_politicians
+    from app.ingestion.sync import SyncContext, sync_committees, sync_politicians
 
     db = SessionLocal()
     try:
         sync_ctx = SyncContext(db)
         async with OpenParliamentClient() as client:
             await sync_politicians(sync_ctx, client)
+            await sync_committees(sync_ctx, client)
+        await sync_committee_memberships(db)
+        html = await fetch_ministries_html()
+        if html:
+            sync_ministers(db, html)
+        seed_glossary(db)
     finally:
         db.close()
 

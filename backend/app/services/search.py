@@ -31,16 +31,20 @@ def _is_postgres(db: Session) -> bool:
 
 
 def expand_query(db: Session, query: str) -> str:
-    """Append topic names/aliases matched by the query text."""
+    """Append topic names/aliases matched by the query text. Matches both
+    aliases ('carbon tax') and significant words of topic names
+    ('environment' in 'Climate & Environment')."""
     query_lower = query.lower()
     extras: list[str] = []
     for topic in db.scalars(select(Topic)).all():
         aliases = [a.strip() for a in (topic.aliases_en or "").split(",") if a.strip()]
-        for alias in aliases:
-            if alias.lower() in query_lower and topic.name_en.lower() not in query_lower:
-                extras.append(topic.name_en)
-                extras.extend(a for a in aliases if a.lower() != alias.lower())
-                break
+        name_words = [w for w in topic.name_en.lower().replace("&", " ").split() if len(w) >= 5]
+        hit = any(alias.lower() in query_lower for alias in aliases) or any(
+            word in query_lower for word in name_words
+        )
+        if hit and topic.name_en.lower() not in query_lower:
+            extras.append(topic.name_en)
+            extras.extend(aliases)
     if not extras:
         return query
     return f"{query} {' '.join(dict.fromkeys(extras))}"
@@ -86,11 +90,35 @@ def _petition_result(petition: Petition) -> SearchResult:
     )
 
 
+_FTS_STOPWORDS = {
+    "the", "and", "for", "that", "this", "with", "from", "have", "what", "who",
+    "why", "how", "can", "cant", "cannot", "about", "will", "are", "was", "not",
+    "anymore", "responsible", "afford", "should", "would", "could", "does",
+}
+
+
+def _fts_or_query(db: Session, query: str):
+    """OR-of-significant-words tsquery: natural questions ('why is rent so
+    high') must not require every word to appear (plainto_tsquery ANDs)."""
+    import re
+
+    tokens = [
+        token
+        for token in re.findall(r"[a-zA-Z][a-zA-Z-]{2,}", query.lower())
+        if token not in _FTS_STOPWORDS
+    ]
+    if not tokens:
+        return None
+    return func.to_tsquery("english", " | ".join(dict.fromkeys(tokens[:12])))
+
+
 def keyword_search(db: Session, query: str, *, limit: int = 20) -> list[SearchResult]:
     results: list[SearchResult] = []
 
     if _is_postgres(db):
-        ts_query = func.plainto_tsquery("english", query)
+        ts_query = _fts_or_query(db, query)
+        if ts_query is None:
+            return []
         bill_doc = func.to_tsvector(
             "english",
             Bill.number
@@ -220,7 +248,11 @@ async def hybrid_search(db: Session, query: str, *, limit: int = 20) -> list[Sea
     from app.llm.embeddings import embed_query
 
     expanded = expand_query(db, query)
-    keyword_results = keyword_search(db, expanded, limit=limit)
+    # Original-query matches rank ahead of alias-expanded ones: expansion
+    # recalls related content but must not drown direct hits.
+    keyword_lists = [keyword_search(db, query, limit=limit)]
+    if expanded != query:
+        keyword_lists.append(keyword_search(db, expanded, limit=limit))
 
     vector_results: list[SearchResult] = []
     if _is_postgres(db):
@@ -228,6 +260,6 @@ async def hybrid_search(db: Session, query: str, *, limit: int = 20) -> list[Sea
         if query_vector is not None:
             vector_results = vector_search(db, query_vector, limit=limit)
 
-    if not vector_results:
-        return rrf_fuse([keyword_results], limit=limit)
-    return rrf_fuse([keyword_results, vector_results], limit=limit)
+    if vector_results:
+        keyword_lists.append(vector_results)
+    return rrf_fuse(keyword_lists, limit=limit)

@@ -70,6 +70,12 @@ class MpBallotItem(BaseModel):
     ballot: str
 
 
+class ResponsibleMinisterModel(BaseModel):
+    name: str
+    slug: str
+    title: str
+
+
 class AskResponseModel(BaseModel):
     question: str
     answer_sentence: str | None = None
@@ -83,6 +89,7 @@ class AskResponseModel(BaseModel):
     my_mp_name: str | None = None
     my_mp_slug: str | None = None
     mp_ballots: list[MpBallotItem] = []
+    minister: ResponsibleMinisterModel | None = None
 
 
 @router.post("/ask", response_model=AskResponseModel)
@@ -126,6 +133,13 @@ async def ask_question(
         generated=response.generated,
         my_mp_name=response.my_mp_name,
         my_mp_slug=response.my_mp_slug,
+        minister=(
+            ResponsibleMinisterModel(
+                name=response.minister.name, slug=response.minister.slug, title=response.minister.title
+            )
+            if response.minister
+            else None
+        ),
         mp_ballots=[
             MpBallotItem(
                 bill_number=b.bill_number,

@@ -89,9 +89,11 @@ Hold Canadian politicians accountable. Make it easy for anyone to see how their 
 | 10 | Production deployment — public AGPL repo, CI/CD, Vercel + Fly/Railway + Neon + Upstash, Sentry, staging, backups, spend dashboard | 🔜 after 9 |
 | 11 | Backfill — embeddings archive-wide, eager current Parliament, lazy engine for history | 🔜 after 10 |
 
-**Fast-follow (parked):** French (#1), cabinet/critic role tracking, provincial handoff via MPP lookup, Gazette consultations, elections module, own promise tracker, say-vs-vote flags, keyed public API, embeddable widgets, provincial legislatures, US (indefinitely).
+**Also shipped since:** MP expense reports (scraper + 5 review-gated detectors + searchable `/expenses` explorer + MP-page cards), the Graveyard UI, representative ladder (MP/MPP/councillor contacts), committees + memberships ingestion, cabinet-minister tracking with a "responsible minister" card in Ask (guardrailed — shown only when evidence supports it), watched-question follows with notifier matching, and a 30-term plain-language glossary with jargon tooltips. The database runs locally on an external drive (`scripts/db-start.sh`) with live data: 343 MPs, 57k+ ballots, 100k+ expense line items and growing.
 
-**Current test suite:** 79 backend tests passing; frontend builds and lints clean.
+**Fast-follow (parked):** French (#1), opposition-critic tracking, provincial handoff via MPP lookup, Gazette consultations, elections module, own promise tracker, say-vs-vote flags, keyed public API, embeddable widgets, provincial legislatures, US (indefinitely).
+
+**Current test suite:** 108 backend tests passing; frontend builds and lints clean.
 
 **Budget:** ~$1.5–2.5k all-in year one, hard-capped. Publicly useful after Phase 4.
 

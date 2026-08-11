@@ -606,3 +606,45 @@ async def sync_votes(
             break
     db.commit()
     return count
+
+
+# ---------------------------------------------------------------------------
+# Committees
+# ---------------------------------------------------------------------------
+
+async def sync_committees(ctx: SyncContext, client: OpenParliamentClient) -> int:
+    """Upsert committees from OpenParliament (names, slugs, official links).
+
+    Memberships are not exposed by OpenParliament; they are synced
+    separately when an official source is available.
+    """
+    from app.models import Committee
+
+    db = ctx.db
+    listing = await client.paginate("/committees/", params={"limit": 100})
+    count = 0
+    for item in listing:
+        slug = item.get("slug")
+        if not slug:
+            continue
+        detail = await client.fetch_detail(item["url"])
+        name = detail.get("name") or {}
+        short_name = detail.get("short_name") or {}
+        sessions = detail.get("sessions") or []
+        newest = sessions[0] if sessions else {}
+
+        committee = db.scalar(
+            select(Committee).where(Committee.chamber_id == ctx.house.id, Committee.slug == slug)
+        )
+        if committee is None:
+            committee = Committee(chamber_id=ctx.house.id, slug=slug, name_en="")
+            db.add(committee)
+        committee.name_en = name.get("en") or short_name.get("en") or slug
+        committee.name_fr = name.get("fr")
+        committee.source_url = newest.get("source_url")
+        if newest.get("session"):
+            committee.session_id = ctx.session_for_label(newest["session"]).id
+        db.flush()
+        count += 1
+    db.commit()
+    return count

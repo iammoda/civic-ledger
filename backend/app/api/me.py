@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import AuthUser, require_user
 from app.db.session import get_db
-from app.models import Person, Topic, UserFollow, UserProfile
+from app.models import GlossaryTerm, Person, Topic, UserFollow, UserProfile
 from app.services.represent import lookup_postal_full
 
 
@@ -241,3 +241,14 @@ class TopicItem(BaseModel):
 def list_topics(db: Session = Depends(get_db)) -> list[TopicItem]:
     topics = db.scalars(select(Topic).order_by(Topic.name_en)).all()
     return [TopicItem(slug=t.slug, name_en=t.name_en, description_en=t.description_en) for t in topics]
+
+
+class GlossaryItem(BaseModel):
+    term: str
+    definition_en: str
+
+
+@router.get("/glossary", response_model=list[GlossaryItem])
+def list_glossary(db: Session = Depends(get_db)) -> list[GlossaryItem]:
+    terms = db.scalars(select(GlossaryTerm).order_by(GlossaryTerm.term)).all()
+    return [GlossaryItem(term=t.term, definition_en=t.definition_en) for t in terms]
