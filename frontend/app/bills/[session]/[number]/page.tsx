@@ -30,6 +30,18 @@ export default async function BillDetailPage({
       title={`${bill.number} · ${bill.short_title_en ?? bill.title_en}`}
       description={bill.status_en ?? "Status pending"}
     >
+      <div className="mb-6 flex flex-wrap gap-3">
+        <Link
+          href={`/act?bill=${encodeURIComponent(`${bill.session}/${bill.number}`)}`}
+          className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white"
+        >
+          Contact your MP about this
+        </Link>
+        <Link href="/petitions" className="rounded-full border border-black/10 px-6 py-3 text-sm font-medium">
+          Find a related petition
+        </Link>
+      </div>
+
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="glass-card rounded-[2rem] p-6">
           <h2 className="text-xl font-semibold">In plain language</h2>

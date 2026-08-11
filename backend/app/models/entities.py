@@ -702,3 +702,26 @@ class Correction(Base, TimestampMixin):
     contact: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(24), default="open", index=True)
     resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class Notification(Base, TimestampMixin):
+    """In-app notification (no email anywhere). Grouped, quiet by default."""
+
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    # bill_new | bill_died | vote_result | mp_dissent | petition_closing
+    kind: Mapped[str] = mapped_column(String(32), index=True)
+    title_en: Mapped[str] = mapped_column(String(500))
+    body_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    url_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Which follow triggered it, e.g. "topic:housing" or "person:jane-doe".
+    matched_follow: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    # Dedupe: one notification per (user, event).
+    fingerprint: Mapped[str] = mapped_column(String(128), index=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "fingerprint", name="uq_notification_user_event"),
+    )

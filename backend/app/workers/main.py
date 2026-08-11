@@ -232,6 +232,18 @@ async def run_detectors_job(ctx: dict[str, Any]) -> None:
         db.close()
 
 
+async def match_notifications_job(ctx: dict[str, Any]) -> None:
+    """Hourly: follows x new events -> in-app notifications (deduped)."""
+    from app.db.session import SessionLocal
+    from app.services.notifications import match_notifications
+
+    db = SessionLocal()
+    try:
+        match_notifications(db)
+    finally:
+        db.close()
+
+
 class WorkerSettings:
     functions = [
         ingest_incremental,
@@ -245,11 +257,13 @@ class WorkerSettings:
         sync_petitions_job,
         sync_influence_job,
         run_detectors_job,
+        match_notifications_job,
     ]
     cron_jobs = [
         cron(ingest_incremental, minute={0, 30}),
         cron(analyze_new_content, minute={45}),  # hourly eager pass
         cron(embed_new_content, minute={50}),  # hourly, after analysis
+        cron(match_notifications_job, minute={55}),  # hourly, after content lands
         cron(sync_petitions_job, hour={5}, minute={30}),  # daily 05:30 UTC
         cron(compute_stats, hour={7}, minute={15}),  # nightly, 07:15 UTC
         cron(run_detectors_job, hour={8}, minute={0}),  # nightly, after stats

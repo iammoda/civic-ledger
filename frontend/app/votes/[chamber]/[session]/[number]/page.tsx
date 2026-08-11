@@ -28,6 +28,17 @@ export default async function VoteDetailPage({
     >
       <PlainMeaning plainMeaning={vote.plain_meaning_en} yeaEffect={vote.yea_effect} />
 
+      {vote.related_bill_number ? (
+        <div className="mt-6">
+          <Link
+            href={`/act?bill=${encodeURIComponent(`${vote.session}/${vote.related_bill_number}`)}`}
+            className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white"
+          >
+            Contact your MP about this
+          </Link>
+        </div>
+      ) : null}
+
       <section className="mt-6 grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
         <ProceduralContext voteType={vote.vote_type} />
         <div className="glass-card rounded-[2rem] p-6">

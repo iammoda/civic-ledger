@@ -26,6 +26,12 @@ export function AuthWidget() {
   return (
     <div className="flex items-center gap-2">
       <Link
+        href="/feed"
+        className="rounded-full border border-black/10 px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
+      >
+        Feed
+      </Link>
+      <Link
         href="/my"
         className="rounded-full border border-black/10 px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
       >

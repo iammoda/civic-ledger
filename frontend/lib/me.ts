@@ -79,3 +79,53 @@ export function lookupPostal(code: string) {
 export function listTopics() {
   return authedFetch<TopicItem[]>("/topics");
 }
+
+export type NotificationItem = {
+  id: number;
+  kind: string;
+  title_en: string;
+  body_en?: string | null;
+  url_path?: string | null;
+  matched_follow?: string | null;
+  is_read: boolean;
+  created_at_date?: string | null;
+};
+
+export type FeedResponse = {
+  parliament_sitting: boolean;
+  unread_count: number;
+  notifications: NotificationItem[];
+  suggestions: Array<{ title: string; detail?: string | null; url_path: string }>;
+  followed_topics: string[];
+};
+
+export function getFeed() {
+  return authedFetch<FeedResponse>("/me/feed");
+}
+
+export type LetterResponse = {
+  letter_text: string;
+  mp_name: string;
+  mp_email?: string | null;
+  riding?: string | null;
+  citations: Array<{
+    vote_number: string;
+    session: string;
+    occurred_on: string;
+    description_en: string;
+    effect?: string | null;
+    ballot: string;
+  }>;
+  polished: boolean;
+};
+
+export function draftLetter(payload: {
+  concern: string;
+  bill_session?: string;
+  bill_number?: string;
+}) {
+  return authedFetch<LetterResponse>("/actions/letter", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
