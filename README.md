@@ -74,22 +74,24 @@ Hold Canadian politicians accountable. Make it easy for anyone to see how their 
 
 ## Build phases
 
-| # | Phase |
-|---|---|
-| 0 | Foundation — git, dependency upgrades, pgvector, bug fixes, arq cron, env config |
-| 1 | Canada pipeline — full persistence, ballots, cabinet & critic roles, Senate bill-stage tracking, dead-bill detection + attribution, amendments, representation-change events, derived stats, party-context computation |
-| 2 | Claude intelligence — structured analyses, vote direction normalization, glossary, readability gate, lazy-analysis engine, pre-analyzed source adapters, colloquialism aliases, cost ledger + caps |
-| 3 | Search & Ask — hybrid FTS+vector search, cited answers, jurisdiction classifier, minister/critic resolution, provincial handoff |
-| 4 | Accounts — anonymous-first, Google sign-in, follows, Simple/Standard/Expert toggle |
-| 5 | Participation — e-petitions, Gazette consultations, topic matching |
-| 6 | Money & Integrity — donations, lobbying, contracts, disclosure extraction, entity resolution, pattern detectors, human review queue, corrections form, methodology page |
-| 7 | Behavior — discipline scores, MP comparison, Polimetre link-out |
-| 8 | Actions & notifications — drafted letters citing real ballots, contact-everywhere, notification center + recess-aware catch-me-up |
-| 9 | Growth, trust & hardening — share cards, cite-this permalinks, CSV exports, bias audits, aggregate counters, rate limits, privacy/terms, WCAG AA, tests |
-| 10 | Production deployment — public AGPL repo, CI/CD, managed infra, monitoring, staging, backups, spend dashboard |
-| 11 | Backfill — embeddings archive-wide, eager current Parliament, lazy engine for history |
+| # | Phase | Status |
+|---|---|---|
+| 0 | Foundation — git, dependency upgrades, pgvector, bug fixes, arq cron, env config | ✅ shipped |
+| 1 | Canada pipeline — full persistence, ballots, dead-bill detection + attribution, derived stats, floor-crossing events | ✅ shipped |
+| 2 | Claude intelligence — layered summaries, vote direction normalization, readability gate, lazy-analysis engine, cost ledger + hard caps | ✅ shipped |
+| 3 | Search & Ask — hybrid FTS+vector search, cited answers, jurisdiction classifier, colloquialism aliases | ✅ shipped |
+| 4 | Accounts — Google-only sign-in, postal code → your MP (ambiguity handled), follows, reading-level toggle | ✅ shipped |
+| 5 | Participation — e-petitions with deadlines/signatures/topic matching, in search + Ask evidence | ✅ shipped |
+| 6 | Money & Integrity — lobbying + donations ingestion, entity resolution, 3 party-blind detectors, human review queue, corrections form, methodology page | ✅ shipped |
+| 7 | Behavior — voting records with party-context lines, dissent filter, MP comparison, Polimetre link-out | ✅ shipped |
+| 8 | Actions & notifications — letters citing real ballots, contact-everywhere, notification matcher, recess-aware catch-me-up feed | ✅ shipped |
+| 9 | Growth, trust & hardening — share cards, cite-this permalinks, CSV exports, bias audits, aggregate counters, rate limits + /ask quotas, privacy/terms, WCAG AA, seat margins | 🔜 next |
+| 10 | Production deployment — public AGPL repo, CI/CD, Vercel + Fly/Railway + Neon + Upstash, Sentry, staging, backups, spend dashboard | 🔜 after 9 |
+| 11 | Backfill — embeddings archive-wide, eager current Parliament, lazy engine for history | 🔜 after 10 |
 
-**Fast-follow (parked):** French (#1), elections module, own promise tracker, say-vs-vote flags, keyed public API, embeddable widgets, provincial legislatures, US (indefinitely).
+**Fast-follow (parked):** French (#1), cabinet/critic role tracking, provincial handoff via MPP lookup, Gazette consultations, elections module, own promise tracker, say-vs-vote flags, keyed public API, embeddable widgets, provincial legislatures, US (indefinitely).
+
+**Current test suite:** 79 backend tests passing; frontend builds and lints clean.
 
 **Budget:** ~$1.5–2.5k all-in year one, hard-capped. Publicly useful after Phase 4.
 

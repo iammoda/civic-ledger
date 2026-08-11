@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DataGap } from "@/components/data-gap";
+import { DeathBanner, outcomeBadge } from "@/components/death-banner";
 import { PageShell } from "@/components/page-shell";
 import { PlainSummaryCard } from "@/components/plain-summary-card";
 import { SectorImpactList } from "@/components/sector-impact-list";
@@ -23,6 +24,7 @@ export default async function BillDetailPage({
     (analysis) => analysis.analysis_type === "plain_summary" && analysis.status === "published"
   );
   const pendingGap = bill.data_gaps.find((gap) => gap.code === "analysis_pending");
+  const badge = outcomeBadge(bill.outcome, bill.is_law);
 
   return (
     <PageShell
@@ -30,6 +32,21 @@ export default async function BillDetailPage({
       title={`${bill.number} · ${bill.short_title_en ?? bill.title_en}`}
       description={bill.status_en ?? "Status pending"}
     >
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <span className={`rounded-full px-4 py-2 text-sm font-medium ${badge.className}`}>{badge.label}</span>
+        {bill.topics.map((topic) => (
+          <span key={topic} className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-slate-600">
+            {topic}
+          </span>
+        ))}
+      </div>
+
+      {bill.death ? (
+        <div className="mb-6">
+          <DeathBanner death={bill.death} />
+        </div>
+      ) : null}
+
       <div className="mb-6 flex flex-wrap gap-3">
         <Link
           href={`/act?bill=${encodeURIComponent(`${bill.session}/${bill.number}`)}`}

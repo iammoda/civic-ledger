@@ -93,6 +93,16 @@ export type AnalysisState = {
   payload?: Record<string, unknown> | null;
 };
 
+export type BillDeathInfo = {
+  mechanism: string;
+  stage?: string | null;
+  occurred_on?: string | null;
+  attribution_en?: string | null;
+  kill_vote_number?: string | null;
+  kill_vote_chamber?: string | null;
+  kill_vote_session?: string | null;
+};
+
 export type BillListItem = {
   session: string;
   chamber: string;
@@ -105,10 +115,15 @@ export type BillListItem = {
   sponsor_slug?: string | null;
   sponsor_name?: string | null;
   is_omnibus: boolean;
+  outcome: string;
+  is_law: boolean;
+  death?: BillDeathInfo | null;
 };
 
 export type BillDetail = BillListItem & {
   legisinfo_url?: string | null;
+  text_url?: string | null;
+  topics: string[];
   analyses: AnalysisState[];
   related_votes: VoteListItem[];
   sector_impacts: Array<Record<string, unknown>>;
@@ -191,8 +206,12 @@ export function getVote(chamber: string, session: string, number: string) {
   return fetchApi<VoteDetail>(`/votes/${chamber}/${session}/${number}`);
 }
 
-export function listBills() {
-  return fetchApi<PaginatedResponse<BillListItem>>("/bills");
+export function listBills(params?: { outcomeGroup?: string; topic?: string }) {
+  const searchParams = new URLSearchParams();
+  if (params?.outcomeGroup) searchParams.set("outcome_group", params.outcomeGroup);
+  if (params?.topic) searchParams.set("topic", params.topic);
+  const qs = searchParams.toString();
+  return fetchApi<PaginatedResponse<BillListItem>>(`/bills${qs ? `?${qs}` : ""}`);
 }
 
 export function getBill(session: string, number: string) {

@@ -65,6 +65,9 @@ export default async function HomePage() {
             <Link href="/petitions" className="rounded-full border border-black/10 px-5 py-3 text-sm font-medium">
               Sign a petition
             </Link>
+            <Link href="/graveyard" className="rounded-full border border-signal/40 px-5 py-3 text-sm font-medium text-signal">
+              The Graveyard
+            </Link>
             <Link href="/search" className="rounded-full border border-black/10 px-5 py-3 text-sm font-medium">
               Search everything
             </Link>

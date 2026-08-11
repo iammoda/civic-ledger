@@ -5,14 +5,67 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import get_db
-from app.models import Bill, Chamber, LegislatureSession, Vote
-from app.schemas.bills import BillDetail, BillListItem
+from app.models import Bill, BillDeath, Chamber, EntityTopic, LegislatureSession, Topic, Vote
+from app.schemas.bills import BillDeathInfo, BillDetail, BillListItem
 from app.schemas.common import AnalysisState, DataGap, PageMeta
 from app.schemas.votes import VoteListItem
 from app.services.lazy import enqueue
 
 
 router = APIRouter(prefix="/bills", tags=["bills"])
+
+DEAD_OUTCOMES = (
+    "defeated_vote",
+    "died_committee",
+    "died_order_paper",
+    "died_senate",
+    "withdrawn",
+    "not_proceeded_with",
+)
+OUTCOME_GROUPS: dict[str, tuple[str, ...]] = {
+    "dead": DEAD_OUTCOMES,
+    "law": ("enacted",),
+    "pending": ("pending",),
+}
+
+
+def _death_info(db: Session, bill: Bill) -> BillDeathInfo | None:
+    death = bill.death
+    if death is None:
+        return None
+    kill_vote = db.scalar(
+        select(Vote)
+        .options(selectinload(Vote.session), selectinload(Vote.chamber))
+        .where(Vote.id == death.kill_vote_id)
+    ) if death.kill_vote_id else None
+    return BillDeathInfo(
+        mechanism=death.mechanism,
+        stage=death.stage,
+        occurred_on=death.occurred_on,
+        attribution_en=death.attribution_en,
+        kill_vote_number=kill_vote.number if kill_vote else None,
+        kill_vote_chamber=kill_vote.chamber.slug if kill_vote else None,
+        kill_vote_session=kill_vote.session.label if kill_vote else None,
+    )
+
+
+def _list_item(db: Session, bill: Bill, *, with_death: bool = False) -> BillListItem:
+    return BillListItem(
+        session=bill.session.label,
+        chamber=bill.chamber.slug,
+        number=bill.number,
+        title_en=bill.title_en,
+        short_title_en=bill.short_title_en,
+        status_en=bill.status_en,
+        bill_type=bill.bill_type,
+        introduced_on=bill.introduced_on,
+        sponsor_slug=bill.sponsor.slug if bill.sponsor else None,
+        sponsor_name=bill.sponsor.full_name if bill.sponsor else None,
+        is_omnibus=bill.is_omnibus,
+        outcome=bill.outcome,
+        is_law=bill.is_law,
+        death=_death_info(db, bill) if with_death else None,
+    )
 
 
 def _session_clauses(label: str) -> list:
@@ -30,6 +83,8 @@ def _session_clauses(label: str) -> list:
 def list_bills(
     chamber: str | None = None,
     bill_type: str | None = None,
+    outcome_group: str | None = Query(default=None, pattern="^(dead|law|pending)$"),
+    topic: str | None = None,
     limit: int = Query(default=25, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -39,31 +94,39 @@ def list_bills(
         query = query.join(Chamber, Bill.chamber_id == Chamber.id).where(Chamber.slug == chamber)
     if bill_type:
         query = query.where(Bill.bill_type == bill_type)
+    if outcome_group:
+        query = query.where(Bill.outcome.in_(OUTCOME_GROUPS[outcome_group]))
+    if topic:
+        topic_row = db.scalar(select(Topic).where(Topic.slug == topic))
+        if topic_row is None:
+            return {"items": [], "meta": PageMeta(total=0, limit=limit, offset=offset).model_dump()}
+        tagged = select(EntityTopic.entity_id).where(
+            EntityTopic.topic_id == topic_row.id, EntityTopic.entity_type == "bill"
+        )
+        query = query.where(Bill.id.in_(tagged))
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    order = (
+        # The graveyard reads best newest-death-first.
+        (BillDeath.occurred_on.desc().nullslast(), Bill.number)
+        if outcome_group == "dead"
+        else (Bill.introduced_on.desc().nullslast(), Bill.number)
+    )
+    if outcome_group == "dead":
+        query = query.outerjoin(BillDeath, BillDeath.bill_id == Bill.id)
     bills = db.scalars(
-        query.options(selectinload(Bill.session), selectinload(Bill.chamber), selectinload(Bill.sponsor))
-        .order_by(Bill.introduced_on.desc().nullslast(), Bill.number)
+        query.options(
+            selectinload(Bill.session),
+            selectinload(Bill.chamber),
+            selectinload(Bill.sponsor),
+            selectinload(Bill.death),
+        )
+        .order_by(*order)
         .offset(offset)
         .limit(limit)
     ).all()
 
-    items = [
-        BillListItem(
-            session=bill.session.label,
-            chamber=bill.chamber.slug,
-            number=bill.number,
-            title_en=bill.title_en,
-            short_title_en=bill.short_title_en,
-            status_en=bill.status_en,
-            bill_type=bill.bill_type,
-            introduced_on=bill.introduced_on,
-            sponsor_slug=bill.sponsor.slug if bill.sponsor else None,
-            sponsor_name=bill.sponsor.full_name if bill.sponsor else None,
-            is_omnibus=bill.is_omnibus,
-        )
-        for bill in bills
-    ]
+    items = [_list_item(db, bill, with_death=bill.outcome in DEAD_OUTCOMES) for bill in bills]
 
     return {
         "items": [item.model_dump() for item in items],
@@ -82,12 +145,23 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
             selectinload(Bill.chamber),
             selectinload(Bill.sponsor),
             selectinload(Bill.analyses),
+            selectinload(Bill.death),
             selectinload(Bill.votes).selectinload(Vote.chamber),
             selectinload(Bill.votes).selectinload(Vote.session),
         )
     )
     if bill is None:
         raise HTTPException(status_code=404, detail="Bill not found")
+
+    topics = [
+        name
+        for (name,) in db.execute(
+            select(Topic.name_en)
+            .join(EntityTopic, EntityTopic.topic_id == Topic.id)
+            .where(EntityTopic.entity_type == "bill", EntityTopic.entity_id == bill.id)
+            .order_by(Topic.name_en)
+        ).all()
+    ]
 
     analyses = [
         AnalysisState(
@@ -131,7 +205,12 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
         sponsor_slug=bill.sponsor.slug if bill.sponsor else None,
         sponsor_name=bill.sponsor.full_name if bill.sponsor else None,
         is_omnibus=bill.is_omnibus,
+        outcome=bill.outcome,
+        is_law=bill.is_law,
+        death=_death_info(db, bill),
         legisinfo_url=bill.legisinfo_url,
+        text_url=bill.text_url,
+        topics=topics,
         analyses=analyses,
         related_votes=[
             VoteListItem(

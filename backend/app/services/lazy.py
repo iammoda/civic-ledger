@@ -21,8 +21,12 @@ async def _get_pool() -> ArqRedis | None:
     global _pool
     if _pool is None:
         try:
-            _pool = await create_pool(RedisSettings.from_dsn(get_settings().redis_url))
-        except OSError as exc:
+            settings = RedisSettings.from_dsn(get_settings().redis_url)
+            # Fail fast: a page view must never hang on Redis retries.
+            settings.conn_retries = 1
+            settings.conn_retry_delay = 0
+            _pool = await create_pool(settings)
+        except Exception as exc:  # noqa: BLE001 — Redis-down must not break pages
             logger.warning("arq pool unavailable: %s", exc)
             return None
     return _pool
