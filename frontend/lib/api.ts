@@ -59,13 +59,13 @@ export type VoteListItem = {
   yea_total: number;
   nay_total: number;
   vote_type: string;
+  yea_effect?: string | null;
+  plain_meaning_en?: string | null;
 };
 
 export type VoteDetail = VoteListItem & {
   related_bill_number?: string | null;
   source_url?: string | null;
-  yea_effect?: string | null;
-  plain_meaning_en?: string | null;
   party_breakdown: Array<{
     party_slug: string;
     party_name?: string | null;
@@ -190,8 +190,13 @@ async function fetchApi<T>(path: string): Promise<T | null> {
   }
 }
 
-export function listPoliticians() {
-  return fetchApi<PaginatedResponse<PoliticianListItem>>("/politicians");
+export function listPoliticians(params?: { q?: string; party?: string; province?: string; limit?: number }) {
+  const searchParams = new URLSearchParams();
+  if (params?.q) searchParams.set("q", params.q);
+  if (params?.party) searchParams.set("party", params.party);
+  if (params?.province) searchParams.set("province", params.province);
+  searchParams.set("limit", String(params?.limit ?? 400));
+  return fetchApi<PaginatedResponse<PoliticianListItem>>(`/politicians?${searchParams.toString()}`);
 }
 
 export function getPolitician(slug: string) {
@@ -250,6 +255,17 @@ export function searchContent(q: string) {
 
 export type AskEvidenceItem = SearchResultItem & { index: number };
 
+export type MpBallotItem = {
+  bill_number: string;
+  vote_number: string;
+  session: string;
+  chamber: string;
+  occurred_on: string;
+  description_en: string;
+  effect?: string | null;
+  ballot: string;
+};
+
 export type AskResponse = {
   question: string;
   answer_sentence?: string | null;
@@ -260,6 +276,9 @@ export type AskResponse = {
   evidence: AskEvidenceItem[];
   cited_indexes: number[];
   generated: boolean;
+  my_mp_name?: string | null;
+  my_mp_slug?: string | null;
+  mp_ballots: MpBallotItem[];
 };
 
 export async function askQuestion(question: string): Promise<AskResponse | null> {

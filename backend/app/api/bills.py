@@ -223,6 +223,8 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
                 yea_total=vote.yea_total,
                 nay_total=vote.nay_total,
                 vote_type=vote.vote_type,
+                yea_effect=vote.yea_effect,
+                plain_meaning_en=vote.plain_meaning_en,
             )
             for vote in bill.votes
         ],

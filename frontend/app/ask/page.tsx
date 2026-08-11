@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
-import { askQuestion } from "@/lib/api";
+import { askQuestionAuthed } from "@/lib/me";
 
 const JURISDICTION_LABELS: Record<string, { label: string; className: string }> = {
   federal: { label: "Federal responsibility", className: "bg-emerald-50 text-emerald-700" },
@@ -19,7 +19,7 @@ export default async function AskPage({
 }) {
   const { q } = await searchParams;
   const question = (q ?? "").trim();
-  const response = question.length >= 8 ? await askQuestion(question) : null;
+  const response = question.length >= 8 ? await askQuestionAuthed(question) : null;
   const jurisdiction = response
     ? JURISDICTION_LABELS[response.jurisdiction_level] ?? JURISDICTION_LABELS.unknown
     : null;
@@ -95,6 +95,64 @@ export default async function AskPage({
               </p>
             ) : null}
           </div>
+
+          {response.my_mp_name && response.mp_ballots.length ? (
+            <div className="glass-card rounded-[2rem] p-8">
+              <h2 className="text-xl font-semibold">
+                How your MP voted on this
+                {response.my_mp_slug ? (
+                  <Link href={`/politicians/${response.my_mp_slug}`} className="ml-2 text-base font-normal text-accent">
+                    {response.my_mp_name} →
+                  </Link>
+                ) : (
+                  <span className="ml-2 text-base font-normal text-slate-500">{response.my_mp_name}</span>
+                )}
+              </h2>
+              <div className="mt-4 space-y-3">
+                {response.mp_ballots.map((ballot) => (
+                  <Link
+                    key={`${ballot.session}-${ballot.vote_number}`}
+                    href={`/votes/${ballot.chamber}/${ballot.session}/${ballot.vote_number}`}
+                    className="block rounded-3xl border border-black/10 bg-white p-4 transition hover:-translate-y-0.5"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      {ballot.effect ? (
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-medium ${
+                            ballot.effect === "advanced"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-rose-50 text-rose-700"
+                          }`}
+                        >
+                          Voted to {ballot.effect === "advanced" ? "advance" : "block"}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs uppercase tracking-[0.14em] text-slate-600">
+                          {ballot.ballot}
+                        </span>
+                      )}
+                      {ballot.bill_number ? (
+                        <span className="rounded-full border border-black/10 px-3 py-1 text-xs text-slate-500">
+                          {ballot.bill_number}
+                        </span>
+                      ) : null}
+                      <span className="ml-auto text-xs text-slate-400">{ballot.occurred_on}</span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6">{ballot.description_en}</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {response.generated && !response.my_mp_name ? (
+            <p className="text-sm text-slate-500">
+              <Link href="/my" className="text-accent">
+                Set your riding
+              </Link>{" "}
+              to see how <span className="font-medium">your own MP</span> voted on these.
+            </p>
+          ) : null}
 
           <div className="glass-card rounded-[2rem] p-8">
             <h2 className="text-xl font-semibold">The evidence</h2>

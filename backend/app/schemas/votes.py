@@ -33,12 +33,12 @@ class VoteListItem(BaseModel):
     yea_total: int = 0
     nay_total: int = 0
     vote_type: str
+    yea_effect: str | None = None
+    plain_meaning_en: str | None = None
 
 
 class VoteDetail(VoteListItem):
     related_bill_number: str | None = None
     source_url: str | None = None
-    yea_effect: str | None = None
-    plain_meaning_en: str | None = None
     party_breakdown: list[PartyBreakdown] = []
     ballots: list[BallotItem] = []

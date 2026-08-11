@@ -36,14 +36,17 @@ def _current_membership(person: Person) -> PersonMembership | None:
 
 @router.get("")
 def list_politicians(
+    q: str | None = Query(default=None, max_length=100),
     party: str | None = None,
     province: str | None = None,
     chamber: str | None = None,
-    limit: int = Query(default=25, le=100),
+    limit: int = Query(default=25, le=400),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict:
     query = select(Person)
+    if q:
+        query = query.where(func.lower(Person.full_name).contains(q.strip().lower()))
     if chamber:
         query = query.join(Chamber, Person.chamber_id == Chamber.id).where(Chamber.slug == chamber)
     if party:

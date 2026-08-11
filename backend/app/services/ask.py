@@ -15,9 +15,11 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 from app.llm.base import LLMClient
 from app.llm.budget import ensure_budget, record_usage
@@ -58,6 +60,21 @@ class JurisdictionGuess:
 
 
 @dataclass(slots=True)
+class MpBallotEvidence:
+    """How the asker's own MP voted on a bill in the evidence set."""
+
+    bill_number: str
+    vote_number: str
+    session: str
+    chamber: str
+    occurred_on: date
+    description_en: str
+    # advanced | blocked | None (from ballot x motion direction)
+    effect: str | None
+    ballot: str
+
+
+@dataclass(slots=True)
 class AskResponse:
     question: str
     answer_sentence: str | None
@@ -68,6 +85,46 @@ class AskResponse:
     evidence: list[SearchResult] = field(default_factory=list)
     cited_indexes: list[int] = field(default_factory=list)
     generated: bool = False  # False => degraded (search-only) mode
+    my_mp_name: str | None = None
+    my_mp_slug: str | None = None
+    mp_ballots: list[MpBallotEvidence] = field(default_factory=list)
+
+
+def _mp_ballots_for_evidence(
+    db: Session, mp_person_id: int, evidence: list[SearchResult]
+) -> list[MpBallotEvidence]:
+    """The asker's MP's actual ballots on the bills we just retrieved."""
+    from app.api.behavior import _ballot_effect
+    from app.models import Ballot, Vote
+
+    bill_ids = [item.entity_id for item in evidence if item.entity_type == "bill"]
+    if not bill_ids:
+        return []
+    ballots = db.scalars(
+        select(Ballot)
+        .join(Vote, Ballot.vote_id == Vote.id)
+        .where(Ballot.person_id == mp_person_id, Vote.bill_id.in_(bill_ids))
+        .options(
+            selectinload(Ballot.vote).selectinload(Vote.session),
+            selectinload(Ballot.vote).selectinload(Vote.chamber),
+            selectinload(Ballot.vote).selectinload(Vote.bill),
+        )
+        .order_by(Vote.occurred_on.desc())
+        .limit(10)
+    ).all()
+    return [
+        MpBallotEvidence(
+            bill_number=b.vote.bill.number if b.vote.bill else "",
+            vote_number=b.vote.number,
+            session=b.vote.session.label,
+            chamber=b.vote.chamber.slug,
+            occurred_on=b.vote.occurred_on,
+            description_en=b.vote.plain_meaning_en or b.vote.description_en,
+            effect=_ballot_effect(b.ballot, b.vote.yea_effect),
+            ballot=b.ballot,
+        )
+        for b in ballots
+    ]
 
 
 def heuristic_jurisdiction(question: str) -> JurisdictionGuess:
@@ -125,9 +182,21 @@ def _answer_gate_text(data: dict[str, Any]) -> str:
     return " ".join(filter(None, [data.get("answer_sentence"), data.get("jurisdiction_note")]))
 
 
-async def ask(db: Session, question: str) -> AskResponse:
+async def ask(db: Session, question: str, *, mp_person_id: int | None = None) -> AskResponse:
     evidence = await hybrid_search(db, question, limit=10)
     guess = heuristic_jurisdiction(question)
+
+    my_mp_name: str | None = None
+    my_mp_slug: str | None = None
+    mp_ballots: list[MpBallotEvidence] = []
+    if mp_person_id is not None:
+        from app.models import Person
+
+        mp = db.get(Person, mp_person_id)
+        if mp is not None:
+            my_mp_name = mp.full_name
+            my_mp_slug = mp.slug
+            mp_ballots = _mp_ballots_for_evidence(db, mp_person_id, evidence)
 
     client = LLMClient()
     if not client.is_configured():
@@ -140,6 +209,9 @@ async def ask(db: Session, question: str) -> AskResponse:
             responsible_ministry=None,
             evidence=evidence,
             generated=False,
+            my_mp_name=my_mp_name,
+            my_mp_slug=my_mp_slug,
+            mp_ballots=mp_ballots,
         )
 
     ensure_budget(db)
@@ -201,4 +273,7 @@ async def ask(db: Session, question: str) -> AskResponse:
         evidence=evidence,
         cited_indexes=valid_indexes,
         generated=True,
+        my_mp_name=my_mp_name,
+        my_mp_slug=my_mp_slug,
+        mp_ballots=mp_ballots,
     )

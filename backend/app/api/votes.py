@@ -48,6 +48,8 @@ def list_votes(
             yea_total=vote.yea_total,
             nay_total=vote.nay_total,
             vote_type=vote.vote_type,
+            yea_effect=vote.yea_effect,
+            plain_meaning_en=vote.plain_meaning_en,
         )
         for vote in votes
     ]

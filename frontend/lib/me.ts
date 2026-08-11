@@ -129,3 +129,13 @@ export function draftLetter(payload: {
     body: JSON.stringify(payload)
   });
 }
+
+import type { AskResponse } from "@/lib/api";
+
+/** Ask with cookie forwarding: signed-in users get their MP's ballots. */
+export function askQuestionAuthed(question: string) {
+  return authedFetch<AskResponse>("/ask", {
+    method: "POST",
+    body: JSON.stringify({ question })
+  });
+}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { BallotList } from "@/components/ballot-list";
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
 import { PartyBreakdownChart } from "@/components/party-breakdown-chart";
@@ -67,28 +68,22 @@ export default async function VoteDetailPage({
           )}
         </div>
         <div className="glass-card rounded-[2rem] p-6">
-          <h2 className="text-xl font-semibold">Ballots</h2>
-          {vote.ballots.length ? (
-            <div className="mt-4 space-y-3">
-              {vote.ballots.slice(0, 20).map((ballot) => (
-                <div key={ballot.person_slug} className="flex items-center justify-between rounded-3xl border border-black/10 bg-white p-4">
-                  <div>
-                    <p className="font-medium">{ballot.full_name}</p>
-                    <p className="text-sm text-slate-500">{ballot.party_slug ?? "Unknown party"}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium uppercase tracking-[0.14em]">{ballot.ballot}</p>
-                    {ballot.broke_party_line ? <p className="text-xs text-signal">Dissenter</p> : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <DataGap
-              title="No recorded ballots"
-              detail="Voice votes and some incomplete ingests do not expose individual member ballots."
-            />
-          )}
+          <h2 className="text-xl font-semibold">
+            How every MP voted
+            {vote.ballots.length ? (
+              <span className="ml-2 text-base font-normal text-slate-500">({vote.ballots.length} ballots)</span>
+            ) : null}
+          </h2>
+          <div className="mt-4">
+            {vote.ballots.length ? (
+              <BallotList vote={vote} />
+            ) : (
+              <DataGap
+                title="No recorded ballots"
+                detail="Voice votes and some incomplete ingests do not expose individual member ballots."
+              />
+            )}
+          </div>
         </div>
       </section>
     </PageShell>

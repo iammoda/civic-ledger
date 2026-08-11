@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.auth import AuthUser, get_current_user
 from app.db.session import get_db
+from app.models import UserProfile
 from app.services.ask import ask as run_ask
 from app.services.search import hybrid_search
 
@@ -57,6 +59,17 @@ class AskEvidenceItem(SearchResultItem):
     index: int
 
 
+class MpBallotItem(BaseModel):
+    bill_number: str
+    vote_number: str
+    session: str
+    chamber: str
+    occurred_on: str
+    description_en: str
+    effect: str | None = None
+    ballot: str
+
+
 class AskResponseModel(BaseModel):
     question: str
     answer_sentence: str | None = None
@@ -67,12 +80,26 @@ class AskResponseModel(BaseModel):
     evidence: list[AskEvidenceItem] = []
     cited_indexes: list[int] = []
     generated: bool
+    my_mp_name: str | None = None
+    my_mp_slug: str | None = None
+    mp_ballots: list[MpBallotItem] = []
 
 
 @router.post("/ask", response_model=AskResponseModel)
-async def ask_question(payload: AskRequest, db: Session = Depends(get_db)) -> AskResponseModel:
+async def ask_question(
+    payload: AskRequest,
+    user: AuthUser | None = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AskResponseModel:
+    # Signed-in users with a saved riding get their MP's ballots woven in.
+    mp_person_id: int | None = None
+    if user is not None:
+        profile = db.get(UserProfile, user.id)
+        if profile is not None:
+            mp_person_id = profile.mp_person_id
+
     try:
-        response = await run_ask(db, payload.question.strip())
+        response = await run_ask(db, payload.question.strip(), mp_person_id=mp_person_id)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -97,4 +124,19 @@ async def ask_question(payload: AskRequest, db: Session = Depends(get_db)) -> As
         ],
         cited_indexes=response.cited_indexes,
         generated=response.generated,
+        my_mp_name=response.my_mp_name,
+        my_mp_slug=response.my_mp_slug,
+        mp_ballots=[
+            MpBallotItem(
+                bill_number=b.bill_number,
+                vote_number=b.vote_number,
+                session=b.session,
+                chamber=b.chamber,
+                occurred_on=b.occurred_on.isoformat(),
+                description_en=b.description_en,
+                effect=b.effect,
+                ballot=b.ballot,
+            )
+            for b in response.mp_ballots
+        ],
     )
