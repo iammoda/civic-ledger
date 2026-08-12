@@ -97,41 +97,53 @@ _FTS_STOPWORDS = {
 }
 
 
-def _fts_or_query(db: Session, query: str):
-    """OR-of-significant-words tsquery: natural questions ('why is rent so
-    high') must not require every word to appear (plainto_tsquery ANDs)."""
+def _fts_queries(db: Session, query: str) -> list:
+    """AND-of-significant-words first (precision: every word must appear
+    somewhere in the bill, full text included), then OR (recall fallback)."""
     import re
 
     tokens = [
         token
         for token in re.findall(r"[a-zA-Z][a-zA-Z-]{2,}", query.lower())
         if token not in _FTS_STOPWORDS
-    ]
+    ][:12]
+    tokens = list(dict.fromkeys(tokens))
     if not tokens:
-        return None
-    return func.to_tsquery("english", " | ".join(dict.fromkeys(tokens[:12])))
+        return []
+    queries = []
+    if len(tokens) > 1:
+        queries.append(func.to_tsquery("english", " & ".join(tokens)))
+    queries.append(func.to_tsquery("english", " | ".join(tokens)))
+    return queries
 
 
 def keyword_search(db: Session, query: str, *, limit: int = 20) -> list[SearchResult]:
     results: list[SearchResult] = []
 
     if _is_postgres(db):
-        ts_query = _fts_or_query(db, query)
-        if ts_query is None:
+        ts_queries = _fts_queries(db, query)
+        if not ts_queries:
             return []
-        # bills.search_tsv is a weighted generated column (number/short title
-        # rank A, title/official summary B, full text D) — content matches
-        # work even when titles don't ("protecting the environment").
-        from sqlalchemy import text as sql_text_expr
+        ts_query = ts_queries[-1]  # OR variant for votes/petitions below.
+        from sqlalchemy import column
 
-        bill_doc = sql_text_expr("bills.search_tsv")
-        bills = db.scalars(
-            select(Bill)
-            .options(selectinload(Bill.session), selectinload(Bill.chamber))
-            .where(bill_doc.op("@@")(ts_query))
-            .order_by(func.ts_rank(bill_doc, ts_query).desc())
-            .limit(limit)
-        ).all()
+        bill_doc = column("search_tsv", is_literal=True)
+        bills: list[Bill] = []
+        seen_bill_ids: set[int] = set()
+        # AND pass first: bills matching every word rank ahead of OR matches.
+        for candidate_query in ts_queries:
+            if len(bills) >= limit:
+                break
+            for bill in db.scalars(
+                select(Bill)
+                .options(selectinload(Bill.session), selectinload(Bill.chamber))
+                .where(bill_doc.op("@@")(candidate_query))
+                .order_by(func.ts_rank(bill_doc, candidate_query).desc())
+                .limit(limit)
+            ).all():
+                if bill.id not in seen_bill_ids:
+                    seen_bill_ids.add(bill.id)
+                    bills.append(bill)
         vote_doc = func.to_tsvector("english", Vote.description_en)
         votes = db.scalars(
             select(Vote)
