@@ -130,8 +130,11 @@ async def analyze_bill(db: Session, bill_id: int, *, force: bool = False) -> Ana
             AnalysisResult.language == "en",
         )
     )
-    if existing is not None and existing.status == "published" and not force:
-        return existing  # Cache forever.
+    # Cache forever: published AND blocked results are terminal — a blocked
+    # summary must not be silently re-billed on every request (force=True is
+    # the explicit human override).
+    if existing is not None and existing.status in {"published", "blocked"} and not force:
+        return existing
 
     client = LLMClient()
     if not client.is_configured():
@@ -229,10 +232,27 @@ VOTE_MEANING_SCHEMA: dict[str, Any] = {
 _ADVANCE_PATTERNS = [
     r"\b(2nd|3rd|second|third) reading and adoption\b",
     r"\bbe now read a (first|second|third) time\b",
+    r"\b(2nd|3rd|second|third) reading of\b",
     r"\bconcurrence at report stage\b",
     r"\bpassage,? at third reading\b",
     r"\btime allocation\b",
     r"\bclosure\b",
+    r"\bways and means motion\b",
+    # Standalone motions: a Yes adopts the motion itself.
+    r"^opposition motion\b",
+    r"^private members' business\b",
+    r"^government business\b",
+    r"^motion to concur in\b",
+    r"^concurrence in\b",
+    r"\breport of the standing committee\b",
+    r"\bmain estimates\b|\bsupplementary estimates\b|\binterim supply\b",
+    r"^address in reply\b|\bspeech from the throne\b",
+]
+_BLOCK_PATTERNS = [
+    r"\bbe not now read\b",
+    r"\bsix months hence\b",  # hoist amendment
+    r"\breasoned amendment\b",
+    r"\bthat the motion be amended by deleting all the words\b",
 ]
 _BLOCK_PATTERNS = [
     r"\bbe not now read\b",
@@ -242,8 +262,18 @@ _BLOCK_PATTERNS = [
 ]
 
 
+_STANDALONE_MOTION_RE = re.compile(
+    r"^(opposition motion|private members' business|government business|motion to concur|concurrence in)|report of the standing committee",
+    re.IGNORECASE,
+)
+
+
 def heuristic_vote_direction(description: str) -> str | None:
     desc = description.lower()
+    # Amendments to motions/bills at report stage invert unpredictably —
+    # leave them for the model (or unlabeled) rather than risk a wrong call.
+    if "(amendment)" in desc and not _STANDALONE_MOTION_RE.search(desc):
+        return None
     for pattern in _BLOCK_PATTERNS:
         if re.search(pattern, desc):
             return "block"
@@ -255,6 +285,12 @@ def heuristic_vote_direction(description: str) -> str | None:
 
 def _heuristic_plain_meaning(vote: Vote, effect: str) -> str:
     outcome = "passed" if (vote.result or "").lower() == "passed" else "did not pass"
+    if _STANDALONE_MOTION_RE.search(vote.description_en):
+        # The matter IS the motion; "moved forward" would read oddly.
+        return (
+            f"A Yes vote supported this motion. It {outcome}, "
+            f"{vote.yea_total} to {vote.nay_total}."
+        )
     if effect == "advance":
         return (
             f"A Yes vote moved this forward. The motion {outcome}, "

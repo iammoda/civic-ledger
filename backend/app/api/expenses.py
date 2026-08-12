@@ -192,11 +192,11 @@ def search_expenses(
         needle = q.strip().lower()
         query = query.where(
             or_(
-                func.lower(func.coalesce(ExpenseItem.supplier, "")).contains(needle),
-                func.lower(func.coalesce(ExpenseItem.description, "")).contains(needle),
-                func.lower(func.coalesce(ExpenseItem.purpose, "")).contains(needle),
-                func.lower(func.coalesce(ExpenseItem.city, "")).contains(needle),
-                func.lower(ExpenseItem.mp_name_raw).contains(needle),
+                func.lower(func.coalesce(ExpenseItem.supplier, "")).contains(needle, autoescape=True),
+                func.lower(func.coalesce(ExpenseItem.description, "")).contains(needle, autoescape=True),
+                func.lower(func.coalesce(ExpenseItem.purpose, "")).contains(needle, autoescape=True),
+                func.lower(func.coalesce(ExpenseItem.city, "")).contains(needle, autoescape=True),
+                func.lower(ExpenseItem.mp_name_raw).contains(needle, autoescape=True),
             )
         )
     if category:

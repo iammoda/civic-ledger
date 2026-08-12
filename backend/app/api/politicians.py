@@ -40,13 +40,20 @@ def list_politicians(
     party: str | None = None,
     province: str | None = None,
     chamber: str | None = None,
+    include_former: bool = Query(default=False),
     limit: int = Query(default=25, le=400),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict:
     query = select(Person)
+    if not include_former:
+        # The directory shows sitting members by default; former MPs remain
+        # reachable via include_former (their records/expenses still exist).
+        query = query.where(
+            Person.memberships.any(PersonMembership.is_current.is_(True))
+        )
     if q:
-        query = query.where(func.lower(Person.full_name).contains(q.strip().lower()))
+        query = query.where(func.lower(Person.full_name).contains(q.strip().lower(), autoescape=True))
     if chamber:
         query = query.join(Chamber, Person.chamber_id == Chamber.id).where(Chamber.slug == chamber)
     if party:

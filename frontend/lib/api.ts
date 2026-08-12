@@ -123,6 +123,7 @@ export type BillListItem = {
 export type BillDetail = BillListItem & {
   legisinfo_url?: string | null;
   text_url?: string | null;
+  official_summary_en?: string | null;
   topics: string[];
   analyses: AnalysisState[];
   related_votes: VoteListItem[];
@@ -203,18 +204,20 @@ export function getPolitician(slug: string) {
   return fetchApi<PoliticianDetail>(`/politicians/${slug}`);
 }
 
-export function listVotes() {
-  return fetchApi<PaginatedResponse<VoteListItem>>("/votes");
+export function listVotes(params?: { offset?: string }) {
+  const qs = params?.offset ? `?offset=${encodeURIComponent(params.offset)}` : "";
+  return fetchApi<PaginatedResponse<VoteListItem>>(`/votes${qs}`);
 }
 
 export function getVote(chamber: string, session: string, number: string) {
   return fetchApi<VoteDetail>(`/votes/${chamber}/${session}/${number}`);
 }
 
-export function listBills(params?: { outcomeGroup?: string; topic?: string }) {
+export function listBills(params?: { outcomeGroup?: string; topic?: string; offset?: string }) {
   const searchParams = new URLSearchParams();
   if (params?.outcomeGroup) searchParams.set("outcome_group", params.outcomeGroup);
   if (params?.topic) searchParams.set("topic", params.topic);
+  if (params?.offset) searchParams.set("offset", params.offset);
   const qs = searchParams.toString();
   return fetchApi<PaginatedResponse<BillListItem>>(`/bills${qs ? `?${qs}` : ""}`);
 }
@@ -314,10 +317,11 @@ export type PetitionItem = {
   topics: string[];
 };
 
-export function listPetitions(params?: { state?: string; topic?: string }) {
+export function listPetitions(params?: { state?: string; topic?: string; offset?: string }) {
   const searchParams = new URLSearchParams();
   if (params?.state) searchParams.set("state", params.state);
   if (params?.topic) searchParams.set("topic", params.topic);
+  if (params?.offset) searchParams.set("offset", params.offset);
   const qs = searchParams.toString();
   return fetchApi<PaginatedResponse<PetitionItem>>(`/petitions${qs ? `?${qs}` : ""}`);
 }
@@ -446,6 +450,7 @@ export function searchExpenses(params: {
   fiscal_year?: string;
   min_amount?: string;
   sort?: string;
+  offset?: string;
 }) {
   const searchParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {

@@ -74,7 +74,14 @@ export default async function AskPage({
         </div>
       </form>
 
-      {question && !response ? (
+      {question && question.length < 8 ? (
+        <div className="mt-8">
+          <DataGap
+            title="A few more words, please"
+            detail="Questions need at least 8 characters — try describing the problem in a short sentence."
+          />
+        </div>
+      ) : question && !response ? (
         <div className="mt-8">
           <DataGap
             title="We couldn't answer right now"

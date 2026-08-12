@@ -79,7 +79,10 @@ def test_heuristics_block() -> None:
 
 
 def test_heuristics_unknown_defers_to_llm() -> None:
-    assert heuristic_vote_direction("Opposition Motion (Confidence in the government)") is None
+    # Amendments to bill motions invert unpredictably — never guessed.
+    assert heuristic_vote_direction("Motion respecting Senate amendments to Bill C-9 (amendment)") is None
+    # Standalone motions ARE resolved (a Yes adopts the motion itself).
+    assert heuristic_vote_direction("Opposition Motion (Automotive strategy)") == "advance"
 
 
 # --- Jobs with mocked model ---
@@ -188,7 +191,7 @@ async def test_normalize_vote_llm_fallback(db, fake_llm) -> None:
         chamber_id=ctx.house.id,
         number="10",
         occurred_on=date(2026, 5, 2),
-        description_en="Opposition Motion (instruction to the committee)",
+        description_en="Motion respecting Senate amendments to Bill C-10 (amendment)",
         result="Negatived",
         yea_total=140,
         nay_total=160,

@@ -12,25 +12,27 @@ async function submitCorrection(formData: FormData) {
     message: String(formData.get("message") ?? ""),
     contact: String(formData.get("contact") ?? "") || null
   };
+  let ok = false;
   try {
-    await fetch(`${API_BASE_URL}/corrections`, {
+    const response = await fetch(`${API_BASE_URL}/corrections`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       cache: "no-store"
     });
+    ok = response.ok;
   } catch {
-    // Queue unavailable; the thank-you page still shows and the user can retry.
+    ok = false;
   }
-  redirect("/corrections?submitted=1");
+  redirect(ok ? "/corrections?submitted=1" : "/corrections?error=1");
 }
 
 export default async function CorrectionsPage({
   searchParams
 }: {
-  searchParams: Promise<{ submitted?: string }>;
+  searchParams: Promise<{ submitted?: string; error?: string }>;
 }) {
-  const { submitted } = await searchParams;
+  const { submitted, error } = await searchParams;
 
   return (
     <PageShell
@@ -38,6 +40,15 @@ export default async function CorrectionsPage({
       title="Report an error or dispute a record"
       description="Anyone can submit — including politicians' offices. Every submission goes into a review queue and outcomes are reflected on the affected pages."
     >
+      {error ? (
+        <div className="glass-card mb-6 rounded-[2rem] border-l-4 border-signal p-6">
+          <p className="font-medium">That didn&apos;t go through.</p>
+          <p className="mt-1 text-sm text-slate-600">
+            The review queue is briefly unavailable. Your text isn&apos;t saved — please copy it and try again in
+            a minute.
+          </p>
+        </div>
+      ) : null}
       {submitted ? (
         <div className="glass-card mb-6 rounded-[2rem] border-l-4 border-accent p-6">
           <p className="font-medium">Thank you — your submission is in the review queue.</p>

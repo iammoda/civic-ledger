@@ -15,7 +15,34 @@ from datetime import datetime, timezone
 from app.db.session import SessionLocal
 from app.ingestion.openparliament import OpenParliamentClient
 from app.ingestion.stats import compute_all_stats, mark_current_session
-from app.ingestion.sync import SyncContext, sync_bills, sync_politicians, sync_votes
+from app.ingestion.sync import (
+    SyncContext,
+    sweep_session_deaths,
+    sync_bills,
+    sync_politicians,
+    sync_votes,
+)
+
+
+def sweep_ended_sessions(db, ctx: SyncContext) -> int:
+    """Prorogation/dissolution kills every unfinished bill: any session
+    that is no longer current gets its pending bills marked dead."""
+    from sqlalchemy import select
+
+    from app.models import Bill, LegislatureSession
+
+    mark_current_session(db)
+    swept = 0
+    ended_sessions = db.scalars(
+        select(LegislatureSession).where(LegislatureSession.is_current.is_(False))
+    ).all()
+    for session in ended_sessions:
+        has_pending = db.scalar(
+            select(Bill.id).where(Bill.session_id == session.id, Bill.outcome == "pending").limit(1)
+        )
+        if has_pending is not None:
+            swept += sweep_session_deaths(ctx, session.label)
+    return swept
 
 
 async def _audited(db, source: str, job: str, fn: Callable[[], Awaitable[int]]) -> int:
@@ -58,6 +85,8 @@ async def run_sync(mode: str) -> None:
                                lambda: sync_bills(ctx, client, session_label=session_label))
                 await _audited(db, "openparliament", "votes_incremental",
                                lambda: sync_votes(ctx, client, session_label=session_label))
+        # After any sync: bury pending bills of sessions that have ended.
+        sweep_ended_sessions(db, ctx)
     finally:
         db.close()
 

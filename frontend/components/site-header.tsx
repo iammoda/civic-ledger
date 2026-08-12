@@ -3,35 +3,48 @@ import Link from "next/link";
 import { AuthWidget } from "@/components/auth-widget";
 
 const navItems = [
-  { href: "/", label: "Home" },
   { href: "/ask", label: "Ask" },
   { href: "/politicians", label: "MPs" },
-  { href: "/bills", label: "Bills & Votes" },
-  { href: "/about-data", label: "About the Data" }
+  { href: "/bills", label: "Bills" },
+  { href: "/votes", label: "Votes" },
+  { href: "/expenses", label: "Money" }
 ];
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-20 border-b border-black/5 bg-white/75 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        <Link href="/" className="text-lg font-semibold tracking-tight">
+    <header className="sticky top-0 z-20 border-b border-border bg-white/95 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <Link href="/" className="shrink-0 font-serif text-lg font-bold tracking-tight">
           Civic Ledger
         </Link>
-        <div className="flex items-center gap-4">
-          <nav className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-full px-4 py-2 transition hover:bg-slate-900 hover:text-white"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <AuthWidget />
-        </div>
+        <nav aria-label="Main" className="hidden items-center gap-1 text-sm font-medium text-slate-700 sm:flex">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-lg px-3 py-2 transition hover:bg-slate-100 hover:text-ink"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <AuthWidget />
       </div>
+      {/* Mobile nav: horizontal scroll strip under the wordmark. */}
+      <nav
+        aria-label="Main mobile"
+        className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 text-sm font-medium text-slate-700 sm:hidden"
+      >
+        {[{ href: "/", label: "Home" }, ...navItems].map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="shrink-0 rounded-lg px-3 py-1.5 transition hover:bg-slate-100"
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
     </header>
   );
 }

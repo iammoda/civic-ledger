@@ -119,16 +119,12 @@ def keyword_search(db: Session, query: str, *, limit: int = 20) -> list[SearchRe
         ts_query = _fts_or_query(db, query)
         if ts_query is None:
             return []
-        bill_doc = func.to_tsvector(
-            "english",
-            Bill.number
-            + " "
-            + Bill.title_en
-            + " "
-            + func.coalesce(Bill.short_title_en, "")
-            + " "
-            + func.coalesce(Bill.status_en, ""),
-        )
+        # bills.search_tsv is a weighted generated column (number/short title
+        # rank A, title/official summary B, full text D) — content matches
+        # work even when titles don't ("protecting the environment").
+        from sqlalchemy import text as sql_text_expr
+
+        bill_doc = sql_text_expr("bills.search_tsv")
         bills = db.scalars(
             select(Bill)
             .options(selectinload(Bill.session), selectinload(Bill.chamber))

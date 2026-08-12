@@ -45,6 +45,7 @@ export default async function ExpensesPage({
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
             name="q"
+            aria-label="Search expenses"
             defaultValue={params.q ?? ""}
             placeholder="Search suppliers, descriptions, cities, MPs… (e.g. 'advertising', 'Bell', an MP's name)"
             className="w-full rounded-full border border-black/10 bg-white px-5 py-3 outline-none focus:border-accent"
@@ -54,9 +55,12 @@ export default async function ExpensesPage({
             defaultValue={params.min_amount ?? ""}
             placeholder="Min $"
             inputMode="numeric"
+            pattern="[0-9]*"
+            title="Numbers only, e.g. 5000"
             className="w-full rounded-full border border-black/10 bg-white px-5 py-3 outline-none focus:border-accent sm:w-32"
           />
           {params.category ? <input type="hidden" name="category" value={params.category} /> : null}
+          {params.fiscal_year ? <input type="hidden" name="fiscal_year" value={params.fiscal_year} /> : null}
           {params.sort ? <input type="hidden" name="sort" value={params.sort} /> : null}
           <button type="submit" className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white">
             Search
@@ -114,11 +118,6 @@ export default async function ExpensesPage({
                   <span className={`rounded-full px-3 py-1 text-xs font-medium ${CATEGORY_STYLES[item.category] ?? "bg-slate-100 text-slate-600"}`}>
                     {item.category}
                   </span>
-                  {item.flagged ? (
-                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                      MP has reviewed expense flags
-                    </span>
-                  ) : null}
                   {item.traveller_type && item.traveller_type.toLowerCase() !== "member" ? (
                     <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
                       {item.traveller_type}

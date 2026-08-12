@@ -13,6 +13,19 @@ from app.schemas.common import CommitteeEventSummary, PageMeta
 router = APIRouter(prefix="/committees", tags=["committees"])
 
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, selectinload
+
+from app.db.session import get_db
+from app.models import Chamber, Committee, CommitteeMembership
+from app.schemas.committees import CommitteeDetail, CommitteeListItem, CommitteeMember
+from app.schemas.common import CommitteeEventSummary, PageMeta
+
+
+router = APIRouter(prefix="/committees", tags=["committees"])
+
+
 @router.get("")
 def list_committees(
     chamber: str | None = None,
@@ -20,29 +33,30 @@ def list_committees(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict:
+    query = select(Committee)
+    if chamber:
+        query = query.join(Chamber, Committee.chamber_id == Chamber.id).where(Chamber.slug == chamber)
+
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     committees = db.scalars(
-        select(Committee)
-        .options(selectinload(Committee.chamber))
+        query.options(selectinload(Committee.chamber))
         .order_by(Committee.name_en)
         .offset(offset)
         .limit(limit)
     ).all()
 
-    items: list[CommitteeListItem] = []
-    for committee in committees:
-        if chamber and committee.chamber.slug != chamber:
-            continue
-        items.append(
-            CommitteeListItem(
-                slug=committee.slug,
-                name_en=committee.name_en,
-                chamber=committee.chamber.slug,
-            )
+    items = [
+        CommitteeListItem(
+            slug=committee.slug,
+            name_en=committee.name_en,
+            chamber=committee.chamber.slug,
         )
+        for committee in committees
+    ]
 
     return {
         "items": [item.model_dump() for item in items],
-        "meta": PageMeta(total=len(items), limit=limit, offset=offset).model_dump(),
+        "meta": PageMeta(total=total, limit=limit, offset=offset).model_dump(),
     }
 
 

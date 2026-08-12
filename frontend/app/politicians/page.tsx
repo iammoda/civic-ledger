@@ -41,6 +41,7 @@ export default async function PoliticiansPage({
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
             name="q"
+            aria-label="Search MPs by name"
             defaultValue={q ?? ""}
             placeholder="Search by name…"
             className="w-full rounded-full border border-black/10 bg-white px-5 py-3 outline-none focus:border-accent"

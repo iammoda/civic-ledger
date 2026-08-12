@@ -61,19 +61,31 @@ export default async function BillDetailPage({
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="glass-card rounded-[2rem] p-6">
-          <h2 className="text-xl font-semibold">In plain language</h2>
+          <h2 className="text-xl font-semibold">What this bill does</h2>
           <div className="mt-4 space-y-4">
-            {plainSummary ? (
-              <PlainSummaryCard analysis={plainSummary} />
-            ) : (
+            {plainSummary ? <PlainSummaryCard analysis={plainSummary} /> : null}
+            {bill.official_summary_en ? (
+              <div className="rounded-xl border border-border bg-white p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Official summary · Library of Parliament
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-700">
+                  {bill.official_summary_en}
+                </p>
+                <p className="mt-3 border-t border-border pt-3 text-xs text-slate-400">
+                  Written by the non-partisan Library of Parliament — not by us, and not by AI.
+                </p>
+              </div>
+            ) : null}
+            {!plainSummary && !bill.official_summary_en ? (
               <DataGap
-                title={pendingGap?.label ?? "Analysis pending"}
+                title={pendingGap?.label ?? "No summary yet"}
                 detail={
                   pendingGap?.detail ??
-                  "The plain-language summary for this bill has not been generated yet."
+                  "No summary is available for this bill yet. The official records below are unaffected."
                 }
               />
-            )}
+            ) : null}
           </div>
         </div>
 

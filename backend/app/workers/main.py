@@ -177,6 +177,18 @@ async def sync_petitions_job(ctx: dict[str, Any]) -> None:
         db.close()
 
 
+async def enrich_bills_job(ctx: dict[str, Any]) -> None:
+    """Hourly Tier-0 enrichment: official LoP summaries + full bill text."""
+    from app.db.session import SessionLocal
+    from app.ingestion.enrich import enrich_bills
+
+    db = SessionLocal()
+    try:
+        await enrich_bills(db, limit=100)
+    finally:
+        db.close()
+
+
 async def embed_new_content(ctx: dict[str, Any]) -> None:
     """Embed new/changed bills and votes for hybrid search + Ask retrieval."""
     from app.db.session import SessionLocal
@@ -296,6 +308,7 @@ class WorkerSettings:
         analyze_bill_job,
         normalize_vote_job,
         analyze_new_content,
+        enrich_bills_job,
         embed_new_content,
         sync_petitions_job,
         sync_influence_job,
@@ -306,6 +319,7 @@ class WorkerSettings:
     cron_jobs = [
         cron(ingest_incremental, minute={0, 30}),
         cron(analyze_new_content, minute={45}),  # hourly eager pass
+        cron(enrich_bills_job, minute={40}),  # hourly Tier-0 enrichment
         cron(embed_new_content, minute={50}),  # hourly, after analysis
         cron(match_notifications_job, minute={55}),  # hourly, after content lands
         cron(sync_petitions_job, hour={5}, minute={30}),  # daily 05:30 UTC

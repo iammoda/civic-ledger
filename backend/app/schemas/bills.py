@@ -40,6 +40,8 @@ class BillListItem(BaseModel):
 class BillDetail(BillListItem):
     legisinfo_url: str | None = None
     text_url: str | None = None
+    # Human-written by the Library of Parliament — always attributed, no AI.
+    official_summary_en: str | None = None
     topics: list[str] = []
     analyses: list[AnalysisState] = []
     related_votes: list[VoteListItem] = []

@@ -2,8 +2,13 @@ import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
 import { outcomeBadge } from "@/components/death-banner";
+import { LevelBadge } from "@/components/level-badge";
 import { PageShell } from "@/components/page-shell";
+import { Pagination } from "@/components/pagination";
 import { listBills } from "@/lib/api";
+import { billTypeLabel, humanizeBillTitle, humanizeStatus } from "@/lib/humanize";
+
+export const metadata = { title: "Federal bills — the living and the dead" };
 
 const FILTERS = [
   { label: "All bills", value: undefined },
@@ -15,17 +20,17 @@ const FILTERS = [
 export default async function BillsPage({
   searchParams
 }: {
-  searchParams: Promise<{ outcome?: string }>;
+  searchParams: Promise<{ outcome?: string; offset?: string }>;
 }) {
-  const { outcome } = await searchParams;
+  const { outcome, offset } = await searchParams;
   const outcomeGroup = ["pending", "law", "dead"].includes(outcome ?? "") ? outcome : undefined;
-  const bills = await listBills({ outcomeGroup });
+  const bills = await listBills({ outcomeGroup, offset });
 
   return (
     <PageShell
-      eyebrow="Bills"
-      title="Federal legislation — the living and the dead"
-      description="Every bill with its plain-language summary, current status, and — when it died — exactly how."
+      eyebrow="Federal Parliament"
+      title="Bills — the living and the dead"
+      description="Every proposed federal law with a plain-language status. When a bill dies, we say exactly how."
     >
       <div className="mb-6 flex flex-wrap gap-2">
         {FILTERS.map((filter) => {
@@ -35,10 +40,10 @@ export default async function BillsPage({
             <Link
               key={filter.label}
               href={href}
-              className={`rounded-full border px-4 py-2 text-sm transition ${
+              className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
                 active
                   ? "border-accent bg-accent text-white"
-                  : "border-black/10 bg-white text-slate-700 hover:border-accent hover:text-accent"
+                  : "border-border bg-white text-slate-700 hover:border-accent hover:text-accent"
               }`}
             >
               {filter.label}
@@ -47,7 +52,7 @@ export default async function BillsPage({
         })}
         <Link
           href="/graveyard"
-          className="rounded-full border border-signal/40 px-4 py-2 text-sm text-signal transition hover:bg-signal hover:text-white"
+          className="rounded-lg border border-signal/40 bg-white px-3 py-1.5 text-sm font-medium text-signal transition hover:bg-signal hover:text-white"
         >
           Visit the Graveyard →
         </Link>
@@ -55,42 +60,66 @@ export default async function BillsPage({
 
       {!bills?.items.length ? (
         <DataGap
-          title="No bills loaded"
-          detail="Run bill ingestion to populate this page with current and historical legislation."
+          title={bills ? "No bills match this filter" : "Data temporarily unavailable"}
+          detail={
+            bills
+              ? "Try a different filter."
+              : "The data service isn't responding right now — try again in a minute."
+          }
         />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {bills.items.map((bill) => {
             const badge = outcomeBadge(bill.outcome, bill.is_law);
+            const title = humanizeBillTitle(bill.title_en, bill.short_title_en);
+            const status = humanizeStatus(bill.status_en);
             return (
               <Link
                 key={`${bill.session}-${bill.number}`}
                 href={`/bills/${bill.session}/${bill.number}`}
-                className="glass-card block rounded-[2rem] p-6 transition hover:-translate-y-0.5"
+                className="glass-card block p-5 transition hover:border-accent"
               >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm uppercase tracking-[0.18em] text-slate-500">
-                        {bill.number} · {bill.session} · {bill.bill_type.replaceAll("_", " ")}
-                      </p>
-                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${badge.className}`}>
-                        {badge.label}
-                      </span>
-                    </div>
-                    <h2 className="mt-2 text-xl font-semibold">{bill.short_title_en ?? bill.title_en}</h2>
-                    <p className="mt-2 text-sm text-slate-600">{bill.sponsor_name ?? "Sponsor pending"}</p>
-                  </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-600 sm:max-w-xs">
-                    <p>{bill.status_en ?? "Status pending"}</p>
-                    {bill.is_omnibus ? <p className="mt-1 text-signal">Potential omnibus</p> : null}
-                  </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <LevelBadge level="federal" />
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                    {bill.number}
+                  </span>
+                  <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${badge.className}`}>
+                    {badge.label}
+                  </span>
+                  <span className="text-xs text-slate-500">{billTypeLabel(bill.bill_type)}</span>
+                  {bill.is_omnibus ? (
+                    <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                      Omnibus — many laws at once
+                    </span>
+                  ) : null}
                 </div>
+                <h2 className="mt-2 text-lg font-bold leading-7">{title.headline}</h2>
+                {title.legal ? (
+                  <p className="mt-0.5 truncate text-xs text-slate-400">{title.legal}</p>
+                ) : null}
+                <p className="mt-1.5 text-sm text-slate-600" title={status.raw}>
+                  {status.label}
+                  {status.hint ? <span className="text-slate-400"> — {status.hint}</span> : null}
+                  {bill.sponsor_name ? (
+                    <span className="text-slate-400"> · Sponsored by {bill.sponsor_name}</span>
+                  ) : null}
+                </p>
               </Link>
             );
           })}
         </div>
       )}
+
+      {bills ? (
+        <Pagination
+          total={bills.meta.total}
+          limit={bills.meta.limit}
+          offset={bills.meta.offset}
+          basePath="/bills"
+          params={{ outcome }}
+        />
+      ) : null}
     </PageShell>
   );
 }

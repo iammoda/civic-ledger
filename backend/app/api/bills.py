@@ -176,22 +176,54 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
     ]
 
     data_gaps = []
-    has_summary = any(a.analysis_type == "plain_summary" and a.status == "published" for a in analyses)
-    if not has_summary:
-        # Lazy-analysis engine: first view triggers generation; cached forever.
-        queued = await enqueue("analyze_bill_job", bill.id)
+    summary_state = next(
+        (a.status for a in analyses if a.analysis_type == "plain_summary"), None
+    )
+    if summary_state == "blocked":
+        # A human-reviewable failure — do NOT re-enqueue (each attempt costs
+        # two model calls; auto-retrying on page views burned budget).
         data_gaps.append(
             DataGap(
-                code="analysis_pending",
-                label="Plain-language summary on its way" if queued else "Analysis pending",
+                code="analysis_blocked",
+                label="Summary didn't meet our quality bar",
                 detail=(
-                    "We're writing the plain-language summary for this bill right now — "
-                    "check back in a minute."
-                    if queued
-                    else "AI-generated bill analysis has not completed for this bill yet."
+                    "The AI summary failed our readability checks and was blocked "
+                    "rather than published. The official records below are unaffected."
                 ),
             )
         )
+    elif summary_state != "published":
+        from app.core.config import get_settings
+
+        if not get_settings().anthropic_api_key:
+            # Honest no-AI mode: don't enqueue no-op jobs or promise
+            # summaries that can't be generated.
+            data_gaps.append(
+                DataGap(
+                    code="analysis_disabled",
+                    label="AI summaries aren't enabled",
+                    detail=(
+                        "This instance runs without generative AI. The official "
+                        "records and Library of Parliament summary (when available) "
+                        "are shown instead."
+                    ),
+                )
+            )
+        else:
+            # Lazy-analysis engine: first view triggers generation; cached forever.
+            queued = await enqueue("analyze_bill_job", bill.id)
+            data_gaps.append(
+                DataGap(
+                    code="analysis_pending",
+                    label="Plain-language summary on its way" if queued else "Analysis pending",
+                    detail=(
+                        "We're writing the plain-language summary for this bill right now — "
+                        "check back in a minute."
+                        if queued
+                        else "AI-generated bill analysis has not completed for this bill yet."
+                    ),
+                )
+            )
 
     return BillDetail(
         session=bill.session.label,
@@ -210,6 +242,7 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
         death=_death_info(db, bill),
         legisinfo_url=bill.legisinfo_url,
         text_url=bill.text_url,
+        official_summary_en=bill.official_summary_en,
         topics=topics,
         analyses=analyses,
         related_votes=[

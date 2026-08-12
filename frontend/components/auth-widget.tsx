@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { signIn, signOut, useSession } from "@/lib/auth-client";
 
 export function AuthWidget() {
+  const router = useRouter();
   const { data: session, isPending } = useSession();
 
   if (isPending) {
@@ -39,7 +41,11 @@ export function AuthWidget() {
       </Link>
       <button
         type="button"
-        onClick={() => signOut()}
+        onClick={async () => {
+          await signOut();
+          router.push("/");
+          router.refresh();
+        }}
         className="rounded-full px-3 py-2 text-sm text-slate-500 transition hover:text-slate-900"
       >
         Sign out

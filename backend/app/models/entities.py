@@ -151,6 +151,10 @@ class Bill(Base, TimestampMixin):
     legisinfo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     summary_source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     text_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Library of Parliament short legislative summary (human-written,
+    # attributed) and the bill's full text for search — no AI involved.
+    official_summary_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    full_text_en: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Machine-readable LEGISinfo status code, e.g. "RoyalAssentGiven".
     status_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     is_law: Mapped[bool] = mapped_column(Boolean, default=False)

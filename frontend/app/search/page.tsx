@@ -23,6 +23,7 @@ export default async function SearchPage({
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
             name="q"
+            aria-label="Search bills and votes"
             defaultValue={query}
             minLength={2}
             maxLength={200}
@@ -59,10 +60,15 @@ export default async function SearchPage({
                 <p className="mt-1 text-sm text-slate-500">{item.snippet}</p>
               </Link>
             ))
-          ) : (
+          ) : response ? (
             <DataGap
               title="No results"
               detail={`Nothing in the parliamentary record matched "${query}". Try different words, or ask the question directly on the Ask page.`}
+            />
+          ) : (
+            <DataGap
+              title="Search is temporarily unavailable"
+              detail="The data service isn't responding — nothing is wrong with your search. Try again in a minute."
             />
           )}
         </div>

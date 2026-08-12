@@ -2,7 +2,11 @@ import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
+import { Pagination } from "@/components/pagination";
 import { listBills } from "@/lib/api";
+import { formatDate, humanizeBillTitle } from "@/lib/humanize";
+
+export const metadata = { title: "The Graveyard — bills that died, and how" };
 
 const MECHANISM_LABELS: Record<string, string> = {
   defeated_vote: "Defeated on a recorded vote",
@@ -16,10 +20,10 @@ const MECHANISM_LABELS: Record<string, string> = {
 export default async function GraveyardPage({
   searchParams
 }: {
-  searchParams: Promise<{ topic?: string }>;
+  searchParams: Promise<{ topic?: string; offset?: string }>;
 }) {
-  const { topic } = await searchParams;
-  const bills = await listBills({ outcomeGroup: "dead", topic });
+  const { topic, offset } = await searchParams;
+  const bills = await listBills({ outcomeGroup: "dead", topic, offset });
 
   return (
     <PageShell
@@ -54,13 +58,13 @@ export default async function GraveyardPage({
                     bill.outcome.replaceAll("_", " ")}
                 </span>
                 {bill.death?.occurred_on ? (
-                  <span className="text-xs text-slate-400">{bill.death.occurred_on}</span>
+                  <span className="text-xs text-slate-400">{formatDate(bill.death.occurred_on)}</span>
                 ) : null}
                 <span className="ml-auto text-sm uppercase tracking-[0.14em] text-slate-500">
                   {bill.number} · {bill.session}
                 </span>
               </div>
-              <h2 className="mt-2 text-xl font-semibold">{bill.short_title_en ?? bill.title_en}</h2>
+              <h2 className="mt-2 text-xl font-semibold">{humanizeBillTitle(bill.title_en, bill.short_title_en).headline}</h2>
               {bill.death?.attribution_en ? (
                 <p className="mt-2 text-sm leading-6 text-slate-600">{bill.death.attribution_en}</p>
               ) : null}
@@ -71,6 +75,16 @@ export default async function GraveyardPage({
           ))}
         </div>
       )}
+
+      {bills ? (
+        <Pagination
+          total={bills.meta.total}
+          limit={bills.meta.limit}
+          offset={bills.meta.offset}
+          basePath="/graveyard"
+          params={{ topic }}
+        />
+      ) : null}
 
       <p className="mt-8 text-xs leading-6 text-slate-400">
         Deaths are derived from LEGISinfo status codes and session-end sweeps (prorogation and dissolution

@@ -55,14 +55,18 @@ export default async function FeedPage() {
     <PageShell
       eyebrow="Catch me up"
       title={
-        feed && feed.unread_count > 0
-          ? `${feed.unread_count} thing${feed.unread_count === 1 ? "" : "s"} happened since your last visit`
-          : "You're all caught up"
+        !feed
+          ? "Your feed"
+          : feed.unread_count > 0
+            ? `${feed.unread_count} thing${feed.unread_count === 1 ? "" : "s"} happened since your last visit`
+            : "You're all caught up"
       }
       description={
-        feed?.parliament_sitting
-          ? "Parliament is sitting — votes and bills are moving."
-          : "Parliament isn't sitting right now, but petitions and lobbying filings continue year-round."
+        !feed
+          ? "We couldn't load your feed right now."
+          : feed.parliament_sitting
+            ? "Parliament is sitting — votes and bills are moving."
+            : "Parliament isn't sitting right now, but petitions and lobbying filings continue year-round."
       }
     >
       {!feed ? (
