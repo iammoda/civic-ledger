@@ -22,3 +22,18 @@ backend/.coverage
 *.pyo
 *.pyd
 .DS_Store
+
+# Local data & imports
+/Volumes/CivicLedgerData/
+.venv/
+/frontend/node_modules/
+/frontend/.next/
+/node_modules/
+
+# Playwright audit artifacts
+.playwright-mcp/
+home*.png
+ask*.png
+
+# Local logs
+/tmp/civic_*.log
