@@ -337,6 +337,7 @@ def _insert_contribution_rows(
     existing_fingerprints: set[str],
 ) -> int:
     count = 0
+    batch = 0
     for row in rows:
         fingerprint = _contribution_fingerprint(row)
         if fingerprint in existing_fingerprints:
@@ -358,9 +359,19 @@ def _insert_contribution_rows(
             )
         )
         count += 1
-        if count % 5000 == 0:
-            db.commit()
-    db.commit()
+        batch += 1
+        if batch >= 5000:
+            # Small-ish batches so one dupe fingerprint slipping past the
+            # in-memory set doesn't invalidate a huge unit of work.
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+            batch = 0
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
     return count
 
 
