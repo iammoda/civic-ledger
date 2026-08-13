@@ -347,12 +347,12 @@ def _insert_contribution_rows(
             Contribution(
                 contributor_name=row["contributor_name"][:255],
                 normalized_contributor=normalize_name(row["contributor_name"])[:255],
-                contributor_city=row["contributor_city"],
-                contributor_province=row["contributor_province"],
+                contributor_city=(row["contributor_city"] or None) and row["contributor_city"][:128],
+                contributor_province=(row["contributor_province"] or None) and row["contributor_province"][:8],
                 amount=row["amount"],
                 received_on=row["received_on"],
                 recipient_name=row["recipient_name"][:255],
-                recipient_party=row["recipient_party"],
+                recipient_party=(row["recipient_party"] or None) and row["recipient_party"][:255],
                 recipient_person_id=name_index.get(normalize_person_name(row["recipient_name"])),
                 recipient_type=row["recipient_type"],
                 source_fingerprint=fingerprint,
@@ -365,7 +365,8 @@ def _insert_contribution_rows(
             # in-memory set doesn't invalidate a huge unit of work.
             try:
                 db.commit()
-            except Exception:
+            except Exception as exc:
+                print(f"  batch commit failed at count={count}: {exc.__class__.__name__}", flush=True)
                 db.rollback()
             batch = 0
     try:
