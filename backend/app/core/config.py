@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     )
     # Elections Canada contributions export (CSV or ZIP of CSV).
     contributions_export_url: str = Field(default="", alias="CONTRIBUTIONS_EXPORT_URL")
+    # Local dir checked first for manually-downloaded exports (Cloudflare).
+    imports_dir: str = Field(default="/Volumes/CivicLedgerData/imports", alias="IMPORTS_DIR")
+    # Ignore influence records older than this year.
+    influence_since_year: int = Field(default=2019, alias="INFLUENCE_SINCE_YEAR")
     # Expense flag thresholds (big-ticket per single item, by category).
     expense_big_contract: float = Field(default=25000.0, alias="EXPENSE_BIG_CONTRACT")
     expense_big_hospitality: float = Field(default=5000.0, alias="EXPENSE_BIG_HOSPITALITY")

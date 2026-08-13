@@ -204,32 +204,55 @@ async def embed_new_content(ctx: dict[str, Any]) -> None:
 
 
 async def sync_influence_job(ctx: dict[str, Any]) -> None:
-    """Weekly: lobbying communications + contributions exports (config URLs).
-    WAF-blocked or empty downloads fail the audit row honestly."""
+    """Weekly: lobbying communications + contributions. Imports-dir files
+    win over HTTP (lobbycanada is Cloudflare-walled for scripts)."""
     from datetime import datetime, timezone
 
     from app.core.config import get_settings
     from app.db.session import SessionLocal
-    from app.ingestion.influence import download_export, sync_contributions, sync_lobby_communications
+    from app.ingestion.influence import (
+        download_bytes,
+        download_to_file,
+        sync_contributions_file,
+        sync_lobby_communications,
+    )
     from app.models import IngestionRun
 
     settings = get_settings()
     db = SessionLocal()
     try:
-        for source, url, sync_fn in (
-            ("lobby_registry", settings.lobby_export_url, sync_lobby_communications),
-            ("elections_canada", settings.contributions_export_url, sync_contributions),
-        ):
-            if not url:
-                continue
-            run = IngestionRun(source_name=source, job_name=f"{source}_sync", status="running")
+        # --- Registry of Lobbyists (relational zip) ---
+        if settings.lobby_export_url:
+            run = IngestionRun(source_name="lobby_registry", job_name="lobby_registry_sync", status="running")
             db.add(run)
             db.commit()
             try:
-                csv_text = await download_export(url)
-                if csv_text is None:
-                    raise RuntimeError(f"Download failed or empty: {url}")
-                run.item_count = sync_fn(db, csv_text)
+                zip_bytes = await download_bytes(settings.lobby_export_url)
+                if zip_bytes is None:
+                    raise RuntimeError(
+                        "Download failed (Cloudflare?). Drop the zip in "
+                        f"{settings.imports_dir} and re-run."
+                    )
+                run.item_count = sync_lobby_communications(db, zip_bytes)
+                run.status = "succeeded"
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                run.status = "failed"
+                run.error_message = str(exc)[:2000]
+            finally:
+                run.finished_at = datetime.now(timezone.utc)
+                db.commit()
+
+        # --- Elections Canada contributions (streamed) ---
+        if settings.contributions_export_url:
+            run = IngestionRun(source_name="elections_canada", job_name="contributions_sync", status="running")
+            db.add(run)
+            db.commit()
+            try:
+                path = await download_to_file(settings.contributions_export_url)
+                if path is None:
+                    raise RuntimeError(f"Download failed: {settings.contributions_export_url}")
+                run.item_count = sync_contributions_file(db, path)
                 run.status = "succeeded"
             except Exception as exc:  # noqa: BLE001
                 db.rollback()

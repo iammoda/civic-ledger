@@ -13,7 +13,7 @@ from app.ingestion.influence import (
     normalize_name,
     normalize_person_name,
     parse_contributions_csv,
-    parse_lobby_csv,
+    parse_lobby_zip,
     sync_contributions,
     sync_lobby_communications,
 )
@@ -37,12 +37,46 @@ from app.services.detectors import (
 from test_accounts import _seed_auth_user
 
 
-LOBBY_CSV = """COMM_NUMBER,COMM_DATE,CLIENT_ORG_CORP_NM,REGISTRANT_NM,DPOH_NM,DPOH_TITLE,INSTITUTION,SUBJECT_MATTER
-C-100,2026-05-01,Acme Pipelines Inc.,"Smith, Lobby",\"Doe, Jane\",Member of Parliament,House of Commons,"Energy, Environment"
-C-101,2026-05-03,Acme Pipelines Inc.,"Smith, Lobby","Doe, Jane",Member of Parliament,House of Commons,"Energy"
-C-102,2026-05-05,Big Housing Corp,"Jones, Lobby","Doe, Jane",Member of Parliament,House of Commons,"Housing"
-C-103,2026-05-06,Provincial Thing Ltd,"Jones, Lobby","Someone, Provincial",Deputy Minister,Natural Resources Canada,"Mining"
-"""
+def build_lobby_zip() -> bytes:
+    """Miniature of the real relational export (verified header names)."""
+    import io as _io
+    import zipfile as _zipfile
+
+    primary = (
+        '"COMLOG_ID","CLIENT_ORG_CORP_NUM","EN_CLIENT_ORG_CORP_NM_AN","FR_CLIENT_ORG_CORP_NM",'
+        '"REGISTRANT_NUM_DECLARANT","RGSTRNT_LAST_NM_DCLRNT","RGSTRNT_1ST_NM_PRENOM_DCLRNT",'
+        '"COMM_DATE","REG_TYPE_ENR","SUBMISSION_DATE_SOUMISSION","POSTED_DATE_PUBLICATION","PREV_COMLOG_ID_PRECEDNT"\n'
+        '"100","1","Acme Pipelines Inc.","null","10","Smith","Lobby","2026-05-01","2","2026-05-02","2026-05-03","null"\n'
+        '"101","1","Acme Pipelines Inc.","null","10","Smith","Lobby","2026-05-03","2","2026-05-04","2026-05-05","null"\n'
+        '"102","2","Big Housing Corp","null","11","Jones","Lobby","2026-05-05","2","2026-05-06","2026-05-07","null"\n'
+        '"103","3","Provincial Thing Ltd","null","11","Jones","Lobby","2026-05-06","2","2026-05-07","2026-05-08","null"\n'
+        '"90","4","Ancient History Inc.","null","12","Old","Timer","2010-01-01","2","2010-01-02","2010-01-03","null"\n'
+    )
+    dpoh = (
+        '"COMLOG_ID","DPOH_LAST_NM_TCPD","DPOH_FIRST_NM_PRENOM_TCPD","DPOH_TITLE_TITRE_TCPD",'
+        '"BRANCH_UNIT_DIRECTION_SERVICE","OTHER_INSTITUTION_AUTRE","INSTITUTION"\n'
+        '"100","Doe","Jane","Member of Parliament","null","null","House of Commons"\n'
+        '"101","Doe","Jane","Member of Parliament","null","null","House of Commons"\n'
+        '"102","Doe","Jane","Member of Parliament","null","null","House of Commons"\n'
+        '"103","Someone","Provincial","Deputy Minister","null","null","Natural Resources Canada"\n'
+        '"90","Doe","Jane","Member of Parliament","null","null","House of Commons"\n'
+    )
+    subjects = (
+        '"COMLOG_ID","SUBJECT_CODE_OBJET","CUSTOM_SUBJ_OBJET_PERSO"\n'
+        '"100","SMT-1",""\n"100","SMT-2",""\n"101","SMT-1",""\n"102","SMT-3",""\n"103","SMT-4",""\n'
+    )
+    codes = (
+        '"SUBJECT_CODE_OBJET","SMT_EN_DESC","SMT_FR_DESC"\n'
+        '"SMT-1","Energy","Energie"\n"SMT-2","Environment","Environnement"\n'
+        '"SMT-3","Housing","Logement"\n"SMT-4","Mining","Mines"\n'
+    )
+    buffer = _io.BytesIO()
+    with _zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("Communication_PrimaryExport.csv", primary)
+        archive.writestr("Communication_DpohExport.csv", dpoh)
+        archive.writestr("Communication_SubjectMattersExport.csv", subjects)
+        archive.writestr("Codes_SubjectMatterTypesExport.csv", codes)
+    return buffer.getvalue()
 
 CONTRIB_CSV = """Political entity,Recipient,Political party of recipient,Contributor name,Contributor's city,Contributor's province,Contribution Received date,Monetary amount
 Candidate,"Doe, Jane",Liberal Party of Canada,Acme Pipelines Inc.,Calgary,AB,2026-04-15,1500.00
@@ -84,29 +118,39 @@ def test_normalize_person_name_handles_last_first() -> None:
 # --- Lobby parsing + sync ---
 
 
-def test_parse_lobby_csv_maps_aliases() -> None:
-    rows = parse_lobby_csv(LOBBY_CSV)
-    assert len(rows) == 4
-    assert rows[0]["source_ref"] == "C-100"
-    assert rows[0]["comm_date"] == date(2026, 5, 1)
-    assert rows[0]["subjects"] == "Energy, Environment"
+def test_parse_lobby_zip_joins_relational_files() -> None:
+    rows = parse_lobby_zip(build_lobby_zip(), since_year=2019)
+    assert len(rows) == 4  # COMLOG 90 (2010) filtered by since_year.
+    first = next(r for r in rows if r["source_ref"] == "100")
+    assert first["comm_date"] == date(2026, 5, 1)
+    assert first["dpoh_name"] == "Jane Doe"           # Split names joined.
+    assert first["registrant_name"] == "Lobby Smith"
+    assert first["subjects"] == "Energy, Environment"  # SMT codes -> names.
+    assert first["institution"] == "House of Commons"
 
 
 def test_sync_lobby_matches_mp_and_filters_institutions(db) -> None:
     mp = _mp(db)
-    count = sync_lobby_communications(db, LOBBY_CSV)
-    assert count == 3  # Provincial/departmental row filtered out.
+    count = sync_lobby_communications(db, build_lobby_zip())
+    assert count == 3  # Departmental row filtered; 2010 row outside window.
 
     comms = db.scalars(select(LobbyCommunication)).all()
     assert all(c.dpoh_person_id == mp.id for c in comms)
-    # Idempotent re-run.
-    assert sync_lobby_communications(db, LOBBY_CSV) == 3
+    assert all(c.institution == "House of Commons" for c in comms)
+    # Idempotent re-run inserts nothing new.
+    assert sync_lobby_communications(db, build_lobby_zip()) == 0
     assert len(db.scalars(select(LobbyCommunication)).all()) == 3
 
 
-def test_parse_lobby_csv_unknown_headers_raise() -> None:
+def test_parse_lobby_zip_missing_members_raises() -> None:
+    import io as _io
+    import zipfile as _zipfile
+
+    buffer = _io.BytesIO()
+    with _zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("Unrelated.csv", "A,B\n1,2\n")
     with pytest.raises(ValueError):
-        parse_lobby_csv("A,B,C\n1,2,3\n")
+        parse_lobby_zip(buffer.getvalue(), since_year=2019)
 
 
 # --- Contributions parsing + sync ---
@@ -154,7 +198,7 @@ def test_contact_cluster_detector(db) -> None:
 
 def test_donor_lobbyist_overlap_detector(db) -> None:
     mp = _mp(db)
-    sync_lobby_communications(db, LOBBY_CSV)
+    sync_lobby_communications(db, build_lobby_zip())
     sync_contributions(db, CONTRIB_CSV)
 
     created = detect_donor_lobbyist_overlap(db)
@@ -281,7 +325,7 @@ def test_corrections_flow(db, client, monkeypatch) -> None:
 
 def test_money_endpoint_aggregates(db, client) -> None:
     mp = _mp(db)
-    sync_lobby_communications(db, LOBBY_CSV)
+    sync_lobby_communications(db, build_lobby_zip())
     sync_contributions(db, CONTRIB_CSV)
 
     money = client.get(f"/v1/politicians/{mp.slug}/money").json()
