@@ -12,6 +12,7 @@ from app.main import app
 from app.models import (
     Ballot,
     Bill,
+    ExpenseSummary,
     Jurisdiction,
     LegislatureSession,
     Person,
@@ -157,7 +158,72 @@ def test_receipts_ontario_scope(db, client) -> None:
 
     # Federal scope still answers (and rejects unknown scopes).
     assert client.get("/v1/receipts").status_code == 200
+    # "provincial" is the canonical scope; "ontario" stays as an alias.
+    assert client.get("/v1/receipts?scope=provincial").status_code == 200
     assert client.get("/v1/receipts?scope=alberta").status_code == 422
+
+
+def test_receipts_federal_province_filter(db, client) -> None:
+    ctx = SyncContext(db)
+    session = ctx.session_for_label("45-1")
+
+    mb_mp = Person(slug="mb-mp", full_name="Morgan Brandon", chamber_id=ctx.house.id)
+    on_mp = Person(slug="on-mp", full_name="Olivia Nash", chamber_id=ctx.house.id)
+    db.add_all([mb_mp, on_mp])
+    db.flush()
+    db.add_all(
+        [
+            PersonMembership(
+                person_id=mb_mp.id, chamber_id=ctx.house.id, riding_name="Winnipeg Test",
+                province_code="MB", is_current=True,
+            ),
+            PersonMembership(
+                person_id=on_mp.id, chamber_id=ctx.house.id, riding_name="Toronto Test",
+                province_code="ON", is_current=True,
+            ),
+            ExpenseSummary(
+                person_id=mb_mp.id, mp_name_raw="Brandon, Morgan", fiscal_year=2025, quarter=2,
+                salaries=100000.0, travel=5000.0, hospitality=1000.0, contracts=2000.0,
+            ),
+            ExpenseSummary(
+                person_id=on_mp.id, mp_name_raw="Nash, Olivia", fiscal_year=2025, quarter=2,
+                salaries=200000.0, travel=9000.0, hospitality=3000.0, contracts=8000.0,
+            ),
+            PersonStats(
+                person_id=mb_mp.id, session_id=session.id,
+                votes_eligible=40, votes_cast=35, attendance_pct=87.5, dissent_count=3,
+            ),
+            PersonStats(
+                person_id=on_mp.id, session_id=session.id,
+                votes_eligible=40, votes_cast=40, attendance_pct=100.0, dissent_count=1,
+            ),
+        ]
+    )
+    db.commit()
+
+    response = client.get("/v1/receipts?scope=federal&province=mb")  # lowercase → uppercased
+    assert response.status_code == 200
+    data = response.json()
+    assert data["boards"], "province filter should still surface the MB person's boards"
+    for board in data["boards"]:
+        assert "· MB MPs only" in board["subtitle"]
+        names = {row["person_name"] for row in board["rows"]}
+        assert names == {"Morgan Brandon"}, f"{board['key']} leaked non-MB rows: {names}"
+
+    # Unfiltered federal scope still shows both MPs.
+    unfiltered = client.get("/v1/receipts").json()
+    all_names = {row["person_name"] for board in unfiltered["boards"] for row in board["rows"]}
+    assert {"Morgan Brandon", "Olivia Nash"} <= all_names
+
+
+def test_receipts_provincial_non_ontario_returns_note(db, client) -> None:
+    response = client.get("/v1/receipts?scope=provincial&province=BC")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["boards"] == []
+    assert data["note"] is not None
+    assert "Only Ontario publishes machine-readable MPP votes" in data["note"]
+    assert "Only Ontario publishes machine-readable MPP votes" in data["generated_note"]
 
 
 # --- Notification matcher ---

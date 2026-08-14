@@ -218,6 +218,9 @@ class ReceiptBoard(BaseModel):
 class ReceiptsResponse(BaseModel):
     boards: list[ReceiptBoard]
     generated_note: str
+    # Set when a filter yields no boards for a structural reason (e.g. a
+    # province whose legislature publishes no machine-readable votes yet).
+    note: str | None = None
 
 
 def _person_display(db: Session, person_ids: list[int]) -> dict[int, tuple[str, str, str | None, str | None, str | None]]:
@@ -310,7 +313,7 @@ def _latest_stats_session_id(db: Session, scope: str) -> int | None:
         .order_by(LegislatureSession.parliament_number.desc(), LegislatureSession.session_number.desc())
         .limit(1)
     )
-    if scope == "ontario":
+    if scope == "provincial":
         query = query.where(Jurisdiction.level == "provincial", Jurisdiction.code == "ca-on")
     else:
         query = query.where(Jurisdiction.level == "federal")
@@ -323,20 +326,59 @@ _ONTARIO_MONEY_CAVEAT = (
     "so the money boards remain federal-only."
 )
 
+# Provincial vote data exists only for Ontario today — say why, not just 404.
+_NON_ONTARIO_PROVINCIAL_NOTE = (
+    "Only Ontario publishes machine-readable MPP votes so far — other provinces "
+    "appear as their legislatures publish data."
+)
+
+_GENERATED_NOTE = (
+    "Every board is a straight computation over official records — the same math for every "
+    "party and every MP, refreshed as new disclosures land. Nobody hand-picks who appears here."
+)
+
 
 @router.get("/receipts", response_model=ReceiptsResponse)
 def receipts(
-    scope: str = Query(default="federal", pattern="^(federal|ontario)$"),
+    scope: str = Query(default="federal", pattern="^(federal|ontario|provincial)$"),
+    province: str | None = Query(default=None, max_length=2),
     db: Session = Depends(get_db),
 ) -> ReceiptsResponse:
     boards: list[ReceiptBoard] = []
-    is_ontario = scope == "ontario"
+    # "ontario" is a backward-compat alias for the provincial scope.
+    if scope == "ontario":
+        scope = "provincial"
+    is_provincial = scope == "provincial"
+    province = province.upper() if province else None
+
+    # Provincial vote data exists only for Ontario today: any other province
+    # gets an honest, explanatory empty response instead of a silent blank.
+    if is_provincial and province not in (None, "ON"):
+        return ReceiptsResponse(
+            boards=[],
+            generated_note=_NON_ONTARIO_PROVINCIAL_NOTE,
+            note=_NON_ONTARIO_PROVINCIAL_NOTE,
+        )
+
+    # Federal scope + province: restrict every board to people whose CURRENT
+    # membership is in that province. Resolved once, applied per board.
+    province_person_ids: set[int] | None = None
+    if province and not is_provincial:
+        province_person_ids = set(
+            db.scalars(
+                select(PersonMembership.person_id).where(
+                    PersonMembership.is_current.is_(True),
+                    PersonMembership.province_code == province,
+                )
+            ).all()
+        )
+    province_suffix = f" · {province} MPs only" if province_person_ids is not None else ""
 
     # 1. Top office spenders, latest quarter (federal only — HoC disclosures).
-    quarter = _latest_quarter(db) if not is_ontario else None
+    quarter = _latest_quarter(db) if not is_provincial else None
     if quarter:
         fy, q = quarter
-        rows = db.execute(
+        spend_query = (
             select(
                 ExpenseSummary.person_id,
                 ExpenseSummary.mp_name_raw,
@@ -356,97 +398,108 @@ def receipts(
                 0,
             ).desc())
             .limit(10)
-        ).all()
-        display = _person_display(db, [r[0] for r in rows if r[0]])
-        item_contexts = _biggest_expense_contexts(db, [r[0] for r in rows if r[0]], fy, q)
-        boards.append(
-            ReceiptBoard(
-                key="top_spenders",
-                title="Top office spenders",
-                subtitle=f"Total office spending, Q{q} FY{fy}–{fy + 1}",
-                caveat=(
-                    "High spending is often legitimate: big or northern ridings cost more to serve, "
-                    "and staff payroll dominates every MP's budget. Every line traces to the official "
-                    "disclosure — click through and judge for yourself."
-                ),
-                rows=[
-                    ReceiptRow(
-                        person_slug=display.get(pid, (None, None, None, None, None))[1] if pid else None,
-                        person_name=display.get(pid, (raw_name, None, None, None, None))[0] if pid else raw_name,
-                        image_url=display.get(pid, (None, None, None, None, None))[2] if pid else None,
-                        party=display.get(pid, (None, None, None, None, None))[3] if pid else None,
-                        riding=display.get(pid, (None, None, None, None, None))[4] if pid else None,
-                        value=float(total or 0),
-                        display=f"${float(total or 0):,.0f}",
-                        context=item_contexts.get(pid) if pid else None,
-                    )
-                    for pid, raw_name, total in rows
-                ],
-            )
         )
+        if province_person_ids is not None:
+            spend_query = spend_query.where(ExpenseSummary.person_id.in_(province_person_ids))
+        rows = db.execute(spend_query).all()
+        if rows:
+            display = _person_display(db, [r[0] for r in rows if r[0]])
+            item_contexts = _biggest_expense_contexts(db, [r[0] for r in rows if r[0]], fy, q)
+            boards.append(
+                ReceiptBoard(
+                    key="top_spenders",
+                    title="Top office spenders",
+                    subtitle=f"Total office spending, Q{q} FY{fy}–{fy + 1}{province_suffix}",
+                    caveat=(
+                        "High spending is often legitimate: big or northern ridings cost more to serve, "
+                        "and staff payroll dominates every MP's budget. Every line traces to the official "
+                        "disclosure — click through and judge for yourself."
+                    ),
+                    rows=[
+                        ReceiptRow(
+                            person_slug=display.get(pid, (None, None, None, None, None))[1] if pid else None,
+                            person_name=display.get(pid, (raw_name, None, None, None, None))[0] if pid else raw_name,
+                            image_url=display.get(pid, (None, None, None, None, None))[2] if pid else None,
+                            party=display.get(pid, (None, None, None, None, None))[3] if pid else None,
+                            riding=display.get(pid, (None, None, None, None, None))[4] if pid else None,
+                            value=float(total or 0),
+                            display=f"${float(total or 0):,.0f}",
+                            context=item_contexts.get(pid) if pid else None,
+                        )
+                        for pid, raw_name, total in rows
+                    ],
+                )
+            )
 
     # 2. Most lobbied, last 12 months (federal only — Registry of Lobbyists).
-    latest_comm = None if is_ontario else db.scalar(select(func.max(LobbyCommunication.comm_date)))
+    latest_comm = None if is_provincial else db.scalar(select(func.max(LobbyCommunication.comm_date)))
     if latest_comm:
         cutoff = latest_comm - timedelta(days=365)
-        rows = db.execute(
+        lobby_query = (
             select(LobbyCommunication.dpoh_person_id, func.count().label("n"))
             .where(LobbyCommunication.dpoh_person_id.is_not(None), LobbyCommunication.comm_date >= cutoff)
             .group_by(LobbyCommunication.dpoh_person_id)
             .order_by(func.count().desc())
             .limit(10)
-        ).all()
-        display = _person_display(db, [r[0] for r in rows])
-        client_contexts = _top_client_contexts(db, [r[0] for r in rows], cutoff)
-        boards.append(
-            ReceiptBoard(
-                key="most_lobbied",
-                title="Most lobbied",
-                subtitle="Registered lobbying contacts in the last 12 months",
-                caveat=(
-                    "Ministers and committee chairs get lobbied more because of their roles — "
-                    "a contact is registered access, not evidence of influence. Each count links "
-                    "to the searchable registry records."
-                ),
-                rows=[
-                    ReceiptRow(
-                        person_slug=display.get(pid, ("", None, None, None, None))[1],
-                        person_name=display.get(pid, ("Unknown", None, None, None, None))[0],
-                        image_url=display.get(pid, (None, None, None, None, None))[2],
-                        party=display.get(pid, (None, None, None, None, None))[3],
-                        riding=display.get(pid, (None, None, None, None, None))[4],
-                        value=float(n),
-                        display=f"{n} contacts",
-                        context=client_contexts.get(pid),
-                    )
-                    for pid, n in rows
-                ],
-            )
         )
+        if province_person_ids is not None:
+            lobby_query = lobby_query.where(LobbyCommunication.dpoh_person_id.in_(province_person_ids))
+        rows = db.execute(lobby_query).all()
+        if rows:
+            display = _person_display(db, [r[0] for r in rows])
+            client_contexts = _top_client_contexts(db, [r[0] for r in rows], cutoff)
+            boards.append(
+                ReceiptBoard(
+                    key="most_lobbied",
+                    title="Most lobbied",
+                    subtitle=f"Registered lobbying contacts in the last 12 months{province_suffix}",
+                    caveat=(
+                        "Ministers and committee chairs get lobbied more because of their roles — "
+                        "a contact is registered access, not evidence of influence. Each count links "
+                        "to the searchable registry records."
+                    ),
+                    rows=[
+                        ReceiptRow(
+                            person_slug=display.get(pid, ("", None, None, None, None))[1],
+                            person_name=display.get(pid, ("Unknown", None, None, None, None))[0],
+                            image_url=display.get(pid, (None, None, None, None, None))[2],
+                            party=display.get(pid, (None, None, None, None, None))[3],
+                            riding=display.get(pid, (None, None, None, None, None))[4],
+                            value=float(n),
+                            display=f"{n} contacts",
+                            context=client_contexts.get(pid),
+                        )
+                        for pid, n in rows
+                    ],
+                )
+            )
 
     # 3 + 4. Dissent + attendance from PersonStats — latest session of the
     # requested legislature (federal Parliament or Ontario's Queen's Park).
-    session_phrase = "this session at Queen's Park" if is_ontario else "this session"
-    member_label = "MPPs" if is_ontario else "MPs"
+    session_phrase = "this session at Queen's Park" if is_provincial else "this session"
+    member_label = "MPPs" if is_provincial else "MPs"
     latest_session_id = _latest_stats_session_id(db, scope)
     if latest_session_id:
-        dissent_rows = db.scalars(
+        dissent_query = (
             select(PersonStats)
             .where(PersonStats.session_id == latest_session_id, PersonStats.dissent_count > 0)
             .order_by(PersonStats.dissent_count.desc())
             .limit(10)
-        ).all()
+        )
+        if province_person_ids is not None:
+            dissent_query = dissent_query.where(PersonStats.person_id.in_(province_person_ids))
+        dissent_rows = db.scalars(dissent_query).all()
         if dissent_rows:
             display = _person_display(db, [s.person_id for s in dissent_rows])
             boards.append(
                 ReceiptBoard(
                     key="most_dissents",
                     title="Most independent voters",
-                    subtitle=f"Votes against their own party {session_phrase}",
+                    subtitle=f"Votes against their own party {session_phrase}{province_suffix}",
                     caveat=(
                         f"Breaking ranks is rare in Canada's whipped party system — these {member_label} did it "
                         "most. Independents can't 'dissent' (no party line to break)."
-                        + (_ONTARIO_MONEY_CAVEAT if is_ontario else "")
+                        + (_ONTARIO_MONEY_CAVEAT if is_provincial else "")
                     ),
                     rows=[
                         ReceiptRow(
@@ -467,7 +520,7 @@ def receipts(
         # attendance would smear them (the TheyWorkForYou lesson). We have no
         # reliable Speaker flag in the data, but an MP who cast ZERO votes all
         # session is structurally not voting (Speaker) — exclude, and say so.
-        attendance_rows = db.scalars(
+        attendance_query = (
             select(PersonStats)
             .where(
                 PersonStats.session_id == latest_session_id,
@@ -477,20 +530,23 @@ def receipts(
             )
             .order_by(PersonStats.attendance_pct.asc())
             .limit(10)
-        ).all()
+        )
+        if province_person_ids is not None:
+            attendance_query = attendance_query.where(PersonStats.person_id.in_(province_person_ids))
+        attendance_rows = db.scalars(attendance_query).all()
         if attendance_rows:
             display = _person_display(db, [s.person_id for s in attendance_rows])
             boards.append(
                 ReceiptBoard(
                     key="lowest_attendance",
                     title="Missed the most votes",
-                    subtitle=f"Lowest share of eligible votes cast {session_phrase} (min. 30 eligible votes)",
+                    subtitle=f"Lowest share of eligible votes cast {session_phrase} (min. 30 eligible votes){province_suffix}",
                     caveat=(
                         "Some absences are structural: ministers travel on government business, party "
                         f"leaders campaign, and {member_label} miss votes for health and family reasons the record "
                         "doesn't show. The Speaker (who only votes to break ties) is excluded. A low "
                         "number is a question to ask, not a verdict."
-                        + (_ONTARIO_MONEY_CAVEAT if is_ontario else "")
+                        + (_ONTARIO_MONEY_CAVEAT if is_provincial else "")
                     ),
                     rows=[
                         ReceiptRow(
@@ -509,19 +565,24 @@ def receipts(
             )
 
     # 5. Biggest single contracts on record (federal only — HoC disclosures).
-    contract_rows = [] if is_ontario else db.scalars(
-        select(ExpenseItem)
-        .where(ExpenseItem.category == "contract")
-        .order_by(ExpenseItem.amount.desc())
-        .limit(10)
-    ).all()
+    contract_rows: list[ExpenseItem] = []
+    if not is_provincial:
+        contract_query = (
+            select(ExpenseItem)
+            .where(ExpenseItem.category == "contract")
+            .order_by(ExpenseItem.amount.desc())
+            .limit(10)
+        )
+        if province_person_ids is not None:
+            contract_query = contract_query.where(ExpenseItem.person_id.in_(province_person_ids))
+        contract_rows = db.scalars(contract_query).all()
     if contract_rows:
         display = _person_display(db, [i.person_id for i in contract_rows if i.person_id])
         boards.append(
             ReceiptBoard(
                 key="biggest_contracts",
                 title="Biggest single contracts",
-                subtitle="Largest individual contracts in the disclosures we've ingested",
+                subtitle=f"Largest individual contracts in the disclosures we've ingested{province_suffix}",
                 caveat=(
                     "Contracts cover everything from office renovations to research — the size alone "
                     "says nothing about value for money. Every row links to the official record."
@@ -542,10 +603,4 @@ def receipts(
             )
         )
 
-    return ReceiptsResponse(
-        boards=boards,
-        generated_note=(
-            "Every board is a straight computation over official records — the same math for every "
-            "party and every MP, refreshed as new disclosures land. Nobody hand-picks who appears here."
-        ),
-    )
+    return ReceiptsResponse(boards=boards, generated_note=_GENERATED_NOTE)

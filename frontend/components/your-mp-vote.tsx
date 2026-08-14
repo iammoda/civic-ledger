@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { PartyBadge } from "@/components/party-badge";
-import { getMyMp, type MyMp } from "@/lib/my-mp";
+import { getMyMp, MY_REPS_CHANGED_EVENT, type MyRep } from "@/lib/my-reps";
 
 type BallotLite = {
   person_slug: string;
@@ -27,13 +27,13 @@ const BALLOT_VERBS: Record<string, string> = {
  * for what sign-in used to do.
  */
 export function YourMpVote({ ballots }: { ballots: BallotLite[] }) {
-  const [myMp, setMyMp] = useState<MyMp | null>(null);
+  const [myMp, setMyMp] = useState<MyRep | null>(null);
 
   useEffect(() => {
     const sync = () => setMyMp(getMyMp());
     sync();
-    window.addEventListener("civic-my-mp-changed", sync);
-    return () => window.removeEventListener("civic-my-mp-changed", sync);
+    window.addEventListener(MY_REPS_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(MY_REPS_CHANGED_EVENT, sync);
   }, []);
 
   if (!myMp) {

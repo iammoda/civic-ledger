@@ -52,17 +52,15 @@ export default async function CabinetPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {pm ? (
-            <div className="glass-card rounded-md p-4 sm:col-span-2">
+            <Link
+              href={`/politicians/${pm.person_slug}`}
+              className="glass-card block rounded-md border border-border p-4 transition hover:border-accent sm:col-span-2"
+            >
               <div className="flex items-center gap-4">
                 <MinisterPhoto minister={pm} size={80} />
                 <div className="min-w-0">
                   <p className="kicker text-accent">Head of government</p>
-                  <Link
-                    href={`/politicians/${pm.person_slug}`}
-                    className="mt-0.5 block font-serif text-xl font-bold text-ink underline-offset-2 hover:underline"
-                  >
-                    {pm.full_name}
-                  </Link>
+                  <p className="mt-0.5 font-serif text-xl font-bold text-ink">{pm.full_name}</p>
                   <p className="text-sm font-bold text-slate-800">{pm.title_en}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-2">
                     <PartyBadge party={pm.party_slug} size="xs" />
@@ -70,19 +68,18 @@ export default async function CabinetPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
           ) : null}
           {rest.map((minister) => (
-            <div key={`${minister.person_slug}-${minister.title_en}`} className="glass-card rounded-md p-4">
+            <Link
+              key={`${minister.person_slug}-${minister.title_en}`}
+              href={`/politicians/${minister.person_slug}`}
+              className="glass-card block rounded-md border border-border p-4 transition hover:border-accent"
+            >
               <div className="flex items-start gap-3">
                 <MinisterPhoto minister={minister} size={56} />
                 <div className="min-w-0">
-                  <Link
-                    href={`/politicians/${minister.person_slug}`}
-                    className="block text-sm font-medium text-ink underline-offset-2 hover:underline"
-                  >
-                    {minister.full_name}
-                  </Link>
+                  <p className="text-sm font-medium text-ink">{minister.full_name}</p>
                   <p className="mt-0.5 text-sm font-bold text-slate-800">{minister.title_en}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-2">
                     <PartyBadge party={minister.party_slug} size="xs" />
@@ -92,7 +89,7 @@ export default async function CabinetPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

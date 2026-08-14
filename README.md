@@ -124,6 +124,14 @@ plain-language summary. For bills that arrive later:
 
 Spending is hard-capped by `LLM_MONTHLY_BUDGET_USD`; published summaries are cached forever.
 
+## Deploying
+
+- **Backend (API + worker):** `fly.toml` + `backend/Dockerfile` are ready — `fly launch --no-deploy`, set secrets (see fly.toml header), `fly deploy`. Migrations run automatically as the release command. Works the same on Railway (two services from the one Dockerfile: default CMD for the API, `python -m arq app.workers.main.WorkerSettings` for the worker).
+- **Database:** any Postgres 16+ with pgvector (Neon, Fly Postgres). Point `DATABASE_URL` at it; `alembic upgrade head` is the only provisioning step.
+- **Frontend:** import the repo into Vercel with **Root Directory = `frontend`**; set `NEXT_PUBLIC_API_BASE_URL` (your API origin + `/v1`) and `NEXT_PUBLIC_SITE_URL` (your public domain).
+- **Redis:** Upstash or Fly Redis; set `REDIS_URL` (rate limits, Ask cache, and the job queue degrade gracefully but the worker needs it).
+- **Error reporting:** set `SENTRY_DSN` (API + worker are pre-wired; empty = disabled).
+
 ## Acceptance test
 
 "I can't afford rent" → *"Rent rules are mostly provincial — your MPP is [name], contact them here. Federally, housing funding flows through [minister], held to account by critics [names]. Here's the housing bill that died in committee last fall, who killed it, who lobbied the week before, and how your MP voted — 'voted to block, along with her whole party.' Send them a letter about it in one tap."* — readable by a 12-year-old, cited to primary sources, no email, no tracking, open source.

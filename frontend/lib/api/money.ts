@@ -1,0 +1,132 @@
+/** Money & influence: lobbying, donations aggregates, expenses. */
+import { fetchApi } from "./client";
+import type { PaginatedResponse } from "./client";
+
+export type LobbyCommItem = {
+  comm_date?: string | null;
+  client_name?: string | null;
+  client_description?: string | null;
+  registrant_name?: string | null;
+  subjects?: string | null;
+  institution?: string | null;
+  dpoh_title?: string | null;
+  registry_url?: string | null;
+};
+
+export type MoneyResponse = {
+  slug: string;
+  full_name: string;
+  lobbying_total: number;
+  lobbying_last_12mo: number;
+  top_clients: Array<{ name: string; count: number; description?: string | null }>;
+  top_subjects: Array<{ name: string; count: number }>;
+  recent_communications: LobbyCommItem[];
+  donations_total: number;
+  donations_count: number;
+  flags: Array<{
+    detector: string;
+    headline_en: string;
+    detail_en?: string | null;
+    confidence?: number | null;
+    created_at_date?: string | null;
+  }>;
+  sources_note: string;
+};
+
+export function getPoliticianMoney(slug: string) {
+  return fetchApi<MoneyResponse>(`/politicians/${slug}/money`);
+}
+
+export type PoliticianLobbyingResponse = {
+  slug: string;
+  full_name: string;
+  total: number;
+  items: LobbyCommItem[];
+  subjects: Array<{ name: string; count: number }>;
+};
+
+export function getPoliticianLobbying(
+  slug: string,
+  params?: { q?: string; subject?: string; limit?: number; offset?: number }
+) {
+  const searchParams = new URLSearchParams();
+  if (params?.q) searchParams.set("q", params.q);
+  if (params?.subject) searchParams.set("subject", params.subject);
+  if (params?.limit != null) searchParams.set("limit", String(params.limit));
+  if (params?.offset) searchParams.set("offset", String(params.offset));
+  const qs = searchParams.toString();
+  return fetchApi<PoliticianLobbyingResponse>(`/politicians/${slug}/lobbying${qs ? `?${qs}` : ""}`, {
+    strict: true
+  });
+}
+
+export type ExpenseItemModel = {
+  id: number;
+  category: string;
+  fiscal_year: number;
+  quarter: number;
+  supplier?: string | null;
+  description?: string | null;
+  occurred_on?: string | null;
+  amount: number;
+  traveller_name?: string | null;
+  traveller_type?: string | null;
+  purpose?: string | null;
+  city?: string | null;
+  source_url: string;
+  mp_name?: string | null;
+  mp_slug?: string | null;
+  mp_image_url?: string | null;
+  mp_party?: string | null;
+  flagged: boolean;
+};
+
+export type MpExpensesResponse = {
+  slug: string;
+  full_name: string;
+  quarters: Array<{
+    fiscal_year: number;
+    quarter: number;
+    salaries: number;
+    travel: number;
+    hospitality: number;
+    contracts: number;
+    total: number;
+    caucus_median_total?: number | null;
+  }>;
+  top_items: ExpenseItemModel[];
+  top_suppliers: Array<{ supplier: string; total: number; count: number }>;
+  flags: Array<{ detector: string; headline_en: string; detail_en?: string | null }>;
+  budget?: {
+    fiscal_year: number;
+    annual_budget: number;
+    ytd_total: number;
+    quarters_reported: number;
+    utilization_pct: number;
+    note: string;
+  } | null;
+  spend_percentile?: number | null;
+  mp_annual_salary?: number | null;
+  sources_note: string;
+};
+
+export function getPoliticianExpenses(slug: string) {
+  return fetchApi<MpExpensesResponse>(`/politicians/${slug}/expenses`);
+}
+
+export function searchExpenses(params: {
+  q?: string;
+  category?: string;
+  fiscal_year?: string;
+  min_amount?: string;
+  sort?: string;
+  offset?: string;
+}) {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) searchParams.set(key, value);
+  }
+  return fetchApi<PaginatedResponse<ExpenseItemModel>>(`/expenses/search?${searchParams.toString()}`);
+}
+
+// --- Municipal record (attendance, motions, declarations) -------------------

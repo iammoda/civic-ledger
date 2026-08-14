@@ -163,12 +163,16 @@ export default async function PoliticianDetailPage({
         stats={[
           {
             label: "Party",
-            value: party?.short_name ?? (isFederal ? "Unknown" : "Non-partisan"),
-            context: party?.name && party.name !== party.short_name ? party.name : undefined
+            value: party?.short_name ?? "Not yet synced",
+            context: party
+              ? party.name && party.name !== party.short_name
+                ? party.name
+                : undefined
+              : "Roster data syncs weekly — party and riding land then"
           },
           {
             label: "Constituency",
-            value: place ?? "Unknown",
+            value: place ?? "Not yet synced",
             context: politician.current_membership?.province_code ?? undefined
           },
           ...(firstStart
@@ -233,9 +237,9 @@ export default async function PoliticianDetailPage({
         </p>
       ) : null}
 
-      <section className="mt-10 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+      <section className="mt-10 grid gap-6 lg:grid-cols-[minmax(300px,360px)_1fr]">
         <div className="space-y-6">
-          <div className="glass-card rounded-[2rem] p-6">
+          <div className="glass-card rounded-md border border-border p-5">
             <h2 className="text-xl font-semibold">Contact</h2>
             <div className="mt-4 space-y-3 text-sm">
               {politician.email ? (
@@ -253,7 +257,7 @@ export default async function PoliticianDetailPage({
                 </p>
               ) : null}
               {(politician.offices ?? []).map((office, index) => (
-                <div key={index} className="rounded-3xl border border-black/10 bg-white p-4">
+                <div key={index} className="rounded-md border border-border bg-white p-4">
                   <p className="font-medium capitalize">{office.type ?? "Office"}</p>
                   {office.tel ? <p className="mt-1 text-slate-600">{office.tel}</p> : null}
                   {office.postal ? (
@@ -262,25 +266,42 @@ export default async function PoliticianDetailPage({
                 </div>
               ))}
               {!politician.email && !politician.website_url && !(politician.offices ?? []).length ? (
-                <p className="text-slate-600">No contact details on record.</p>
+                <p className="text-slate-600">
+                  No contact details on record.
+                  {politician.level === "provincial" || politician.level === "municipal"
+                    ? " Contact info syncs weekly from official rosters."
+                    : ""}
+                </p>
               ) : null}
             </div>
           </div>
-          <div className="glass-card rounded-[2rem] p-6">
+          <div className="glass-card rounded-md border border-border p-5">
             <h2 className="text-xl font-semibold">Membership history</h2>
             <div className="mt-4 space-y-4">
-              {politician.memberships.map((membership, index) => (
-                <div key={`${membership.role_title}-${index}`} className="rounded-3xl border border-black/10 bg-white p-4">
-                  <p className="font-medium">{membership.party?.name ?? "No party affiliation"}</p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {membership.riding_name ?? membership.region_name ?? "Constituency pending"} · {membership.role_title ?? "Member"}
-                  </p>
-                </div>
-              ))}
+              {politician.memberships.map((membership, index) => {
+                const startYear = membership.started_on ? new Date(membership.started_on).getFullYear() : null;
+                const endLabel = membership.is_current
+                  ? "present"
+                  : membership.ended_on
+                    ? String(new Date(membership.ended_on).getFullYear())
+                    : null;
+                const tenure =
+                  startYear != null ? (endLabel ? `${startYear} – ${endLabel}` : String(startYear)) : null;
+                const placeLabel = membership.riding_name ?? membership.region_name ?? "—";
+                return (
+                  <div key={index} className="rounded-md border border-border bg-white p-4">
+                    <p className="font-medium">{membership.party?.name ?? "No party on record"}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {placeLabel}
+                      {tenure ? ` · ${tenure}` : ""}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </div>
           {isFederal ? (
-            <div className="glass-card p-6">
+            <div className="glass-card rounded-md border border-border p-5">
               <h2 className="text-xl font-semibold">Committee work</h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
                 Committees are where bills get studied line by line and witnesses get grilled — much of an
@@ -312,7 +333,7 @@ export default async function PoliticianDetailPage({
             </div>
           ) : null}
           {!isMunicipal ? (
-            <div className="glass-card rounded-[2rem] p-6">
+            <div className="glass-card rounded-md border border-border p-5">
               <h2 className="text-xl font-semibold">Sponsored bills</h2>
             {(politician.sponsored_bills ?? []).length ? (
               <div className="mt-4 space-y-2">
@@ -340,7 +361,7 @@ export default async function PoliticianDetailPage({
             ) : politician.sponsored_bill_numbers.length ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 {politician.sponsored_bill_numbers.map((billNumber) => (
-                  <span key={billNumber} className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm">
+                  <span key={billNumber} className="rounded-md border border-border bg-white px-4 py-2 text-sm">
                     {billNumber}
                   </span>
                 ))}

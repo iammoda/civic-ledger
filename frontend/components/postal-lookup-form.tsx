@@ -5,7 +5,7 @@ import { useActionState } from "react";
 
 import { postalLookupAction, type PostalLookupState } from "@/app/lookup-actions";
 import { LevelBadge } from "@/components/level-badge";
-import { SaveMyMp } from "@/components/save-my-mp";
+import { SaveMyRep } from "@/components/save-my-rep";
 
 const IDLE: PostalLookupState = { status: "idle" };
 
@@ -136,8 +136,15 @@ export function PostalLookupForm({
                 </p>
                 <p className="truncate text-sm text-slate-500">{rep.district_name}</p>
               </div>
-              {rep.level === "federal" && rep.person_slug ? (
-                <SaveMyMp slug={rep.person_slug} name={rep.name} party={rep.party_name} riding={rep.district_name} />
+              {rep.person_slug ? (
+                <SaveMyRep
+                  slug={rep.person_slug}
+                  name={rep.name}
+                  party={rep.party_name}
+                  riding={rep.district_name}
+                  level={rep.level}
+                  office={rep.office}
+                />
               ) : null}
               {rep.person_slug ? (
                 <Link
@@ -167,8 +174,8 @@ export function PostalLookupForm({
           ))}
           <p className="text-xs text-slate-500">
             Every level gets a record page here. Federal MPs have the deepest data (votes, money, expenses).
-            Tap <span className="font-medium">Set as my MP</span> and every vote page will show how your MP
-            voted — saved on your device only, never on our servers.
+            Tap <span className="font-medium">Save</span> and your reps appear here on every visit — saved on
+            your device only, never on our servers.
           </p>
         </div>
       ) : null}

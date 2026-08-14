@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
 import { LevelBadge, WhoDoesWhat } from "@/components/level-badge";
+import { MyRepsStrip } from "@/components/my-reps-strip";
 import { PageShell } from "@/components/page-shell";
 import { PostalLookupForm } from "@/components/postal-lookup-form";
 import { getDigest, listBills, listPoliticians, listVotes } from "@/lib/api";
@@ -38,6 +39,9 @@ export default async function HomePage() {
           <PostalLookupForm mode="ladder" />
         </div>
       </section>
+
+      {/* Saved reps: visible on every return visit, no postal re-entry. Device-only. */}
+      <MyRepsStrip />
 
       {/* Ask */}
       <section className="mb-8">

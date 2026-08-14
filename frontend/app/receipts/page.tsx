@@ -43,14 +43,30 @@ function ScopePill({ href, active, children }: { href: string; active: boolean; 
   );
 }
 
+const PROVINCE_CODES = [
+  "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
+] as const;
+
 export default async function ReceiptsPage({
   searchParams
 }: {
-  searchParams: Promise<{ scope?: string }>;
+  searchParams: Promise<{ scope?: string; province?: string }>;
 }) {
-  const { scope: scopeParam } = await searchParams;
-  const scope = scopeParam === "ontario" ? "ontario" : "federal";
-  const receipts = await getReceipts(scope);
+  const { scope: scopeParam, province: provinceParam } = await searchParams;
+  // "ontario" survives as a backward-compat alias for the provincial scope.
+  const scope =
+    scopeParam === "provincial" || scopeParam === "ontario" ? "provincial" : "federal";
+  const provinceCandidate = provinceParam?.toUpperCase();
+  const province = PROVINCE_CODES.find((code) => code === provinceCandidate);
+  const receipts = await getReceipts(scope, province);
+
+  const scopeHref = (target: "federal" | "provincial") => {
+    const params = new URLSearchParams();
+    if (target === "provincial") params.set("scope", "provincial");
+    if (province) params.set("province", province);
+    const qs = params.toString();
+    return `/receipts${qs ? `?${qs}` : ""}`;
+  };
 
   return (
     <PageShell
@@ -58,16 +74,53 @@ export default async function ReceiptsPage({
       title="The Receipts"
       description="Who spends the most, who gets lobbied the most, who breaks ranks, who misses votes, and the biggest contracts on the books — computed straight from official records, same math for everyone."
     >
-      <div className="mb-6 flex flex-wrap gap-2">
-        <ScopePill href="/receipts" active={scope === "federal"}>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <ScopePill href={scopeHref("federal")} active={scope === "federal"}>
           MPs — federal
         </ScopePill>
-        <ScopePill href="/receipts?scope=ontario" active={scope === "ontario"}>
-          MPPs — Ontario
+        <ScopePill href={scopeHref("provincial")} active={scope === "provincial"}>
+          MPPs — provincial
         </ScopePill>
       </div>
 
-      {scope === "ontario" ? (
+      <form action="/receipts" method="get" className="mb-6 flex flex-wrap items-center gap-2">
+        {scope === "provincial" ? (
+          <input type="hidden" name="scope" value="provincial" />
+        ) : null}
+        <label htmlFor="receipts-province" className="text-sm text-slate-600">
+          Province
+        </label>
+        <select
+          id="receipts-province"
+          name="province"
+          defaultValue={province ?? ""}
+          className="rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+        >
+          <option value="">All provinces</option>
+          {PROVINCE_CODES.map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+        >
+          Filter
+        </button>
+        {province ? (
+          <Link
+            href={scope === "provincial" ? "/receipts?scope=provincial" : "/receipts"}
+            className="inline-flex items-center gap-1.5 rounded-full border border-accent bg-white px-3 py-1.5 text-sm font-medium text-accent transition hover:bg-accent hover:text-white"
+          >
+            {province} only <span aria-hidden="true">✕</span>
+            <span className="sr-only">— remove province filter</span>
+          </Link>
+        ) : null}
+      </form>
+
+      {scope === "provincial" && (!province || province === "ON") ? (
         <ExplainerStrip id="receipts-ontario-data">
           Ontario publishes no machine-readable per-MPP expense or lobbying data, so only the voting
           boards — dissent and attendance at Queen&apos;s Park — are available here. The money boards
@@ -76,10 +129,14 @@ export default async function ReceiptsPage({
       ) : null}
 
       {!receipts?.boards.length ? (
-        <DataGap
-          title="Not enough data yet"
-          detail="Leaderboards appear after the expense, lobbying, and vote syncs have run."
-        />
+        receipts?.note ? (
+          <DataGap title="No provincial vote data yet" detail={receipts.note} />
+        ) : (
+          <DataGap
+            title="Not enough data yet"
+            detail="Leaderboards appear after the expense, lobbying, and vote syncs have run."
+          />
+        )
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           {receipts.boards.map((board) => (
