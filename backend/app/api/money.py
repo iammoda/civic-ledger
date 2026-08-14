@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.ratelimit import rate_limit
 from app.db.session import get_db
 from app.models import Contribution, Correction, IntegrityFlag, LobbyCommunication, Person
 from app.services.lazy import enqueue
@@ -299,7 +300,12 @@ def politician_lobbying(
     )
 
 
-@router.post("/corrections", status_code=201)
+@router.post(
+    "/corrections",
+    status_code=201,
+    # Unauthenticated public write — throttle to keep spam manageable.
+    dependencies=[Depends(rate_limit("corrections", limit=5, window_seconds=3600))],
+)
 def submit_correction(payload: CorrectionRequest, db: Session = Depends(get_db)) -> dict:
     correction = Correction(
         page_url=payload.page_url.strip(),

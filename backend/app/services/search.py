@@ -120,7 +120,7 @@ def _fts_queries(db: Session, query: str) -> list:
 
     tokens = [
         token
-        for token in re.findall(r"[a-zA-Z][a-zA-Z-]{2,}", query.lower())
+        for token in re.findall(r"[a-zA-Z][a-zA-Z-]+[a-zA-Z]", query.lower())
         if token not in _FTS_STOPWORDS
     ][:12]
     tokens = list(dict.fromkeys(tokens))

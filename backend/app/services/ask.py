@@ -1,28 +1,37 @@
 """Ask: type a problem -> who is responsible, with cited evidence.
 
 Pipeline:
-1. Hybrid search retrieves related bills/votes (the evidence pack).
-2. Heuristic jurisdiction classifier (free) — Canada-specific keyword map
+1. Answer cache — identical questions (normalized) are answered for free.
+2. Hybrid search retrieves related bills/votes (the evidence pack).
+3. Heuristic jurisdiction classifier (free) — Canada-specific keyword map
    for federal / provincial / municipal responsibility.
-3. One Sonnet call produces: plain answer (sentence first), refined
+4. One Sonnet call produces: plain answer (sentence first), refined
    jurisdiction, responsible federal ministry, and evidence citations.
-4. Readability gate on the answer; budget cap enforced before the call.
+5. Readability gate on the answer; budget cap enforced before the call.
 
-Without an Anthropic key, Ask degrades to search results + heuristic
-jurisdiction — honest, never fabricated.
+Without an Anthropic key — or once the monthly budget / daily generation
+quota is hit — Ask degrades to search results + heuristic jurisdiction:
+honest, never fabricated, never a hard failure.
 """
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+import hashlib
+import json
+import re
+import time
+from dataclasses import asdict, dataclass, field
 from datetime import date
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.config import get_settings
+from app.core.kv import redis_client
+from app.core.ratelimit import within_quota
 from app.llm.base import LLMClient
-from app.llm.budget import ensure_budget, record_usage
+from app.llm.budget import BudgetExceededError, ensure_budget, record_usage
 from app.llm.readability import SIMPLIFY_INSTRUCTION, meets_gate, reading_grade
 from app.services.search import SearchResult, hybrid_search
 
@@ -257,41 +266,157 @@ def _answer_gate_text(data: dict[str, Any]) -> str:
     return " ".join(filter(None, [data.get("answer_sentence"), data.get("jurisdiction_note")]))
 
 
+# --- Answer cache -----------------------------------------------------------
+# Generated answers are cached by normalized question (Redis when available,
+# small in-process store otherwise). A cache hit skips the embedding call,
+# the search, and the Sonnet call — identical questions are free.
+
+_LOCAL_CACHE: dict[str, tuple[float, str]] = {}
+_LOCAL_CACHE_MAX = 500
+
+
+def _normalize_question(question: str) -> str:
+    return re.sub(r"\s+", " ", question.strip().lower()).strip(" ?!.")
+
+
+def _cache_key(question: str) -> str:
+    digest = hashlib.sha256(_normalize_question(question).encode("utf-8")).hexdigest()
+    return f"askcache:{digest}"
+
+
+def _cache_get(question: str) -> dict[str, Any] | None:
+    if get_settings().ask_cache_ttl_seconds <= 0:
+        return None
+    key = _cache_key(question)
+    r = redis_client()
+    if r is not None:
+        try:
+            raw = r.get(key)
+            return json.loads(raw) if raw else None
+        except Exception:
+            return None
+    entry = _LOCAL_CACHE.get(key)
+    if entry is None or entry[0] < time.time():
+        _LOCAL_CACHE.pop(key, None)
+        return None
+    return json.loads(entry[1])
+
+
+def _cache_put(question: str, data: dict[str, Any], evidence: list[SearchResult]) -> None:
+    ttl = get_settings().ask_cache_ttl_seconds
+    if ttl <= 0:
+        return
+    key = _cache_key(question)
+    raw = json.dumps({"data": data, "evidence": [asdict(item) for item in evidence]})
+    r = redis_client()
+    if r is not None:
+        try:
+            r.setex(key, ttl, raw)
+        except Exception:
+            pass
+        return
+    if len(_LOCAL_CACHE) >= _LOCAL_CACHE_MAX:
+        _LOCAL_CACHE.clear()
+    _LOCAL_CACHE[key] = (time.time() + ttl, raw)
+
+
+def _personal_context(
+    db: Session, mp_person_id: int | None, evidence: list[SearchResult]
+) -> tuple[str | None, str | None, list[MpBallotEvidence]]:
+    """Per-caller extras (never cached): the asker's MP and their ballots."""
+    if mp_person_id is None:
+        return None, None, []
+    from app.models import Person
+
+    mp = db.get(Person, mp_person_id)
+    if mp is None:
+        return None, None, []
+    return mp.full_name, mp.slug, _mp_ballots_for_evidence(db, mp_person_id, evidence)
+
+
+def _degraded_response(
+    db: Session,
+    question: str,
+    evidence: list[SearchResult],
+    guess: JurisdictionGuess,
+    minister: ResponsibleMinister | None,
+    mp_person_id: int | None,
+) -> AskResponse:
+    """Search-only Ask: no key, budget exhausted, or daily quota hit."""
+    my_mp_name, my_mp_slug, mp_ballots = _personal_context(db, mp_person_id, evidence)
+    return AskResponse(
+        question=question,
+        answer_sentence=None,
+        answer_detail=None,
+        jurisdiction_level=guess.level,
+        jurisdiction_note=(f"This looks like a {guess.level} matter ({guess.area})." if guess.area else None),
+        responsible_ministry=None,
+        evidence=evidence,
+        generated=False,
+        my_mp_name=my_mp_name,
+        my_mp_slug=my_mp_slug,
+        mp_ballots=mp_ballots,
+        minister=minister,
+    )
+
+
+def _generated_response(
+    db: Session,
+    question: str,
+    data: dict[str, Any],
+    evidence: list[SearchResult],
+    guess: JurisdictionGuess,
+    minister: ResponsibleMinister | None,
+    mp_person_id: int | None,
+) -> AskResponse:
+    my_mp_name, my_mp_slug, mp_ballots = _personal_context(db, mp_person_id, evidence)
+    valid_indexes = [i for i in (data.get("cited_indexes") or []) if isinstance(i, int) and 1 <= i <= len(evidence)]
+    return AskResponse(
+        question=question,
+        answer_sentence=data.get("answer_sentence"),
+        answer_detail=data.get("answer_detail"),
+        jurisdiction_level=data.get("jurisdiction_level") or guess.level,
+        jurisdiction_note=data.get("jurisdiction_note"),
+        responsible_ministry=data.get("responsible_ministry") or None,
+        evidence=evidence,
+        cited_indexes=valid_indexes,
+        generated=True,
+        my_mp_name=my_mp_name,
+        my_mp_slug=my_mp_slug,
+        mp_ballots=mp_ballots,
+        minister=minister,
+    )
+
+
 async def ask(db: Session, question: str, *, mp_person_id: int | None = None) -> AskResponse:
-    evidence = await hybrid_search(db, question, limit=10)
     guess = heuristic_jurisdiction(question)
+
+    # Cache hit: rebuild the evidence pack, recompute the per-caller extras
+    # (minister lookup is cheap and current; MP ballots are personal).
+    cached = _cache_get(question)
+    if cached is not None:
+        evidence = [SearchResult(**item) for item in cached["evidence"]]
+        minister = _responsible_minister(db, evidence, question)
+        return _generated_response(db, question, cached["data"], evidence, guess, minister, mp_person_id)
+
+    evidence = await hybrid_search(db, question, limit=10)
     minister = _responsible_minister(db, evidence, question)
-
-    my_mp_name: str | None = None
-    my_mp_slug: str | None = None
-    mp_ballots: list[MpBallotEvidence] = []
-    if mp_person_id is not None:
-        from app.models import Person
-
-        mp = db.get(Person, mp_person_id)
-        if mp is not None:
-            my_mp_name = mp.full_name
-            my_mp_slug = mp.slug
-            mp_ballots = _mp_ballots_for_evidence(db, mp_person_id, evidence)
 
     client = LLMClient()
     if not client.is_configured():
-        return AskResponse(
-            question=question,
-            answer_sentence=None,
-            answer_detail=None,
-            jurisdiction_level=guess.level,
-            jurisdiction_note=(f"This looks like a {guess.level} matter ({guess.area})." if guess.area else None),
-            responsible_ministry=None,
-            evidence=evidence,
-            generated=False,
-            my_mp_name=my_mp_name,
-            my_mp_slug=my_mp_slug,
-            mp_ballots=mp_ballots,
-            minister=minister,
-        )
+        return _degraded_response(db, question, evidence, guess, minister, mp_person_id)
 
-    ensure_budget(db)
+    # Site-wide daily cap on fresh generations: past it, degrade — cached
+    # answers keep working and search never goes away.
+    settings = get_settings()
+    if not within_quota("ask-generate", limit=settings.ask_daily_generate_limit, window_seconds=86400):
+        return _degraded_response(db, question, evidence, guess, minister, mp_person_id)
+
+    try:
+        ensure_budget(db, headroom_usd=0.25)
+    except BudgetExceededError:
+        return _degraded_response(db, question, evidence, guess, minister, mp_person_id)
+
     hint = (
         f"A keyword heuristic suggests this may be {guess.level}"
         + (f" ({guess.area})" if guess.area else "")
@@ -325,34 +450,21 @@ async def ask(db: Session, question: str, *, mp_person_id: int | None = None) ->
 
     gate_text = _answer_gate_text(result.data)
     if gate_text and not meets_gate(gate_text):
-        ensure_budget(db)
-        retry = await asyncio.to_thread(
-            client.structured_response,
-            prompt=prompt + "\n\n" + SIMPLIFY_INSTRUCTION.format(grade=reading_grade(gate_text)),
-            schema=ASK_SCHEMA,
-            system=NEUTRAL_SYSTEM,
-            max_tokens=1500,
-        )
-        record_usage(db, retry, job_name="ask_retry")
-        if reading_grade(_answer_gate_text(retry.data)) <= reading_grade(gate_text):
-            result = retry
+        try:
+            ensure_budget(db)
+            retry = await asyncio.to_thread(
+                client.structured_response,
+                prompt=prompt + "\n\n" + SIMPLIFY_INSTRUCTION.format(grade=reading_grade(gate_text)),
+                schema=ASK_SCHEMA,
+                system=NEUTRAL_SYSTEM,
+                max_tokens=1500,
+            )
+            record_usage(db, retry, job_name="ask_retry")
+            if reading_grade(_answer_gate_text(retry.data)) <= reading_grade(gate_text):
+                result = retry
+        except BudgetExceededError:
+            pass  # Keep the first answer; no budget left to improve it.
 
     db.commit()
-
-    data = result.data
-    valid_indexes = [i for i in (data.get("cited_indexes") or []) if isinstance(i, int) and 1 <= i <= len(evidence)]
-    return AskResponse(
-        question=question,
-        answer_sentence=data.get("answer_sentence"),
-        answer_detail=data.get("answer_detail"),
-        jurisdiction_level=data.get("jurisdiction_level") or guess.level,
-        jurisdiction_note=data.get("jurisdiction_note"),
-        responsible_ministry=data.get("responsible_ministry") or None,
-        evidence=evidence,
-        cited_indexes=valid_indexes,
-        generated=True,
-        my_mp_name=my_mp_name,
-        my_mp_slug=my_mp_slug,
-        mp_ballots=mp_ballots,
-        minister=minister,
-    )
+    _cache_put(question, result.data, evidence)
+    return _generated_response(db, question, result.data, evidence, guess, minister, mp_person_id)

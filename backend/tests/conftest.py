@@ -1,6 +1,15 @@
 """Shared test fixtures: in-memory SQLite DB with the non-pgvector tables."""
 from __future__ import annotations
 
+import os
+
+# Isolate tests from the developer machine: never share a live Redis
+# (rate-limit counters / Ask cache), and keep inbound limits out of the way
+# except in the tests that exercise them directly.
+os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:1/0")
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+os.environ.setdefault("ASK_CACHE_TTL_SECONDS", "0")
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker

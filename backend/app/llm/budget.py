@@ -3,6 +3,11 @@
 Every LLM call is recorded to llm_usage. Before any call, ensure_budget()
 checks month-to-date spend against LLM_MONTHLY_BUDGET_USD and refuses to
 proceed past it — a bug can't burn the budget.
+
+Concurrency note: the check is check-then-act, so simultaneous requests can
+overshoot the cap by at most (concurrent LLM calls x per-call cost — cents).
+Inbound rate limiting bounds the concurrency; callers on hot public paths
+should pass a small headroom_usd as extra margin.
 """
 from __future__ import annotations
 
@@ -46,9 +51,9 @@ def month_to_date_spend(db: Session) -> float:
     return float(total or 0.0)
 
 
-def ensure_budget(db: Session) -> None:
+def ensure_budget(db: Session, *, headroom_usd: float = 0.0) -> None:
     spend = month_to_date_spend(db)
-    if spend >= settings.llm_monthly_budget_usd:
+    if spend + headroom_usd >= settings.llm_monthly_budget_usd:
         raise BudgetExceededError(
             f"Monthly LLM budget exhausted: ${spend:.2f} >= ${settings.llm_monthly_budget_usd:.2f}"
         )

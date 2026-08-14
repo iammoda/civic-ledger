@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.ratelimit import rate_limit
 from app.db.session import get_db
 from app.models import Person
 from app.services.letters import build_letter, polish_letter
@@ -39,7 +40,12 @@ class LetterResponse(BaseModel):
     polished: bool
 
 
-@router.post("/letter", response_model=LetterResponse)
+@router.post(
+    "/letter",
+    response_model=LetterResponse,
+    # polish=true costs an LLM call — throttle per IP.
+    dependencies=[Depends(rate_limit("letter", limit=10, window_seconds=600))],
+)
 async def draft_letter(
     payload: LetterRequest,
     db: Session = Depends(get_db),

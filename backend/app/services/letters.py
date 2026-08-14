@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.behavior import _ballot_effect
 from app.core.config import get_settings
 from app.llm.base import LLMClient
-from app.llm.budget import ensure_budget, record_usage
+from app.llm.budget import BudgetExceededError, ensure_budget, record_usage
 from app.models import Ballot, Bill, Jurisdiction, LegislatureSession, Person, PersonMembership, Vote
 
 
@@ -168,7 +168,10 @@ async def polish_letter(db: Session, letter: LetterResult) -> LetterResult:
     client = LLMClient(fast=True)
     if not client.is_configured():
         return letter
-    ensure_budget(db)
+    try:
+        ensure_budget(db)
+    except BudgetExceededError:
+        return letter  # Deterministic letter still works; polish is optional.
     prompt = (
         "Improve the flow and tone of this constituent letter to a Member of "
         "Parliament. Rules: keep it respectful and non-partisan; do NOT change, "

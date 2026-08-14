@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.ratelimit import rate_limit
 from app.db.session import get_db
 from app.models import Person
 from app.services.ask import ask as run_ask
@@ -28,7 +29,12 @@ class SearchResponse(BaseModel):
     results: list[SearchResultItem]
 
 
-@router.get("/search", response_model=SearchResponse)
+@router.get(
+    "/search",
+    response_model=SearchResponse,
+    # Each search can trigger an embedding call — throttle per IP.
+    dependencies=[Depends(rate_limit("search", limit=30, window_seconds=60))],
+)
 async def search(
     q: str = Query(min_length=2, max_length=200),
     limit: int = Query(default=20, le=50),
@@ -94,7 +100,13 @@ class AskResponseModel(BaseModel):
     minister: ResponsibleMinisterModel | None = None
 
 
-@router.post("/ask", response_model=AskResponseModel)
+@router.post(
+    "/ask",
+    response_model=AskResponseModel,
+    # LLM-backed: the costliest endpoint on the site. Budget/quota exhaustion
+    # degrades inside the service; this guards against per-IP hammering.
+    dependencies=[Depends(rate_limit("ask", limit=10, window_seconds=600))],
+)
 async def ask_question(
     payload: AskRequest,
     db: Session = Depends(get_db),
@@ -109,7 +121,11 @@ async def ask_question(
     try:
         response = await run_ask(db, payload.question.strip(), mp_person_id=mp_person_id)
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        # Never leak internals (budget state, provider errors) to clients.
+        raise HTTPException(
+            status_code=503,
+            detail="Ask is temporarily unavailable — please try again shortly.",
+        ) from exc
 
     return AskResponseModel(
         question=response.question,

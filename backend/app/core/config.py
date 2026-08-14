@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     llm_monthly_budget_usd: float = Field(default=200.0, alias="LLM_MONTHLY_BUDGET_USD")
+    # Inbound per-IP rate limiting (LLM-backed + public-write endpoints).
+    rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
+    # Cached Ask answers: identical questions are answered for free. 0 = off.
+    ask_cache_ttl_seconds: int = Field(default=86400, alias="ASK_CACHE_TTL_SECONDS")
+    # Site-wide cap on freshly *generated* Ask answers per day; past it, Ask
+    # degrades to search-only (cached answers keep working).
+    ask_daily_generate_limit: int = Field(default=300, alias="ASK_DAILY_GENERATE_LIMIT")
     # Static admin token (review queue, corrections). Unset = admin disabled.
     admin_api_token: str = Field(default="", alias="ADMIN_API_TOKEN")
     # Members' Office Budget (annual, CAD). Published by the Board of Internal
