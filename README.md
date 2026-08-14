@@ -15,7 +15,7 @@ Hold Canadian politicians accountable. Make it easy for anyone to see how their 
 3. **The Graveyard (dead-bill tracking)** — most bills die without a visible vote. We track *how* each bill died (defeated, died in committee, prorogation, died in Senate) and *who is attributable* — including lobbying activity clustered right before a quiet death.
 4. **Money & Influence** — donations (Elections Canada), lobbying (Registry of Lobbyists, incl. subject codes), government contracts/grants, ethics/travel/gifts registries — entity-resolved into a relationship graph with pattern detectors: family payments, donor→contract matching, lobbying-before-vote/death, patronage appointments, revolving door. **Every flag requires human review before publishing** and links to primary-source documents. In-app corrections/dispute form.
 5. **Behavior** — party-discipline scores, side-by-side MP comparison; promise tracking via Polimetre link-out (attributed).
-6. **Personalization** — anonymous-first (postal code, full browsing, no account needed); Google sign-in only to save follows (topics / MPs / bills / saved questions). In-app notification center + never-empty, recess-aware "catch me up" view. **No email anywhere.**
+6. **Personalization, zero accounts** — postal code → your full representative ladder; "Set as my MP" lives in your browser's localStorage only (nothing stored server-side, no sign-in anywhere). Every vote page then shows how *your* MP voted. **No email, no accounts, no tracking.**
 7. **Action layer** — Claude-drafted contact-your-MP letters citing their actual ballots; **"Contact your MP about this" on every page**; petition and consultation deadlines matched to your topics.
 
 ## Plain Language System
@@ -46,7 +46,11 @@ Hold Canadian politicians accountable. Make it easy for anyone to see how their 
 |---|---|
 | Votes / bills / debates | OpenParliament API (1994+), LEGISinfo, OurCommons (fallback ingestion) |
 | Bill summaries (pre-analyzed) | LEGISinfo descriptions, Library of Parliament Legislative Summaries |
-| MP lookup | Represent API (postal code → riding; MPP handoff for provincial issues) |
+| MP lookup | Represent API (postal code → riding; all-level rep ladder) |
+| Provincial & municipal people | Represent API bulk rosters (13 legislatures, ~108 councils; weekly sync) |
+| Ontario bills / votes / ballots | ola.org bill pages (status tables + division rolls; nightly sync) |
+| Municipal meetings (Mississauga, Brampton, Ottawa, Calgary, Halifax) | Official eScribe minutes — attendance, motions, per-member votes, conflict declarations (nightly) |
+| Toronto & Vancouver council votes | City open-data voting records (weekly) |
 | Cabinet / critics | OurCommons ministry data, party shadow-cabinet listings |
 | Donations | Elections Canada open data |
 | Lobbying | Registry of Lobbyists monthly exports (incl. subject-matter codes) |
@@ -68,7 +72,7 @@ Hold Canadian politicians accountable. Make it easy for anyone to see how their 
 
 - **Frontend:** Next.js 16 (App Router), TypeScript, Tailwind CSS 4, shadcn/ui, bottom-tab mobile nav
 - **Backend:** FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL + pgvector, Redis + arq workers
-- **Auth:** better-auth, Google OAuth only (zero email infrastructure)
+- **Auth:** none — the platform is fully anonymous. Admin review queue uses a static `ADMIN_API_TOKEN` header.
 - **Hosting:** Vercel + Fly/Railway + Neon Postgres + Upstash Redis; Sentry; GitHub Actions CI/CD
 - **License:** AGPL-3.0 (proposed), public repo at launch
 
@@ -80,7 +84,7 @@ Hold Canadian politicians accountable. Make it easy for anyone to see how their 
 | 1 | Canada pipeline — full persistence, ballots, dead-bill detection + attribution, derived stats, floor-crossing events | ✅ shipped |
 | 2 | Claude intelligence — layered summaries, vote direction normalization, readability gate, lazy-analysis engine, cost ledger + hard caps | ✅ shipped |
 | 3 | Search & Ask — hybrid FTS+vector search, cited answers, jurisdiction classifier, colloquialism aliases | ✅ shipped |
-| 4 | Accounts — Google-only sign-in, postal code → your MP (ambiguity handled), follows, reading-level toggle | ✅ shipped |
+| 4 | Accounts — later **removed by design**: replaced with anonymous postal lookup + device-only "my MP" (localStorage) | ✅ shipped, then simplified |
 | 5 | Participation — e-petitions with deadlines/signatures/topic matching, in search + Ask evidence | ✅ shipped |
 | 6 | Money & Integrity — lobbying + donations ingestion, entity resolution, 3 party-blind detectors, human review queue, corrections form, methodology page | ✅ shipped |
 | 7 | Behavior — voting records with party-context lines, dissent filter, MP comparison, Polimetre link-out | ✅ shipped |
@@ -89,9 +93,9 @@ Hold Canadian politicians accountable. Make it easy for anyone to see how their 
 | 10 | Production deployment — public AGPL repo, CI/CD, Vercel + Fly/Railway + Neon + Upstash, Sentry, staging, backups, spend dashboard | 🔜 after 9 |
 | 11 | Backfill — embeddings archive-wide, eager current Parliament, lazy engine for history | 🔜 after 10 |
 
-**Also shipped since:** MP expense reports (scraper + 5 review-gated detectors + searchable `/expenses` explorer + MP-page cards), the Graveyard UI, representative ladder (MP/MPP/councillor contacts), committees + memberships ingestion, cabinet-minister tracking with a "responsible minister" card in Ask (guardrailed — shown only when evidence supports it), watched-question follows with notifier matching, and a 30-term plain-language glossary with jargon tooltips. The database runs locally on an external drive (`scripts/db-start.sh`) with live data: 343 MPs, 57k+ ballots, 100k+ expense line items and growing.
+**Also shipped since:** MP expense reports (scraper + 5 review-gated detectors + searchable `/expenses` explorer + MP-page cards), the Graveyard UI, representative ladder (MP/MPP/councillor contacts), committees + memberships ingestion, cabinet-minister tracking with a "responsible minister" card in Ask (guardrailed — shown only when evidence supports it), and a plain-language glossary with jargon tooltips. **Engagement overhaul (2026-08):** sign-in removed entirely; bill-aware plain-language vote sentences ("MPs passed Bill C-30 at third reading, 166–159 — next stop: the Senate"); party-color donut charts + party identity system + MP photos; bill journey stepper; missed-votes tracking with participation trends; lobbying explainers, AI org blurbs, per-MP searchable lobbying pages and subject chips; budget-utilization + spend percentiles on expenses; "This week in Ottawa" digest; The Receipts leaderboards (with printed caveats — the TheyWorkForYou lesson); device-only "my MP"; public charter page. The database runs locally on an external drive (`scripts/db-start.sh`) with live data: 343 MPs, 57k+ ballots, 100k+ expense line items and growing.
 
-**Fast-follow (parked):** French (#1), opposition-critic tracking, provincial handoff via MPP lookup, Gazette consultations, elections module, own promise tracker, say-vs-vote flags, keyed public API, embeddable widgets, provincial legislatures, US (indefinitely).
+**Fast-follow (parked):** French (#1), opposition-critic tracking, Gazette consultations, elections module, own promise tracker, say-vs-vote flags, keyed public API, embeddable widgets, other provincial legislatures' bills/votes (people are already in), more eScribe cities (Hamilton/London/Markham/etc. — add a tenant config entry), Toronto lobbyist registry ZIP ingestion, municipal pay/expense statements (Municipal Act s.284, per-city PDFs), non-eScribe cities (Winnipeg/Surrey/Windsor need other-vendor parsers), provincial money (lobbyist registries, Elections Ontario), US (indefinitely).
 
 **Current test suite:** 108 backend tests passing; frontend builds and lints clean.
 
@@ -99,11 +103,23 @@ Hold Canadian politicians accountable. Make it easy for anyone to see how their 
 
 ## Quick start
 
-1. Copy `.env.example` to `.env` and fill in keys (Anthropic, OpenAI, Google OAuth).
+1. Copy `.env.example` to `.env` and fill in keys (Anthropic, OpenAI).
 2. Start infrastructure with `docker compose up -d`.
 3. Install frontend dependencies with `npm install`.
 4. Create a Python virtualenv and install `backend/requirements.txt`.
 5. Run `npm run dev` from the repo root.
+
+### Enabling AI summaries for new bills
+
+Every current bill (Parliament 45) already ships with a grounded, readability-gated
+plain-language summary. For bills that arrive later:
+
+1. Put your key in `.env`: `ANTHROPIC_API_KEY=sk-ant-…`
+2. See what's missing and what it costs: `PYTHONPATH=backend python3 scripts/backfill_ai.py --dry-run`
+3. Run it: `PYTHONPATH=backend python3 scripts/backfill_ai.py`
+4. Restart the worker — the hourly cron then summarizes new bills automatically.
+
+Spending is hard-capped by `LLM_MONTHLY_BUDGET_USD`; published summaries are cached forever.
 
 ## Acceptance test
 
