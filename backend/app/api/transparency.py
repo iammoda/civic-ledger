@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from app.data.transparency import HONEST_LIMITS, SCORECARD
 from app.db.session import get_db
 from app.models import (
-    Ballot,
     Chamber,
     IngestionRun,
     Jurisdiction,

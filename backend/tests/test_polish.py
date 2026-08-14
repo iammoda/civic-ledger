@@ -5,7 +5,6 @@ from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 
 import app.services.ask as ask_mod
 from app.db.session import get_db

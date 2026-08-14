@@ -16,10 +16,11 @@ import re
 import unicodedata
 import zipfile
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any, Iterable
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -443,9 +444,8 @@ def sync_contributions_file(db: Session, zip_path: str) -> int:
 # Download helpers (config-driven URLs; ZIP or plain CSV)
 # ---------------------------------------------------------------------------
 
-def _imports_path(url: str) -> "Path | None":
+def _imports_path(url: str) -> Path | None:
     """Manually-downloaded copy in IMPORTS_DIR wins (Cloudflare bypass)."""
-    from pathlib import Path
 
     filename = url.rsplit("/", 1)[-1]
     candidate = Path(settings.imports_dir) / filename
@@ -487,7 +487,6 @@ async def download_to_file(url: str) -> str | None:
     local = _imports_path(url)
     if local is not None:
         return str(local)
-    from pathlib import Path
 
     dest_dir = Path(settings.imports_dir)
     try:

@@ -13,14 +13,10 @@ from app.schemas.common import CommitteeEventSummary, PageMeta
 router = APIRouter(prefix="/committees", tags=["committees"])
 
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session, selectinload
+from fastapi import APIRouter
+from sqlalchemy import func
 
-from app.db.session import get_db
-from app.models import Chamber, Committee, CommitteeMembership
-from app.schemas.committees import CommitteeDetail, CommitteeListItem, CommitteeMember
-from app.schemas.common import CommitteeEventSummary, PageMeta
+from app.models import Chamber
 
 
 router = APIRouter(prefix="/committees", tags=["committees"])

@@ -15,7 +15,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.models import Embedding
+import app.models  # noqa: F401 — side-effect: registers every model on Base.metadata
 from app.models.base import Base
 
 

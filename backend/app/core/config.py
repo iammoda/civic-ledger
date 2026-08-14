@@ -12,8 +12,10 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Civic Accountability Platform"
-    app_env: str = "development"
-    app_debug: bool = True
+    app_env: str = Field(default="development", alias="APP_ENV")
+    # Debug returns tracebacks to clients — must stay off in production.
+    # Dev opts in via APP_DEBUG=true in .env.
+    app_debug: bool = Field(default=False, alias="APP_DEBUG")
     database_url: str = Field(
         default="postgresql+psycopg://postgres:postgres@localhost:5432/civic_platform",
         alias="DATABASE_URL",
@@ -48,7 +50,8 @@ class Settings(BaseSettings):
     # Elections Canada contributions export (CSV or ZIP of CSV).
     contributions_export_url: str = Field(default="", alias="CONTRIBUTIONS_EXPORT_URL")
     # Local dir checked first for manually-downloaded exports (Cloudflare).
-    imports_dir: str = Field(default="/Volumes/CivicLedgerData/imports", alias="IMPORTS_DIR")
+    # Portable default; local dev points it at the data drive via .env.
+    imports_dir: str = Field(default="imports", alias="IMPORTS_DIR")
     # Ignore influence records older than this year.
     influence_since_year: int = Field(default=2019, alias="INFLUENCE_SINCE_YEAR")
     # Expense flag thresholds (big-ticket per single item, by category).

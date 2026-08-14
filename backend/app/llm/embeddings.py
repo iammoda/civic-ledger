@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.llm.base import EmbeddingClient, StructuredResult
 from app.llm.budget import record_usage
-from app.models import Bill, Chamber, Embedding, Jurisdiction, Meeting, Motion, Petition, Vote
+from app.models import Bill, Chamber, Embedding, Meeting, Motion, Petition, Vote
 
 EMBED_BATCH_SIZE = 96
 

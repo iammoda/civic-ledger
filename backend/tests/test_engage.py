@@ -1,7 +1,7 @@
 """Phase 8 tests: letters citing real ballots, notification matcher."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient

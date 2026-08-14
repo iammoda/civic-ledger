@@ -7,8 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import get_db
-from app.models import Chamber, Debate, Speech
-from app.schemas.common import AnalysisState
+from app.models import Chamber, Debate
 from app.schemas.debates import DebateDetail, SpeechItem
 
 

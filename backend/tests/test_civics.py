@@ -1,10 +1,9 @@
 """Tests: committees, ministers, Ask minister card, question follows, glossary."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date
 from pathlib import Path
 
-import pytest
 from sqlalchemy import select
 
 import app.services.ask as ask_mod
@@ -154,7 +153,7 @@ def test_question_follow_matches_new_bills_by_keywords(db) -> None:
     db.add(UserFollow(user_id="u1", target_type="question", target_ref="why is rent so high in housing markets"))
     db.commit()
 
-    created = match_notifications(db)
+    match_notifications(db)
     notifications = db.scalars(select(Notification).where(Notification.kind == "question_match")).all()
     assert len(notifications) == 1
     assert "C-77" in notifications[0].body_en

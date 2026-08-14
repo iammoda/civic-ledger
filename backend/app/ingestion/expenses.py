@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.ingestion.influence import get_or_create_org, normalize_person_name
-from app.models import ExpenseItem, ExpenseSummary, Person
+from app.models import ExpenseItem, ExpenseSummary
 
 settings = get_settings()
 

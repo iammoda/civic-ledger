@@ -12,7 +12,6 @@ from app.db.session import get_db
 from app.ingestion.influence import (
     normalize_name,
     normalize_person_name,
-    parse_contributions_csv,
     parse_lobby_zip,
     sync_contributions,
     sync_lobby_communications,
@@ -196,7 +195,7 @@ def test_contact_cluster_detector(db) -> None:
 
 
 def test_donor_lobbyist_overlap_detector(db) -> None:
-    mp = _mp(db)
+    _mp(db)
     sync_lobby_communications(db, build_lobby_zip())
     sync_contributions(db, CONTRIB_CSV)
 

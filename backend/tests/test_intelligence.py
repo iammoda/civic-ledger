@@ -19,7 +19,7 @@ from app.llm.analyses import (
 from app.llm.base import StructuredResult
 from app.llm.budget import BudgetExceededError, cost_for, ensure_budget, record_usage
 from app.llm.readability import meets_gate, reading_grade
-from app.models import AnalysisResult, Bill, EntityTopic, LlmUsage, Vote
+from app.models import Bill, EntityTopic, LlmUsage, Vote
 
 
 # --- Readability ---

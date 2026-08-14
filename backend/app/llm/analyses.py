@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ingestion.billtext import fetch_bill_text
-from app.llm.base import LLMClient, StructuredResult
+from app.llm.base import LLMClient
 from app.llm.budget import ensure_budget, record_usage
 from app.llm.readability import (
     HARD_CEILING,

@@ -5,9 +5,9 @@ language ("fuel charge") using the curated topic taxonomy.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from sqlalchemy import func, or_, select, text as sql_text
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Bill, Chamber, Embedding, Meeting, Motion, Petition, Topic, Vote

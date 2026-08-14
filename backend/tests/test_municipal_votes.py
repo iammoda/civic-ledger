@@ -1,7 +1,6 @@
 """Toronto/Vancouver open-data vote adapters: grouping + idempotency."""
 from __future__ import annotations
 
-import pytest
 
 from app.ingestion.toronto_votes import sync_toronto_votes
 from app.ingestion.vancouver_votes import sync_vancouver_votes

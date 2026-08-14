@@ -17,7 +17,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ingestion.influence import normalize_name, normalize_person_name
+from app.ingestion.influence import normalize_name
 from app.models import (
     Bill,
     BillDeath,

@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["backend"]
+
+[tool.ruff.lint]
+# Start with correctness (F) and syntax (E9); widen once the codebase is
+# formatted. Style rules can come later — correctness gates CI now.
+select = ["E9", "F"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]

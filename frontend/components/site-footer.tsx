@@ -28,7 +28,9 @@ const COLUMNS = [
       { href: "/ask", label: "Ask a question" },
       { href: "/act", label: "Write to your MP" },
       { href: "/charter", label: "What we are (and aren't)" },
-      { href: "/corrections", label: "Report an error" }
+      { href: "/corrections", label: "Report an error" },
+      { href: "/privacy", label: "Privacy" },
+      { href: "/terms", label: "Terms of use" }
     ]
   }
 ];
