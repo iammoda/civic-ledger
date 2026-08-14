@@ -1,40 +1,20 @@
-"""Phase 4 tests: session auth, postal->MP matching, profile + follows API."""
+"""Postal-code lookup tests: normalization, MP candidate extraction, matching.
+
+(Sign-in was removed — the platform is fully anonymous. The postal lookup
+is the only "who represents me" mechanism and stores nothing.)
+"""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
-from app.core.auth import get_current_user
-from app.data.topics import seed_topics
 from app.db.session import get_db
 from app.ingestion.sync import SyncContext
 from app.main import app
 from app.models import Person, PersonMembership
 from app.services.represent import extract_mp_candidates, normalize_postal, _match_person
-
-
-AUTH_DDL = [
-    'CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT, email TEXT, "emailVerified" BOOLEAN, image TEXT, "createdAt" TIMESTAMP, "updatedAt" TIMESTAMP)',
-    'CREATE TABLE "session" (id TEXT PRIMARY KEY, "userId" TEXT, token TEXT, "expiresAt" TIMESTAMP, "createdAt" TIMESTAMP, "updatedAt" TIMESTAMP)',
-]
-
-
-def _seed_auth_user(db, *, token: str = "tok123", expired: bool = False) -> None:
-    for ddl in AUTH_DDL:
-        db.execute(text(ddl))
-    expires = datetime.now(timezone.utc) + (timedelta(days=-1) if expired else timedelta(days=7))
-    db.execute(
-        text('INSERT INTO "user" (id, name, email) VALUES (:i, :n, :e)'),
-        {"i": "u1", "n": "Jane Citizen", "e": "jane@example.com"},
-    )
-    db.execute(
-        text('INSERT INTO "session" (id, "userId", token, "expiresAt") VALUES (:i, :u, :t, :x)'),
-        {"i": "s1", "u": "u1", "t": token, "x": expires.replace(tzinfo=None)},
-    )
-    db.commit()
 
 
 @pytest.fixture()
@@ -43,32 +23,6 @@ def client(db):
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
-
-
-# --- Auth dependency ---
-
-
-class _FakeRequest:
-    def __init__(self, cookies: dict[str, str]) -> None:
-        self.cookies = cookies
-
-
-def test_session_cookie_authenticates(db) -> None:
-    _seed_auth_user(db, token="tok123")
-    request = _FakeRequest({"better-auth.session_token": "tok123.somesignature"})
-    user = get_current_user(request, db)  # type: ignore[arg-type]
-    assert user is not None
-    assert user.email == "jane@example.com"
-
-
-def test_expired_session_rejected(db) -> None:
-    _seed_auth_user(db, token="tok123", expired=True)
-    request = _FakeRequest({"better-auth.session_token": "tok123.sig"})
-    assert get_current_user(request, db) is None  # type: ignore[arg-type]
-
-
-def test_missing_cookie_is_anonymous(db) -> None:
-    assert get_current_user(_FakeRequest({}), db) is None  # type: ignore[arg-type]
 
 
 # --- Postal lookup helpers ---
@@ -117,64 +71,9 @@ def test_match_person_by_name_then_riding(db) -> None:
     assert _match_person(db, "Nobody", "Nowhere") is None
 
 
-# --- /v1/me API ---
+# --- Anonymous surface: /me and /feed are gone ---
 
 
-def test_me_requires_auth(client) -> None:
-    assert client.get("/v1/me").status_code == 401
-
-
-def test_profile_and_follows_flow(db, client) -> None:
-    _seed_auth_user(db, token="tok123")
-    seed_topics(db)
-    ctx = SyncContext(db)
-    mp = Person(slug="jane-doe", full_name="Jane Doe", chamber_id=ctx.house.id)
-    db.add(mp)
-    db.commit()
-
-    cookies = {"better-auth.session_token": "tok123.sig"}
-
-    me = client.get("/v1/me", cookies=cookies)
-    assert me.status_code == 200
-    assert me.json()["profile"]["reading_level"] == "standard"
-
-    updated = client.put(
-        "/v1/me/profile",
-        json={"riding_name": "Testville", "province_code": "ON", "mp_slug": "jane-doe", "reading_level": "simple"},
-        cookies=cookies,
-    )
-    assert updated.status_code == 200
-    profile = updated.json()["profile"]
-    assert profile["mp_name"] == "Jane Doe"
-    assert profile["reading_level"] == "simple"
-
-    followed = client.post("/v1/me/follows", json={"target_type": "topic", "target_ref": "housing"}, cookies=cookies)
-    assert followed.status_code == 201
-    follows = followed.json()["follows"]
-    assert follows[0]["target_ref"] == "housing"
-    assert follows[0]["label"] == "Housing"
-
-    # Duplicate follow is a no-op.
-    again = client.post("/v1/me/follows", json={"target_type": "topic", "target_ref": "housing"}, cookies=cookies)
-    assert len(again.json()["follows"]) == 1
-
-    # Unknown topic rejected.
-    bad = client.post("/v1/me/follows", json={"target_type": "topic", "target_ref": "nonsense"}, cookies=cookies)
-    assert bad.status_code == 404
-
-    removed = client.delete(
-        "/v1/me/follows",
-        params={"target_type": "topic", "target_ref": "housing"},
-        cookies=cookies,
-    )
-    assert removed.json()["follows"] == []
-
-
-def test_invalid_reading_level_rejected(db, client) -> None:
-    _seed_auth_user(db, token="tok123")
-    response = client.put(
-        "/v1/me/profile",
-        json={"reading_level": "genius"},
-        cookies={"better-auth.session_token": "tok123.sig"},
-    )
-    assert response.status_code == 422
+def test_me_endpoints_removed(client) -> None:
+    assert client.get("/v1/me").status_code in {404, 405}
+    assert client.get("/v1/me/feed").status_code in {404, 405}

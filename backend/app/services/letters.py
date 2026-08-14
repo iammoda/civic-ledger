@@ -14,9 +14,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.behavior import _ballot_effect
+from app.core.config import get_settings
 from app.llm.base import LLMClient
 from app.llm.budget import ensure_budget, record_usage
-from app.models import Ballot, Bill, LegislatureSession, Person, PersonMembership, Vote
+from app.models import Ballot, Bill, Jurisdiction, LegislatureSession, Person, PersonMembership, Vote
 
 
 @dataclass(slots=True)
@@ -46,8 +47,12 @@ def _mp_ballots_on_bill(db: Session, person_id: int, session_label: str, bill_nu
     bill = db.scalar(
         select(Bill)
         .join(LegislatureSession, Bill.session_id == LegislatureSession.id)
+        .join(Jurisdiction, LegislatureSession.jurisdiction_id == Jurisdiction.id)
         .where(
             Bill.number == bill_number,
+            # MP letters cite the federal record; session labels repeat
+            # across legislatures.
+            Jurisdiction.code == get_settings().default_jurisdiction,
             LegislatureSession.parliament_number == int(parliament),
             LegislatureSession.session_number == int(session_no),
         )

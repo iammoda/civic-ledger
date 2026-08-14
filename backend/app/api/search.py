@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.auth import AuthUser, get_current_user
 from app.db.session import get_db
-from app.models import UserProfile
+from app.models import Person
 from app.services.ask import ask as run_ask
 from app.services.search import hybrid_search
 
@@ -53,6 +53,8 @@ async def search(
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=8, max_length=500)
+    # Optional MP slug (from the anonymous postal lookup) to weave their ballots in.
+    mp_slug: str | None = Field(default=None, max_length=255)
 
 
 class AskEvidenceItem(SearchResultItem):
@@ -95,15 +97,14 @@ class AskResponseModel(BaseModel):
 @router.post("/ask", response_model=AskResponseModel)
 async def ask_question(
     payload: AskRequest,
-    user: AuthUser | None = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AskResponseModel:
-    # Signed-in users with a saved riding get their MP's ballots woven in.
+    # Anonymous: callers who know their MP (postal lookup) get that MP's ballots woven in.
     mp_person_id: int | None = None
-    if user is not None:
-        profile = db.get(UserProfile, user.id)
-        if profile is not None:
-            mp_person_id = profile.mp_person_id
+    if payload.mp_slug:
+        person = db.scalar(select(Person).where(Person.slug == payload.mp_slug))
+        if person is not None:
+            mp_person_id = person.id
 
     try:
         response = await run_ask(db, payload.question.strip(), mp_person_id=mp_person_id)

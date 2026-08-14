@@ -42,7 +42,7 @@ class LadderRep:
     party_name: str | None
     email: str | None
     url: str | None
-    person_slug: str | None = None  # Matched for MPs only (deep data)
+    person_slug: str | None = None  # Matched to our Person at any level.
 
 
 PROVINCIAL_OFFICES = {"mpp", "mla", "mna", "mha"}
@@ -76,6 +76,10 @@ def extract_ladder(db: Session, payload: dict) -> list[LadderRep]:
                 continue
             seen.add(dedupe_key)
             district = rep.get("district_name") or ""
+            if level == "federal":
+                slug = _match_person(db, name, district)
+            else:
+                slug = _match_represent_person(db, rep)
             ladder.append(
                 LadderRep(
                     level=level,
@@ -85,7 +89,7 @@ def extract_ladder(db: Session, payload: dict) -> list[LadderRep]:
                     party_name=rep.get("party_name") or None,
                     email=rep.get("email") or None,
                     url=rep.get("url") or None,
-                    person_slug=_match_person(db, name, district) if level == "federal" else None,
+                    person_slug=slug,
                 )
             )
     order = {"federal": 0, "provincial": 1, "municipal": 2}
@@ -131,19 +135,49 @@ def normalize_postal(code: str) -> str | None:
     return cleaned if POSTAL_RE.match(cleaned) else None
 
 
-def _match_person(db: Session, mp_name: str, riding_name: str) -> str | None:
-    """Match a Represent MP to our Person by name, then riding."""
+def _match_represent_person(db: Session, rep: dict) -> str | None:
+    """Match a provincial/municipal rep to a Person synced from Represent.
+
+    Exact match on the natural key (set slug + name slug) — same derivation
+    as app.ingestion.represent_people, so no fuzzy matching needed.
+    """
+    from app.ingestion.represent_people import person_source_id, set_slug_from_url
+
+    set_slug = set_slug_from_url((rep.get("related") or {}).get("representative_set_url"))
+    name = rep.get("name") or ""
+    if not set_slug or not name:
+        return None
     person = db.scalar(
-        select(Person).where(func.lower(Person.full_name) == mp_name.lower())
+        select(Person).where(
+            Person.source_system == "represent",
+            Person.source_id == person_source_id(set_slug, name),
+        )
+    )
+    return person.slug if person is not None else None
+
+
+def _match_person(db: Session, mp_name: str, riding_name: str) -> str | None:
+    """Match a Represent MP to our Person by name, then riding.
+
+    Excludes represent-synced people: a councillor sharing an MP's name
+    must never hijack the federal match (and vice versa).
+    """
+    person = db.scalar(
+        select(Person).where(
+            func.lower(Person.full_name) == mp_name.lower(),
+            Person.source_system != "represent",
+        )
     )
     if person is not None:
         return person.slug
     membership = db.scalar(
         select(PersonMembership)
         .options(selectinload(PersonMembership.person))
+        .join(Person, PersonMembership.person_id == Person.id)
         .where(
             func.lower(PersonMembership.riding_name) == riding_name.lower(),
             PersonMembership.is_current.is_(True),
+            Person.source_system != "represent",
         )
     )
     return membership.person.slug if membership is not None else None

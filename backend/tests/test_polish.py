@@ -11,9 +11,8 @@ import app.services.ask as ask_mod
 from app.db.session import get_db
 from app.ingestion.sync import SyncContext
 from app.main import app
-from app.models import Ballot, Bill, Person, PersonMembership, UserProfile, Vote
+from app.models import Ballot, Bill, Person, PersonMembership, PersonRole, Vote
 from app.services.ask import ask
-from test_accounts import _seed_auth_user
 from test_search_ask import UnconfiguredLLM
 
 
@@ -84,20 +83,16 @@ async def test_ask_without_mp_has_no_ballots(db, monkeypatch) -> None:
     assert response.mp_ballots == []
 
 
-def test_ask_endpoint_uses_profile_mp(db, client, monkeypatch) -> None:
+def test_ask_endpoint_uses_mp_slug(db, client, monkeypatch) -> None:
     mp, _, _ = _seed_mp_bill_vote(db)
     monkeypatch.setattr(ask_mod, "LLMClient", UnconfiguredLLM)
-    _seed_auth_user(db, token="tok1")
-    db.add(UserProfile(user_id="u1", riding_name="Testville", mp_person_id=mp.id))
-    db.commit()
 
-    signed_in = client.post(
+    with_mp = client.post(
         "/v1/ask",
-        json={"question": "I can't afford housing anymore"},
-        cookies={"better-auth.session_token": "tok1.sig"},
+        json={"question": "I can't afford housing anymore", "mp_slug": mp.slug},
     ).json()
-    assert signed_in["my_mp_name"] == "Jane Doe"
-    assert signed_in["mp_ballots"][0]["effect"] == "blocked"
+    assert with_mp["my_mp_name"] == "Jane Doe"
+    assert with_mp["mp_ballots"][0]["effect"] == "blocked"
 
     anonymous = client.post("/v1/ask", json={"question": "I can't afford housing anymore"}).json()
     assert anonymous["my_mp_name"] is None
@@ -130,3 +125,28 @@ def test_vote_list_includes_direction_fields(db, client) -> None:
     item = votes["items"][0]
     assert item["yea_effect"] == "advance"
     assert item["plain_meaning_en"] == "A Yes vote moved this forward."
+
+
+# --- Cabinet endpoint ---
+
+
+def test_cabinet_endpoint_returns_current_ministers(db, client) -> None:
+    mp, _, _ = _seed_mp_bill_vote(db)
+    db.add(
+        PersonRole(
+            person_id=mp.id,
+            role_type="minister",
+            title_en="Minister of Housing",
+            is_current=True,
+        )
+    )
+    db.commit()
+
+    data = client.get("/v1/politicians/roles/cabinet").json()
+    assert len(data["items"]) == 1
+    item = data["items"][0]
+    assert item["title_en"] == "Minister of Housing"
+    assert item["person_slug"] == "jane-doe"
+    assert item["full_name"] == "Jane Doe"
+    assert item["party_slug"] == "liberal"
+    assert item["riding"] == "Testville"

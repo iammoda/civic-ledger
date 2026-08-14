@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.votes import _bill_display_title, _bill_one_sentences
 from app.db.session import get_db
 from app.models import (
     Ballot,
@@ -23,6 +24,11 @@ from app.models import (
 
 
 router = APIRouter(tags=["behavior"])
+
+# Ballot values that count as showing up. Anything else ("absent", legacy
+# strings) means the MP didn't vote.
+CAST_VALUES = {"yea", "nay"}
+PARTICIPATED_VALUES = {"yea", "nay", "paired"}
 
 
 class BallotRecord(BaseModel):
@@ -40,6 +46,9 @@ class BallotRecord(BaseModel):
     # "With 118 of 119 voting Liberal MPs" / "One of 3 Liberal MPs to differ"
     party_context: str | None = None
     bill_number: str | None = None
+    bill_title: str | None = None
+    # Published AI one-sentence summary of the bill, when we have one.
+    bill_one_sentence: str | None = None
 
 
 class VotingRecordResponse(BaseModel):
@@ -47,6 +56,16 @@ class VotingRecordResponse(BaseModel):
     full_name: str
     total_ballots: int
     dissent_count: int
+    # Participation: cast = yea/nay; missed = anything outside yea/nay/paired.
+    cast_count: int
+    missed_count: int
+    participation_pct: float | None = None
+    # Among the most recent 30 ballots: how many they missed. Powers the
+    # "missing more votes lately" callout on the frontend.
+    recent_missed_count: int
+    recent_total: int
+    # How many ballots match the current filter — for pagination.
+    total_filtered: int = 0
     items: list[BallotRecord]
 
 
@@ -83,6 +102,8 @@ def _party_context(
 @router.get("/politicians/{slug}/votes", response_model=VotingRecordResponse)
 def politician_votes(
     slug: str,
+    filter: str = Query(default="all", pattern="^(all|dissent|missed)$"),
+    # Deprecated: kept for backwards compat; dissent_only=true means filter=dissent.
     dissent_only: bool = Query(default=False),
     limit: int = Query(default=25, le=100),
     offset: int = Query(default=0, ge=0),
@@ -92,17 +113,50 @@ def politician_votes(
     if person is None:
         raise HTTPException(status_code=404, detail="Politician not found")
 
+    if dissent_only and filter == "all":
+        filter = "dissent"
+
     base = select(Ballot).where(Ballot.person_id == person.id)
-    total_ballots = db.scalar(select(func.count()).select_from(base.subquery())) or 0
     dissent_count = db.scalar(
         select(func.count()).select_from(
             base.where(Ballot.broke_party_line.is_(True)).subquery()
         )
     ) or 0
 
+    # One grouped query gives every participation stat at once.
+    ballot_value_counts: dict[str, int] = {
+        value: count
+        for value, count in db.execute(
+            select(Ballot.ballot, func.count())
+            .where(Ballot.person_id == person.id)
+            .group_by(Ballot.ballot)
+        ).all()
+    }
+    total_ballots = sum(ballot_value_counts.values())
+    cast_count = sum(c for v, c in ballot_value_counts.items() if v in CAST_VALUES)
+    paired_count = sum(c for v, c in ballot_value_counts.items() if v == "paired")
+    missed_count = total_ballots - cast_count - paired_count
+    participation_pct = (
+        round(100.0 * (cast_count + paired_count) / total_ballots, 1) if total_ballots else None
+    )
+
+    # Recent trend: just the ballot values of the last 30 votes by date.
+    recent_values = db.scalars(
+        select(Ballot.ballot)
+        .join(Vote, Ballot.vote_id == Vote.id)
+        .where(Ballot.person_id == person.id)
+        .order_by(Vote.occurred_on.desc())
+        .limit(30)
+    ).all()
+    recent_total = len(recent_values)
+    recent_missed_count = sum(1 for v in recent_values if v not in PARTICIPATED_VALUES)
+
     query = base
-    if dissent_only:
+    if filter == "dissent":
         query = query.where(Ballot.broke_party_line.is_(True))
+    elif filter == "missed":
+        query = query.where(Ballot.ballot.not_in(PARTICIPATED_VALUES))
+    total_filtered = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     ballots = db.scalars(
         query.join(Vote, Ballot.vote_id == Vote.id)
         .options(
@@ -131,6 +185,10 @@ def politician_votes(
         p_slug: short for p_slug, short in db.execute(select(Party.slug, Party.short_name)).all()
     }
 
+    one_sentences = _bill_one_sentences(
+        db, [b.vote.bill_id for b in ballots if b.vote.bill_id is not None]
+    )
+
     items = [
         BallotRecord(
             vote_number=b.vote.number,
@@ -147,6 +205,8 @@ def politician_votes(
                 party_counts, b.vote_id, b.party_slug, b.ballot, party_labels.get(b.party_slug or "")
             ),
             bill_number=b.vote.bill.number if b.vote.bill else None,
+            bill_title=_bill_display_title(b.vote.bill),
+            bill_one_sentence=one_sentences.get(b.vote.bill_id) if b.vote.bill_id else None,
         )
         for b in ballots
     ]
@@ -156,6 +216,12 @@ def politician_votes(
         full_name=person.full_name,
         total_ballots=total_ballots,
         dissent_count=dissent_count,
+        cast_count=cast_count,
+        missed_count=missed_count,
+        participation_pct=participation_pct,
+        recent_missed_count=recent_missed_count,
+        recent_total=recent_total,
+        total_filtered=total_filtered,
         items=items,
     )
 

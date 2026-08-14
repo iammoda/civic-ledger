@@ -20,6 +20,19 @@ class BillDeathInfo(BaseModel):
     kill_vote_session: str | None = None
 
 
+class DissenterItem(BaseModel):
+    """An MP who broke party ranks on one of this bill's recorded votes."""
+
+    person_slug: str
+    full_name: str
+    image_url: str | None = None
+    party_slug: str | None = None
+    ballot: str
+    vote_number: str
+    session: str
+    chamber: str
+
+
 class BillListItem(BaseModel):
     session: str
     chamber: str
@@ -35,9 +48,13 @@ class BillListItem(BaseModel):
     outcome: str = "pending"
     is_law: bool = False
     death: BillDeathInfo | None = None
+    # Plain-language "what this bill is" (published AI summary), for lists.
+    one_sentence: str | None = None
 
 
 class BillDetail(BillListItem):
+    # Machine-readable LEGISinfo status code, e.g. "HouseInCommittee".
+    status_code: str | None = None
     legisinfo_url: str | None = None
     text_url: str | None = None
     # Human-written by the Library of Parliament — always attributed, no AI.
@@ -47,4 +64,5 @@ class BillDetail(BillListItem):
     related_votes: list[VoteListItem] = []
     sector_impacts: list[dict[str, Any]] = []
     omnibus_components: list[dict[str, Any]] = []
+    dissenters: list[DissenterItem] = []
     data_gaps: list[DataGap] = []

@@ -5,9 +5,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.auth import AuthUser, require_user
 from app.db.session import get_db
-from app.models import Person, UserProfile
+from app.models import Person
 from app.services.letters import build_letter, polish_letter
 
 
@@ -15,6 +14,7 @@ router = APIRouter(prefix="/actions", tags=["actions"])
 
 
 class LetterRequest(BaseModel):
+    mp_slug: str = Field(min_length=1, max_length=255)
     concern: str = Field(min_length=10, max_length=2000)
     bill_session: str | None = Field(default=None, max_length=16)
     bill_number: str | None = Field(default=None, max_length=16)
@@ -42,18 +42,12 @@ class LetterResponse(BaseModel):
 @router.post("/letter", response_model=LetterResponse)
 async def draft_letter(
     payload: LetterRequest,
-    user: AuthUser = Depends(require_user),
     db: Session = Depends(get_db),
 ) -> LetterResponse:
-    profile = db.get(UserProfile, user.id)
-    if profile is None or profile.mp_person_id is None:
-        raise HTTPException(
-            status_code=409,
-            detail="Set your riding first — we need to know who your MP is.",
-        )
-    mp = db.get(Person, profile.mp_person_id)
+    """Anonymous by design: the caller says which MP (from the postal lookup); nothing is stored."""
+    mp = db.scalar(select(Person).where(Person.slug == payload.mp_slug))
     if mp is None:
-        raise HTTPException(status_code=409, detail="Your saved MP no longer exists; update your riding.")
+        raise HTTPException(status_code=404, detail="MP not found — check the slug from the postal lookup.")
 
     letter = build_letter(
         db,

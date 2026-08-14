@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import func, or_, select, text as sql_text
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Bill, Embedding, Petition, Topic, Vote
+from app.models import Bill, Chamber, Embedding, Meeting, Motion, Petition, Topic, Vote
 
 RRF_K = 60
 
@@ -68,6 +68,22 @@ def _vote_result(vote: Vote) -> SearchResult:
         title=f"Vote {vote.number} ({vote.session.label})",
         snippet=vote.plain_meaning_en or vote.description_en,
         url_path=f"/votes/{vote.chamber.slug}/{vote.session.label}/{vote.number}",
+    )
+
+
+def _motion_result(motion: Motion) -> SearchResult:
+    meeting = motion.meeting
+    city = meeting.chamber.jurisdiction.name_en if meeting and meeting.chamber else ""
+    title_bits = [bit for bit in (motion.resolution_number, motion.item_title) if bit]
+    return SearchResult(
+        entity_type="motion",
+        entity_id=motion.id,
+        title=f"{city}: {' — '.join(title_bits) or 'Council motion'}",
+        snippet=f"{(motion.text_en or '')[:200]} · {motion.result}"
+        + (f" · {meeting.meeting_date.isoformat()}" if meeting else ""),
+        # Motions link to the official minutes — the primary source.
+        url_path=motion.source_url or "",
+        outcome=motion.result,
     )
 
 
@@ -166,6 +182,21 @@ def keyword_search(db: Session, query: str, *, limit: int = 20) -> list[SearchRe
             .order_by(Petition.state.asc(), func.ts_rank(petition_doc, ts_query).desc())
             .limit(limit)
         ).all()
+        motion_doc = func.to_tsvector(
+            "english",
+            func.coalesce(Motion.item_title, "") + " " + func.coalesce(Motion.text_en, ""),
+        )
+        motions = db.scalars(
+            select(Motion)
+            .options(
+                selectinload(Motion.meeting)
+                .selectinload(Meeting.chamber)
+                .selectinload(Chamber.jurisdiction)
+            )
+            .where(motion_doc.op("@@")(ts_query))
+            .order_by(func.ts_rank(motion_doc, ts_query).desc())
+            .limit(limit)
+        ).all()
     else:
         # Dev/test fallback: per-word LIKE across the same fields.
         words = [w for w in query.split() if len(w) >= 3][:8]
@@ -195,10 +226,21 @@ def keyword_search(db: Session, query: str, *, limit: int = 20) -> list[SearchRe
             .where(or_(*clauses(Petition.title_en, Petition.keywords_en, Petition.text_en)))
             .limit(limit)
         ).all()
+        motions = db.scalars(
+            select(Motion)
+            .options(
+                selectinload(Motion.meeting)
+                .selectinload(Meeting.chamber)
+                .selectinload(Chamber.jurisdiction)
+            )
+            .where(or_(*clauses(Motion.item_title, Motion.text_en)))
+            .limit(limit)
+        ).all()
 
     results.extend(_bill_result(b) for b in bills)
     results.extend(_vote_result(v) for v in votes)
     results.extend(_petition_result(p) for p in petitions)
+    results.extend(_motion_result(m) for m in motions)
     return results
 
 
@@ -234,6 +276,18 @@ def vector_search(db: Session, query_vector: list[float], *, limit: int = 20) ->
             petition = db.get(Petition, entity_id)
             if petition is not None:
                 results.append(_petition_result(petition))
+        elif entity_type == "motion":
+            motion = db.scalar(
+                select(Motion)
+                .options(
+                    selectinload(Motion.meeting)
+                    .selectinload(Meeting.chamber)
+                    .selectinload(Chamber.jurisdiction)
+                )
+                .where(Motion.id == entity_id)
+            )
+            if motion is not None:
+                results.append(_motion_result(motion))
     return results
 
 

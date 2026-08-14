@@ -25,8 +25,14 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     llm_monthly_budget_usd: float = Field(default=200.0, alias="LLM_MONTHLY_BUDGET_USD")
-    # Comma-separated admin emails (review queue, corrections).
-    admin_emails: str = Field(default="", alias="ADMIN_EMAILS")
+    # Static admin token (review queue, corrections). Unset = admin disabled.
+    admin_api_token: str = Field(default="", alias="ADMIN_API_TOKEN")
+    # Members' Office Budget (annual, CAD). Published by the Board of Internal
+    # Economy; set it from the current Members' Allowances and Services Manual.
+    # 0 = budget context hidden in the UI (no invented numbers).
+    mob_annual_budget: float = Field(default=0.0, alias="MOB_ANNUAL_BUDGET")
+    # MP base sessional allowance (annual salary, CAD). 0 = hidden.
+    mp_annual_salary: float = Field(default=0.0, alias="MP_ANNUAL_SALARY")
     # Registry of Lobbyists communications export (CSV or ZIP of CSV).
     lobby_export_url: str = Field(
         default="https://lobbycanada.gc.ca/media/exports/communications_ocl_cal.zip",
@@ -59,10 +65,6 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.backend_cors_origins.split(",") if origin.strip()]
-
-    @property
-    def admin_email_set(self) -> set[str]:
-        return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
 
 
 @lru_cache

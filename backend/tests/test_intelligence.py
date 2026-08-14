@@ -178,7 +178,9 @@ async def test_normalize_vote_heuristic_costs_nothing(db, fake_llm) -> None:
 
     updated = await normalize_vote(db, vote.id)
     assert updated.yea_effect == "advance"
-    assert "moved this forward" in updated.plain_meaning_en
+    # The sentence names the bill and the stage — never a bare "moved this forward".
+    assert "passed Bill C-30 at third reading" in updated.plain_meaning_en
+    assert "goes to the Senate" in updated.plain_meaning_en
     assert db.scalars(select(LlmUsage)).all() == []  # Heuristic path is free.
 
 

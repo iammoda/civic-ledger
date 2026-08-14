@@ -20,17 +20,44 @@ from app.models import (
 
 
 def mark_current_session(db: Session) -> LegislatureSession | None:
-    """The session containing the most recent vote is the current one."""
-    latest = db.execute(
-        select(Vote.session_id).order_by(Vote.occurred_on.desc()).limit(1)
-    ).scalar_one_or_none()
-    if latest is None:
-        return None
+    """The session containing the most recent vote is the current one.
+
+    Scoped per jurisdiction: the federal session with the latest federal
+    vote is current, an Ontario session with the latest Ontario vote is
+    current, and neither can unseat the other. Returns the DEFAULT
+    (federal) jurisdiction's current session — callers use it to drive
+    the OpenParliament incremental sync.
+    """
+    from app.core.config import get_settings
+
+    from app.models import Jurisdiction
+
+    default_code = get_settings().default_jurisdiction
+    jurisdiction_ids = db.scalars(
+        select(LegislatureSession.jurisdiction_id)
+        .join(Vote, Vote.session_id == LegislatureSession.id)
+        .distinct()
+    ).all()
     current = None
-    for session in db.scalars(select(LegislatureSession)).all():
-        session.is_current = session.id == latest
-        if session.is_current:
-            current = session
+    for jurisdiction_id in jurisdiction_ids:
+        session_id = db.execute(
+            select(Vote.session_id)
+            .join(LegislatureSession, Vote.session_id == LegislatureSession.id)
+            .where(LegislatureSession.jurisdiction_id == jurisdiction_id)
+            .order_by(Vote.occurred_on.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if session_id is None:
+            continue
+        sessions = db.scalars(
+            select(LegislatureSession).where(LegislatureSession.jurisdiction_id == jurisdiction_id)
+        ).all()
+        for session in sessions:
+            session.is_current = session.id == session_id
+            if session.is_current:
+                jurisdiction = db.get(Jurisdiction, jurisdiction_id)
+                if jurisdiction is not None and jurisdiction.code == default_code:
+                    current = session
     db.commit()
     return current
 

@@ -34,7 +34,6 @@ from app.services.detectors import (
     detect_donor_lobbyist_overlap,
     detect_lobbying_before_death,
 )
-from test_accounts import _seed_auth_user
 
 
 def build_lobby_zip() -> bytes:
@@ -257,8 +256,7 @@ def test_lobbying_before_death_detector(db) -> None:
 def test_flags_hidden_until_published_then_visible(db, client, monkeypatch) -> None:
     from app.core import config as config_mod
 
-    monkeypatch.setattr(config_mod.get_settings(), "admin_emails", "jane@example.com")
-    _seed_auth_user(db, token="admintok")
+    monkeypatch.setattr(config_mod.get_settings(), "admin_api_token", "sekret")
     mp = _mp(db)
     db.add(
         IntegrityFlag(
@@ -274,30 +272,33 @@ def test_flags_hidden_until_published_then_visible(db, client, monkeypatch) -> N
     money = client.get(f"/v1/politicians/{mp.slug}/money").json()
     assert money["flags"] == []
 
-    cookies = {"better-auth.session_token": "admintok.sig"}
-    pending = client.get("/v1/admin/flags", cookies=cookies).json()
+    headers = {"X-Admin-Token": "sekret"}
+    pending = client.get("/v1/admin/flags", headers=headers).json()
     assert len(pending) == 1
 
     reviewed = client.post(
         f"/v1/admin/flags/{pending[0]['id']}",
-        json={"action": "publish", "note": "verified against registry"},
-        cookies=cookies,
+        json={"action": "publish", "note": "verified against registry", "reviewer": "jane"},
+        headers=headers,
     ).json()
     assert reviewed["status"] == "published"
-    assert reviewed["reviewed_by"] == "jane@example.com"
+    assert reviewed["reviewed_by"] == "jane"
 
     money = client.get(f"/v1/politicians/{mp.slug}/money").json()
     assert len(money["flags"]) == 1
     assert money["flags"][0]["headline_en"] == "Test flag headline."
 
 
-def test_admin_requires_admin_email(db, client, monkeypatch) -> None:
+def test_admin_requires_token(db, client, monkeypatch) -> None:
     from app.core import config as config_mod
 
-    monkeypatch.setattr(config_mod.get_settings(), "admin_emails", "other@example.com")
-    _seed_auth_user(db, token="usertok")
-    response = client.get("/v1/admin/flags", cookies={"better-auth.session_token": "usertok.sig"})
-    assert response.status_code == 403
+    monkeypatch.setattr(config_mod.get_settings(), "admin_api_token", "sekret")
+    assert client.get("/v1/admin/flags").status_code == 403
+    assert client.get("/v1/admin/flags", headers={"X-Admin-Token": "wrong"}).status_code == 403
+
+    # Unconfigured token disables admin entirely.
+    monkeypatch.setattr(config_mod.get_settings(), "admin_api_token", "")
+    assert client.get("/v1/admin/flags", headers={"X-Admin-Token": "sekret"}).status_code == 503
 
 
 def test_corrections_flow(db, client, monkeypatch) -> None:
@@ -309,16 +310,15 @@ def test_corrections_flow(db, client, monkeypatch) -> None:
     )
     assert submitted.status_code == 201
 
-    monkeypatch.setattr(config_mod.get_settings(), "admin_emails", "jane@example.com")
-    _seed_auth_user(db, token="admintok")
-    cookies = {"better-auth.session_token": "admintok.sig"}
-    open_items = client.get("/v1/admin/corrections", cookies=cookies).json()
+    monkeypatch.setattr(config_mod.get_settings(), "admin_api_token", "sekret")
+    headers = {"X-Admin-Token": "sekret"}
+    open_items = client.get("/v1/admin/corrections", headers=headers).json()
     assert len(open_items) == 1
 
     resolved = client.post(
         f"/v1/admin/corrections/{open_items[0]['id']}",
         json={"note": "Fixed: stats job had stale data."},
-        cookies=cookies,
+        headers=headers,
     ).json()
     assert resolved["status"] == "resolved"
 

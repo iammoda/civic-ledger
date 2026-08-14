@@ -9,7 +9,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models import ExpenseItem, ExpenseSummary, IntegrityFlag, Person
+from app.models import ExpenseItem, ExpenseSummary, IntegrityFlag, Party, Person, PersonMembership
 from app.schemas.common import PageMeta
 
 
@@ -45,7 +45,24 @@ class ExpenseItemModel(BaseModel):
     source_url: str
     mp_name: str | None = None
     mp_slug: str | None = None
+    mp_image_url: str | None = None
+    mp_party: str | None = None
     flagged: bool = False
+
+
+class BudgetContext(BaseModel):
+    """Office-budget utilization for the latest fiscal year on record.
+
+    annual_budget comes from configuration (the BOIE-published base Members'
+    Office Budget) — when unset, the block is omitted rather than invented.
+    """
+
+    fiscal_year: int
+    annual_budget: float
+    ytd_total: float
+    quarters_reported: int
+    utilization_pct: float
+    note: str
 
 
 class MpExpensesResponse(BaseModel):
@@ -56,6 +73,10 @@ class MpExpensesResponse(BaseModel):
     top_suppliers: list[dict]
     flags: list[dict]
     sources_note: str
+    budget: BudgetContext | None = None
+    # Where their latest-quarter total sits among ALL MPs that quarter (0-100).
+    spend_percentile: float | None = None
+    mp_annual_salary: float | None = None
 
 
 def _item_model(item: ExpenseItem, *, mp_name: str | None = None, mp_slug: str | None = None, flagged: bool = False) -> ExpenseItemModel:
@@ -150,12 +171,57 @@ def politician_expenses(slug: str, db: Session = Depends(get_db)) -> MpExpensesR
         )
     ).all()
 
+    # Budget utilization (configured base MOB; hidden when unset — no invented numbers).
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    budget: BudgetContext | None = None
+    if quarters and settings.mob_annual_budget > 0:
+        latest_fy = quarters[0].fiscal_year
+        fy_quarters = [q for q in quarters if q.fiscal_year == latest_fy]
+        ytd = round(sum(q.total for q in fy_quarters), 2)
+        budget = BudgetContext(
+            fiscal_year=latest_fy,
+            annual_budget=settings.mob_annual_budget,
+            ytd_total=ytd,
+            quarters_reported=len(fy_quarters),
+            utilization_pct=round(100.0 * ytd / settings.mob_annual_budget, 1),
+            note=(
+                "Against the base Members' Office Budget set by the Board of "
+                "Internal Economy. Large or remote ridings get supplements on "
+                "top of the base, so their true budget is higher."
+            ),
+        )
+
+    # Percentile among ALL MPs for the latest quarter on record.
+    spend_percentile: float | None = None
+    if quarters:
+        latest = quarters[0]
+        peer_totals = db.execute(
+            select(
+                ExpenseSummary.salaries
+                + ExpenseSummary.travel
+                + ExpenseSummary.hospitality
+                + ExpenseSummary.contracts
+            ).where(
+                ExpenseSummary.fiscal_year == latest.fiscal_year,
+                ExpenseSummary.quarter == latest.quarter,
+            )
+        ).scalars().all()
+        values = [float(v) for v in peer_totals]
+        if len(values) >= 20:
+            below = sum(1 for v in values if v < latest.total)
+            spend_percentile = round(100.0 * below / len(values), 0)
+
     return MpExpensesResponse(
         slug=person.slug,
         full_name=person.full_name,
         quarters=quarters,
         top_items=[_item_model(i) for i in top_items],
         top_suppliers=top_suppliers,
+        budget=budget,
+        spend_percentile=spend_percentile,
+        mp_annual_salary=settings.mp_annual_salary or None,
         flags=[
             {
                 "detector": f.detector,
@@ -212,12 +278,22 @@ def search_expenses(
     order = ExpenseItem.amount.desc() if sort == "amount" else ExpenseItem.occurred_on.desc().nullslast()
     items = db.scalars(query.order_by(order).offset(offset).limit(limit)).all()
 
-    # MP display info + published-flag markers, batched.
+    # MP display info (name, slug, photo, party) + published-flag markers, batched.
     person_ids = {i.person_id for i in items if i.person_id}
-    people = {
-        pid: (name, slug)
-        for pid, name, slug in db.execute(
-            select(Person.id, Person.full_name, Person.slug).where(Person.id.in_(person_ids or {0}))
+    people: dict[int, tuple[str, str, str | None]] = {
+        pid: (name, slug, image_url)
+        for pid, name, slug, image_url in db.execute(
+            select(Person.id, Person.full_name, Person.slug, Person.image_url).where(
+                Person.id.in_(person_ids or {0})
+            )
+        ).all()
+    }
+    parties: dict[int, str | None] = {
+        pid: party_slug
+        for pid, party_slug in db.execute(
+            select(PersonMembership.person_id, Party.slug)
+            .join(Party, PersonMembership.party_id == Party.id)
+            .where(PersonMembership.person_id.in_(person_ids or {0}), PersonMembership.is_current.is_(True))
         ).all()
     }
     flagged_person_ids = {
@@ -231,15 +307,19 @@ def search_expenses(
         ).all()
     }
 
+    def _search_model(item: ExpenseItem) -> ExpenseItemModel:
+        name, slug, image_url = people.get(item.person_id or 0, (item.mp_name_raw, None, None))
+        model = _item_model(
+            item,
+            mp_name=name if item.person_id else item.mp_name_raw,
+            mp_slug=slug if item.person_id else None,
+            flagged=item.person_id in flagged_person_ids,
+        )
+        model.mp_image_url = image_url if item.person_id else None
+        model.mp_party = parties.get(item.person_id or 0)
+        return model
+
     return {
-        "items": [
-            _item_model(
-                item,
-                mp_name=people.get(item.person_id, (item.mp_name_raw, None))[0] if item.person_id else item.mp_name_raw,
-                mp_slug=people.get(item.person_id, (None, None))[1] if item.person_id else None,
-                flagged=item.person_id in flagged_person_ids,
-            ).model_dump()
-            for item in items
-        ],
+        "items": [_search_model(item).model_dump() for item in items],
         "meta": PageMeta(total=total, limit=limit, offset=offset).model_dump(),
     }

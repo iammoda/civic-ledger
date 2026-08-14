@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.llm.base import EmbeddingClient, StructuredResult
 from app.llm.budget import record_usage
-from app.models import Bill, Embedding, Petition, Vote
+from app.models import Bill, Chamber, Embedding, Jurisdiction, Meeting, Motion, Petition, Vote
 
 EMBED_BATCH_SIZE = 96
 
@@ -44,6 +44,19 @@ def petition_embed_text(petition: Petition) -> str:
     return "\n".join(p for p in parts if p)
 
 
+def motion_embed_text(motion: Motion, city_name: str) -> str:
+    """City name is embedded so 'potholes in Mississauga' retrieves the
+    right council's decisions."""
+    parts = [
+        city_name,
+        motion.meeting.body_name if motion.meeting else "",
+        motion.item_title or "",
+        (motion.text_en or "")[:3000],
+        motion.result.replace("_", " "),
+    ]
+    return "\n".join(p for p in parts if p)
+
+
 def _hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
@@ -63,6 +76,22 @@ async def embed_pending(db: Session, *, entity_type: str, limit: int = 500) -> i
     elif entity_type == "petition":
         rows = db.scalars(select(Petition).order_by(Petition.id.desc()).limit(limit * 4)).all()
         texts = {row.id: petition_embed_text(row) for row in rows}
+    elif entity_type == "motion":
+        from sqlalchemy.orm import selectinload
+
+        motion_rows = db.scalars(
+            select(Motion)
+            .options(selectinload(Motion.meeting).selectinload(Meeting.chamber).selectinload(Chamber.jurisdiction))
+            .order_by(Motion.id.desc())
+            .limit(limit * 4)
+        ).all()
+        texts = {
+            row.id: motion_embed_text(
+                row,
+                row.meeting.chamber.jurisdiction.name_en if row.meeting and row.meeting.chamber else "",
+            )
+            for row in motion_rows
+        }
     else:
         raise ValueError(f"Unsupported entity_type: {entity_type}")
 

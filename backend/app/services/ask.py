@@ -239,13 +239,18 @@ ASK_SCHEMA: dict[str, Any] = {
 
 
 def _evidence_block(evidence: list[SearchResult]) -> str:
-    kinds = {"bill": "Bill", "vote": "Vote", "petition": "Petition (open for public signature)"}
+    kinds = {
+        "bill": "Bill",
+        "vote": "Vote",
+        "petition": "Petition (open for public signature)",
+        "motion": "Municipal council motion",
+    }
     lines = []
     for i, item in enumerate(evidence, start=1):
         kind = kinds.get(item.entity_type, item.entity_type)
         outcome = f" (outcome: {item.outcome.replace('_', ' ')})" if item.outcome else ""
         lines.append(f"[{i}] {kind}: {item.title}{outcome} — {item.snippet}")
-    return "\n".join(lines) or "(no matching federal evidence found)"
+    return "\n".join(lines) or "(no matching evidence found)"
 
 
 def _answer_gate_text(data: dict[str, Any]) -> str:
@@ -299,14 +304,15 @@ async def ask(db: Session, question: str, *, mp_person_id: int | None = None) ->
         "Decide which level of government is mainly responsible (federal, "
         "provincial, municipal, or mixed) and answer their question. "
         f"{hint}\n\n"
-        "Federal evidence you may cite (bills and Commons votes from our "
-        "database):\n"
+        "Evidence you may cite (bills, Commons votes, petitions, and "
+        "municipal council motions from our database):\n"
         f"{_evidence_block(evidence)}\n\n"
         "Rules: answer_sentence first and plain. Cite evidence as [n] inside "
         "answer_detail, and list the numbers you used in cited_indexes. Never "
         "cite anything not in the list. If responsibility is provincial or "
-        "municipal, say so directly and still mention any relevant federal "
-        "activity from the evidence."
+        "municipal, say so directly; when a municipal council motion in the "
+        "evidence is relevant, cite it — note it belongs to that specific "
+        "city's council. Also mention relevant federal activity."
     )
     result = await asyncio.to_thread(
         client.structured_response,

@@ -283,23 +283,116 @@ def heuristic_vote_direction(description: str) -> str | None:
     return None
 
 
-def _heuristic_plain_meaning(vote: Vote, effect: str) -> str:
-    outcome = "passed" if (vote.result or "").lower() == "passed" else "did not pass"
-    if _STANDALONE_MOTION_RE.search(vote.description_en):
-        # The matter IS the motion; "moved forward" would read oddly.
+# --- Stage detection: which step of a bill's journey was this vote? ---
+
+_STAGE_PATTERNS: list[tuple[str, str]] = [
+    (r"\b(3rd|third) reading\b|\bbe now read a third time\b", "third_reading"),
+    (r"\b(2nd|second) reading\b|\bbe now read a second time\b", "second_reading"),
+    (r"\b(1st|first) reading\b|\bbe now read a first time\b", "first_reading"),
+    (r"\breport stage\b", "report_stage"),
+    (r"\bsenate amendment", "senate_amendments"),
+    (r"\btime allocation\b|\bclosure\b", "time_allocation"),
+]
+
+_BILL_NUMBER_RE = re.compile(r"\bBill ([CS]-\d+)\b", re.IGNORECASE)
+
+
+def vote_stage(description: str) -> str | None:
+    """Which stage of a bill's journey a vote description refers to."""
+    desc = description.lower()
+    for pattern, stage in _STAGE_PATTERNS:
+        if re.search(pattern, desc):
+            return stage
+    return None
+
+
+def _bill_label(vote: Vote, bill: Bill | None) -> str | None:
+    """Compact human label for the bill under vote: 'Bill C-30 (the Housing Act)'."""
+    number: str | None = None
+    short: str | None = None
+    if bill is not None:
+        number = bill.number
+        short = (bill.short_title_en or "").strip() or None
+    else:
+        match = _BILL_NUMBER_RE.search(vote.description_en or "")
+        if match:
+            number = match.group(1)
+    if not number:
+        return None
+    # Short titles read like "Housing Cost Transparency Act" — usable inline.
+    # Long titles ("An Act to amend...") are too clumsy for one sentence.
+    if short and not short.lower().startswith("an act"):
+        return f"Bill {number} (the {short})"
+    return f"Bill {number}"
+
+
+def _heuristic_plain_meaning(vote: Vote, effect: str, bill: Bill | None = None, chamber_slug: str = "house") -> str:
+    """One grade-8 sentence that names WHAT was voted on and what happens next.
+
+    Never 'A Yes vote moved this forward' — that meant nothing to anyone.
+    """
+    actors = "Senators" if chamber_slug == "senate" else "MPs"
+    score = f"{vote.yea_total} to {vote.nay_total}"
+    passed = (vote.result or "").lower() == "passed"
+    label = _bill_label(vote, bill)
+    stage = vote_stage(vote.description_en or "")
+
+    if label:
+        if stage == "third_reading":
+            if passed:
+                next_step = (
+                    "It now awaits royal assent — the last step before it becomes law."
+                    if chamber_slug == "senate"
+                    else "It now goes to the Senate."
+                )
+                return f"{actors} passed {label} at third reading — the final vote in this chamber — {score}. {next_step}"
+            return f"{actors} rejected {label} at third reading, {score}. The bill is defeated."
+        if stage == "second_reading":
+            if effect == "block":
+                if passed:
+                    return f"{actors} voted to stop {label} at second reading, {score}. The bill is dead."
+                return f"An attempt to stop {label} at second reading failed, {score}. The bill keeps moving."
+            if passed:
+                return (
+                    f"{actors} approved the idea of {label} at second reading, {score}. "
+                    "It now goes to a committee for detailed study."
+                )
+            return f"{actors} rejected {label} at second reading, {score}. The bill is dead."
+        if stage == "report_stage":
+            if passed:
+                return (
+                    f"{actors} accepted {label} back from committee review, {score}. "
+                    "One final vote (third reading) remains in this chamber."
+                )
+            return f"{actors} rejected {label} at report stage, {score}."
+        if stage == "senate_amendments":
+            if passed:
+                return f"{actors} settled how to respond to the Senate's changes to {label}, {score}."
+            return f"{actors} rejected the motion on the Senate's changes to {label}, {score}."
+        if stage == "time_allocation":
+            if passed:
+                return f"{actors} voted to limit debate time on {label}, {score} — it speeds the bill along."
+            return f"{actors} refused to limit debate time on {label}, {score}."
+        if effect == "block":
+            if passed:
+                return f"{actors} voted to stop {label}, {score}. The bill is halted."
+            return f"An attempt to stop {label} failed, {score}. The bill keeps moving."
+        if passed:
+            return f"{actors} moved {label} ahead, {score}."
+        return f"{actors} declined to move {label} ahead, {score}."
+
+    # No bill involved: the motion itself is the matter.
+    verb = "adopted" if passed else "rejected"
+    if _STANDALONE_MOTION_RE.search(vote.description_en or ""):
         return (
-            f"A Yes vote supported this motion. It {outcome}, "
-            f"{vote.yea_total} to {vote.nay_total}."
+            f"{actors} {verb} this motion, {score}. "
+            "(Motions state a position or manage the chamber's business — they don't change the law by themselves.)"
         )
-    if effect == "advance":
-        return (
-            f"A Yes vote moved this forward. The motion {outcome}, "
-            f"{vote.yea_total} to {vote.nay_total}."
-        )
-    return (
-        f"A Yes vote blocked this from moving forward. The motion {outcome}, "
-        f"{vote.yea_total} to {vote.nay_total}."
-    )
+    if effect == "block":
+        if passed:
+            return f"{actors} adopted a motion that blocks this from moving forward, {score}."
+        return f"A motion to block this failed, {score} — it keeps moving."
+    return f"{actors} {verb} this motion, {score}."
 
 
 async def normalize_vote(db: Session, vote_id: int, *, force: bool = False) -> Vote | None:
@@ -312,8 +405,10 @@ async def normalize_vote(db: Session, vote_id: int, *, force: bool = False) -> V
 
     effect = heuristic_vote_direction(vote.description_en)
     if effect is not None:
+        bill = db.get(Bill, vote.bill_id) if vote.bill_id else None
+        chamber_slug = vote.chamber.slug if vote.chamber is not None else "house"
         vote.yea_effect = effect
-        vote.plain_meaning_en = _heuristic_plain_meaning(vote, effect)
+        vote.plain_meaning_en = _heuristic_plain_meaning(vote, effect, bill=bill, chamber_slug=chamber_slug)
         db.commit()
         return vote
 
@@ -439,6 +534,32 @@ async def tag_petition_topics(db: Session, petition_id: int, *, force: bool = Fa
         kind="petition to the House of Commons",
         force=force,
     )
+
+
+def tag_motion_topics(db: Session, motion_id: int) -> int:
+    """Alias-only topic tagging for municipal motions — deterministic and
+    free. There are tens of thousands of motions; LLM tagging stays reserved
+    for parliamentary content until municipal gets its own budget line.
+    """
+    from app.models import Motion
+
+    motion = db.get(Motion, motion_id)
+    if motion is None:
+        return 0
+    already = db.scalar(
+        select(EntityTopic.id)
+        .where(EntityTopic.entity_type == "motion", EntityTopic.entity_id == motion.id)
+        .limit(1)
+    )
+    if already is not None:
+        return 0
+    text = " ".join(filter(None, [motion.item_title, (motion.text_en or "")[:2000]]))
+    count = 0
+    for topic, confidence in _alias_match_topics(db, text):
+        _upsert_entity_topic(db, topic, "motion", motion.id, confidence, "alias")
+        count += 1
+    db.commit()
+    return count
 
 
 async def _tag_entity_topics(

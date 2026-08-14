@@ -1,4 +1,4 @@
-"""Phase 8 tests: letters citing real ballots, notification matcher, feed."""
+"""Phase 8 tests: letters citing real ballots, notification matcher."""
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
@@ -22,12 +22,10 @@ from app.models import (
     Petition,
     Topic,
     UserFollow,
-    UserProfile,
     Vote,
 )
 from app.services.letters import build_letter
 from app.services.notifications import match_notifications, parliament_is_sitting
-from test_accounts import _seed_auth_user
 
 
 @pytest.fixture()
@@ -96,25 +94,25 @@ def test_letter_without_bill_or_record(db) -> None:
     assert "could not find a recorded vote" in letter2.letter_text
 
 
-def test_letter_endpoint_requires_saved_mp(db, client) -> None:
-    _seed_auth_user(db, token="tok1")
-    cookies = {"better-auth.session_token": "tok1.sig"}
+def test_letter_endpoint_unknown_mp(db, client) -> None:
     response = client.post(
-        "/v1/actions/letter", json={"concern": "This is my concern text."}, cookies=cookies,
+        "/v1/actions/letter",
+        json={"mp_slug": "nobody-here", "concern": "This is my concern text."},
     )
-    assert response.status_code == 409  # No riding/MP saved yet.
+    assert response.status_code == 404  # Anonymous flow: MP slug must exist.
 
 
 def test_letter_endpoint_full_flow(db, client) -> None:
     mp, bill, _ = _mp_with_bill_votes(db)
-    _seed_auth_user(db, token="tok1")
-    db.add(UserProfile(user_id="u1", riding_name="Testville", mp_person_id=mp.id))
-    db.commit()
 
     response = client.post(
         "/v1/actions/letter",
-        json={"concern": "Rent is out of control.", "bill_session": "45-1", "bill_number": "C-30"},
-        cookies={"better-auth.session_token": "tok1.sig"},
+        json={
+            "mp_slug": "jane-doe",
+            "concern": "Rent is out of control.",
+            "bill_session": "45-1",
+            "bill_number": "C-30",
+        },
     )
     assert response.status_code == 200
     data = response.json()
@@ -199,31 +197,7 @@ def test_bill_follow_notifies_votes(db) -> None:
     assert "C-30" in notification.title_en
 
 
-# --- Feed API ---
-
-
-def test_feed_and_mark_read(db, client) -> None:
-    mp, bill, vote = _mp_with_bill_votes(db)
-    _seed_auth_user(db, token="tok1")
-    seed_topics(db)
-    housing = db.scalar(select(Topic).where(Topic.slug == "housing"))
-    db.add(EntityTopic(topic_id=housing.id, entity_type="bill", entity_id=bill.id, source="alias"))
-    db.commit()
-    _followed_user(db, "topic", "housing")
-    match_notifications(db)
-
-    cookies = {"better-auth.session_token": "tok1.sig"}
-    feed = client.get("/v1/me/feed", cookies=cookies).json()
-    assert feed["unread_count"] >= 1
-    assert feed["followed_topics"] == ["housing"]
-    assert feed["notifications"]
-    # Quiet feed backfilled with topic suggestions.
-    assert any("C-30" in s["title"] for s in feed["suggestions"])
-
-    marked = client.post("/v1/me/notifications/read", json={}, cookies=cookies).json()
-    assert marked["marked_read"] >= 1
-    feed_after = client.get("/v1/me/feed", cookies=cookies).json()
-    assert feed_after["unread_count"] == 0
+# --- Feed API removed with sign-in; notification matcher above still powers digests. ---
 
 
 def test_parliament_sitting_heuristic(db) -> None:

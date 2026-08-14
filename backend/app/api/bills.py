@@ -4,15 +4,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.config import get_settings
 from app.db.session import get_db
-from app.models import Bill, BillDeath, Chamber, EntityTopic, LegislatureSession, Topic, Vote
-from app.schemas.bills import BillDeathInfo, BillDetail, BillListItem
+from app.models import Ballot, Bill, BillDeath, Chamber, EntityTopic, Jurisdiction, LegislatureSession, Person, Topic, Vote
+from app.schemas.bills import BillDeathInfo, BillDetail, BillListItem, DissenterItem
 from app.schemas.common import AnalysisState, DataGap, PageMeta
 from app.schemas.votes import VoteListItem
 from app.services.lazy import enqueue
 
 
 router = APIRouter(prefix="/bills", tags=["bills"])
+
+settings = get_settings()
 
 DEAD_OUTCOMES = (
     "defeated_vote",
@@ -69,7 +72,12 @@ def _list_item(db: Session, bill: Bill, *, with_death: bool = False) -> BillList
 
 
 def _session_clauses(label: str) -> list:
-    """'45-1' -> column filters. label is a Python property, not a column."""
+    """'45-1' -> column filters. label is a Python property, not a column.
+
+    Deliberately NOT jurisdiction-scoped: bill numbers disambiguate
+    (federal bills are C-#/S-#, Ontario bills are bare numbers/PR#), so
+    /bills/44-1/5 finds the Ontario bill and /bills/44-1/C-5 the federal.
+    """
     parliament, _, session_no = label.partition("-")
     if not (parliament.isdigit() and session_no.isdigit()):
         raise HTTPException(status_code=404, detail="Invalid session")
@@ -89,7 +97,13 @@ def list_bills(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict:
-    query = select(Bill)
+    # Federal record only; provincial bills ship with their own routes.
+    query = (
+        select(Bill)
+        .join(LegislatureSession, Bill.session_id == LegislatureSession.id)
+        .join(Jurisdiction, LegislatureSession.jurisdiction_id == Jurisdiction.id)
+        .where(Jurisdiction.code == settings.default_jurisdiction)
+    )
     if chamber:
         query = query.join(Chamber, Bill.chamber_id == Chamber.id).where(Chamber.slug == chamber)
     if bill_type:
@@ -128,6 +142,13 @@ def list_bills(
 
     items = [_list_item(db, bill, with_death=bill.outcome in DEAD_OUTCOMES) for bill in bills]
 
+    # Plain-language one-liners for the page of bills, batched.
+    from app.api.votes import _bill_one_sentences
+
+    sentences = _bill_one_sentences(db, [bill.id for bill in bills])
+    for item, bill in zip(items, bills):
+        item.one_sentence = sentences.get(bill.id)
+
     return {
         "items": [item.model_dump() for item in items],
         "meta": PageMeta(total=total, limit=limit, offset=offset).model_dump(),
@@ -152,6 +173,43 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
     )
     if bill is None:
         raise HTTPException(status_code=404, detail="Bill not found")
+
+    # Everyone who broke party ranks on any of this bill's recorded votes.
+    # The (vote_id, person_id) unique constraint already gives us one row per
+    # person per vote; cap at 30 to keep the payload honest on landslide revolts.
+    dissenter_rows = db.execute(
+        select(
+            Person.slug,
+            Person.full_name,
+            Person.image_url,
+            Ballot.party_slug,
+            Ballot.ballot,
+            Vote.number,
+            LegislatureSession.parliament_number,
+            LegislatureSession.session_number,
+            Chamber.slug.label("chamber_slug"),
+        )
+        .join(Vote, Ballot.vote_id == Vote.id)
+        .join(Person, Ballot.person_id == Person.id)
+        .join(LegislatureSession, Vote.session_id == LegislatureSession.id)
+        .join(Chamber, Vote.chamber_id == Chamber.id)
+        .where(Vote.bill_id == bill.id, Ballot.broke_party_line.is_(True))
+        .order_by(Vote.occurred_on.desc(), Person.full_name)
+        .limit(30)
+    ).all()
+    dissenters = [
+        DissenterItem(
+            person_slug=row.slug,
+            full_name=row.full_name,
+            image_url=row.image_url,
+            party_slug=row.party_slug,
+            ballot=row.ballot,
+            vote_number=row.number,
+            session=f"{row.parliament_number}-{row.session_number}",
+            chamber=row.chamber_slug,
+        )
+        for row in dissenter_rows
+    ]
 
     topics = [
         name
@@ -232,6 +290,7 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
         title_en=bill.title_en,
         short_title_en=bill.short_title_en,
         status_en=bill.status_en,
+        status_code=bill.status_code,
         bill_type=bill.bill_type,
         introduced_on=bill.introduced_on,
         sponsor_slug=bill.sponsor.slug if bill.sponsor else None,
@@ -269,5 +328,6 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
             (analysis.payload.get("components", []) for analysis in bill.analyses if analysis.analysis_type == "omnibus"),
             [],
         ),
+        dissenters=dissenters,
         data_gaps=data_gaps,
     )

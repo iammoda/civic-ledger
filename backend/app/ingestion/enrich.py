@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import get_settings
 from app.ingestion.billtext import fetch_bill_text
-from app.models import Bill
+from app.models import Bill, Jurisdiction, LegislatureSession
 
 settings = get_settings()
 
@@ -74,7 +74,14 @@ async def enrich_bills(db: Session, *, limit: int = 500) -> dict[str, int]:
     bills = db.scalars(
         select(Bill)
         .options(selectinload(Bill.session))
-        .where((Bill.official_summary_en.is_(None)) | ((Bill.full_text_en.is_(None)) & (Bill.text_url.is_not(None))))
+        # LEGISinfo + parl.ca only know federal bills; other legislatures
+        # get their own enrichment adapters.
+        .join(LegislatureSession, Bill.session_id == LegislatureSession.id)
+        .join(Jurisdiction, LegislatureSession.jurisdiction_id == Jurisdiction.id)
+        .where(
+            Jurisdiction.code == settings.default_jurisdiction,
+            (Bill.official_summary_en.is_(None)) | ((Bill.full_text_en.is_(None)) & (Bill.text_url.is_not(None))),
+        )
         .order_by(Bill.id.desc())
         .limit(limit)
     ).all()

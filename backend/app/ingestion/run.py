@@ -33,8 +33,13 @@ def sweep_ended_sessions(db, ctx: SyncContext) -> int:
 
     mark_current_session(db)
     swept = 0
+    # Federal jurisdiction only: session labels ("44-1") repeat across
+    # legislatures, and ctx resolves labels within the federal jurisdiction.
     ended_sessions = db.scalars(
-        select(LegislatureSession).where(LegislatureSession.is_current.is_(False))
+        select(LegislatureSession).where(
+            LegislatureSession.is_current.is_(False),
+            LegislatureSession.jurisdiction_id == ctx.jurisdiction.id,
+        )
     ).all()
     for session in ended_sessions:
         has_pending = db.scalar(

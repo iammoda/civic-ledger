@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from statistics import median
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, selectinload
@@ -9,10 +11,12 @@ from app.models import (
     Bill,
     Chamber,
     CommitteeMembership,
+    Jurisdiction,
     LegislatureSession,
     Party,
     Person,
     PersonMembership,
+    PersonRole,
     PersonStats,
 )
 from app.schemas.common import MembershipSummary, PageMeta
@@ -34,12 +38,25 @@ def _current_membership(person: Person) -> PersonMembership | None:
     return person.memberships[0] if person.memberships else None
 
 
+def _level_of(person: Person) -> str | None:
+    if person.chamber and person.chamber.jurisdiction:
+        return person.chamber.jurisdiction.level
+    return None
+
+
+def _jurisdiction_name_of(person: Person) -> str | None:
+    if person.chamber and person.chamber.jurisdiction:
+        return person.chamber.jurisdiction.name_en
+    return None
+
+
 @router.get("")
 def list_politicians(
     q: str | None = Query(default=None, max_length=100),
     party: str | None = None,
     province: str | None = None,
     chamber: str | None = None,
+    level: str | None = Query(default=None, pattern="^(federal|provincial|municipal)$"),
     include_former: bool = Query(default=False),
     limit: int = Query(default=25, le=400),
     offset: int = Query(default=0, ge=0),
@@ -56,6 +73,10 @@ def list_politicians(
         query = query.where(func.lower(Person.full_name).contains(q.strip().lower(), autoescape=True))
     if chamber:
         query = query.join(Chamber, Person.chamber_id == Chamber.id).where(Chamber.slug == chamber)
+    if level:
+        query = query.where(
+            Person.chamber.has(Chamber.jurisdiction.has(Jurisdiction.level == level))
+        )
     if party:
         query = query.where(
             Person.memberships.any(
@@ -79,7 +100,7 @@ def list_politicians(
     people = db.scalars(
         query.options(
             selectinload(Person.memberships).selectinload(PersonMembership.party),
-            selectinload(Person.chamber),
+            selectinload(Person.chamber).selectinload(Chamber.jurisdiction),
         )
         .order_by(Person.full_name)
         .offset(offset)
@@ -94,6 +115,8 @@ def list_politicians(
                 slug=person_record.slug,
                 full_name=person_record.full_name,
                 chamber=person_record.chamber.slug if person_record.chamber else None,
+                level=_level_of(person_record),
+                jurisdiction_name=_jurisdiction_name_of(person_record),
                 image_url=person_record.image_url,
                 email=person_record.email,
                 current_membership=MembershipSummary(
@@ -126,6 +149,41 @@ def list_politicians(
     }
 
 
+@router.get("/roles/cabinet")
+def get_cabinet(db: Session = Depends(get_db)) -> dict:
+    """The current federal cabinet: PM first, then ministers by title.
+
+    Registered ABOVE get_politician so "roles" isn't captured as a person slug.
+    """
+    roles = db.scalars(
+        select(PersonRole)
+        .where(PersonRole.is_current.is_(True), PersonRole.role_type == "minister")
+        .options(
+            selectinload(PersonRole.person)
+            .selectinload(Person.memberships)
+            .selectinload(PersonMembership.party)
+        )
+    ).all()
+
+    items: list[dict] = []
+    for role in roles:
+        person = role.person
+        membership = _current_membership(person)
+        items.append(
+            {
+                "title_en": role.title_en,
+                "person_slug": person.slug,
+                "full_name": person.full_name,
+                "image_url": person.image_url,
+                "party_slug": membership.party.slug if membership and membership.party else None,
+                "riding": membership.riding_name if membership else None,
+            }
+        )
+    # "Prime Minister" leads; everyone else reads alphabetically by portfolio.
+    items.sort(key=lambda item: (item["title_en"] != "Prime Minister", item["title_en"]))
+    return {"items": items}
+
+
 @router.get("/{slug}", response_model=PoliticianDetail)
 def get_politician(slug: str, db: Session = Depends(get_db)) -> PoliticianDetail:
     person_record = db.scalar(
@@ -134,7 +192,7 @@ def get_politician(slug: str, db: Session = Depends(get_db)) -> PoliticianDetail
         .options(
             selectinload(Person.memberships).selectinload(PersonMembership.party),
             selectinload(Person.committee_memberships).selectinload(CommitteeMembership.committee),
-            selectinload(Person.chamber),
+            selectinload(Person.chamber).selectinload(Chamber.jurisdiction),
         )
     )
     if person_record is None:
@@ -150,6 +208,33 @@ def get_politician(slug: str, db: Session = Depends(get_db)) -> PoliticianDetail
         )
         .limit(1)
     )
+
+    # Cabinet/officer roles ("Prime Minister", "Minister of Housing") — the
+    # single most important context about an MP, so it leads the page.
+    roles = list(
+        db.scalars(
+            select(PersonRole.title_en)
+            .where(PersonRole.person_id == person_record.id, PersonRole.is_current.is_(True))
+            .order_by(PersonRole.id)
+        )
+    )
+
+    # Chamber-wide median attendance for the same session: a bare "43.2%"
+    # means nothing without knowing what's normal.
+    chamber_median_attendance: float | None = None
+    if stats_row is not None:
+        peer_values = [
+            float(v)
+            for v in db.scalars(
+                select(PersonStats.attendance_pct).where(
+                    PersonStats.session_id == stats_row.session_id,
+                    PersonStats.attendance_pct.is_not(None),
+                    PersonStats.votes_cast > 0,  # exclude the Speaker
+                )
+            ).all()
+        ]
+        if len(peer_values) >= 20:
+            chamber_median_attendance = round(median(peer_values), 1)
     sponsored_bill_numbers = list(
         db.scalars(
             select(Bill.number)
@@ -186,8 +271,12 @@ def get_politician(slug: str, db: Session = Depends(get_db)) -> PoliticianDetail
         slug=person_record.slug,
         full_name=person_record.full_name,
         chamber=person_record.chamber.slug if person_record.chamber else None,
+        level=_level_of(person_record),
+        jurisdiction_name=_jurisdiction_name_of(person_record),
         image_url=person_record.image_url,
         email=person_record.email,
+        website_url=person_record.website_url,
+        offices=person_record.offices_json or [],
         current_membership=(
             MembershipSummary(
                 party=(
@@ -223,6 +312,8 @@ def get_politician(slug: str, db: Session = Depends(get_db)) -> PoliticianDetail
             for membership in person_record.committee_memberships
         ],
         sponsored_bill_numbers=sponsored_bill_numbers,
+        roles=roles,
+        chamber_median_attendance_pct=chamber_median_attendance,
         stats=PoliticianVoteStats(
             votes_attended_pct=stats_row.attendance_pct if stats_row else None,
             party_line_voting_pct=stats_row.party_line_pct if stats_row else None,

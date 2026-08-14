@@ -1,6 +1,6 @@
 """Admin: integrity-flag review queue + corrections triage.
 
-Access: signed-in users whose email is in ADMIN_EMAILS.
+Access: static ADMIN_API_TOKEN via the X-Admin-Token header.
 The review queue is the legal-safety keystone — flags only become
 public through an explicit human 'publish' decision here.
 """
@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.auth import AuthUser, require_admin
+from app.core.auth import require_admin
 from app.db.session import get_db
 from app.models import Bill, Correction, IntegrityFlag, Person
 
@@ -69,13 +69,13 @@ def list_flags(
 class ReviewRequest(BaseModel):
     action: str  # publish | dismiss
     note: str | None = None
+    reviewer: str | None = None  # optional attribution for the audit trail
 
 
 @router.post("/flags/{flag_id}", response_model=AdminFlagItem)
 def review_flag(
     flag_id: int,
     payload: ReviewRequest,
-    admin: AuthUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> AdminFlagItem:
     if payload.action not in {"publish", "dismiss"}:
@@ -85,7 +85,7 @@ def review_flag(
         raise HTTPException(status_code=404, detail="Flag not found")
 
     flag.status = "published" if payload.action == "publish" else "dismissed"
-    flag.reviewed_by = admin.email
+    flag.reviewed_by = payload.reviewer or "admin"
     flag.review_note = payload.note
     db.commit()
 

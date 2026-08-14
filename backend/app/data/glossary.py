@@ -42,6 +42,12 @@ TERMS: list[tuple[str, str]] = [
     ("paired vote", "Two MPs from opposite sides both agree to skip a vote, cancelling each other out."),
     ("designated traveller", "One person (often a spouse) an MP can name to travel at public expense."),
     ("e-petition", "An official online petition. With enough signatures and an MP's sponsorship, the government must respond within 45 days."),
+    ("motion", "A formal proposal MPs vote on. Motions state a position or manage House business — they don't change the law by themselves."),
+    ("lobbying contact", "A meeting, call, or arranged communication between a paid lobbyist and an office holder like an MP. Lobbyists must report each one to the federal registry, with the subjects discussed. It's evidence of access, not wrongdoing."),
+    ("lobbyist", "A person paid to push the government toward choices that help their client or employer. It is legal, but they must register and report what they do."),
+    ("members' office budget", "The annual, taxpayer-funded budget every MP gets to run their office: staff, riding office, travel, mail. Set by the House's Board of Internal Economy."),
+    ("board of internal economy", "The group of MPs from all parties that sets the House's own spending rules. It also sets each MP's office budget."),
+    ("sessional allowance", "An MP's base salary, set by law. Extra pay comes with extra roles: ministers, the Speaker, party leaders, committee chairs, whips."),
 ]
 
 

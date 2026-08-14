@@ -85,6 +85,23 @@ async def normalize_vote_job(ctx: dict[str, Any], vote_id: int) -> None:
         db.close()
 
 
+async def profile_lobby_orgs_job(ctx: dict[str, Any], org_names: list[str]) -> None:
+    """Lazy: one-line 'what is this org' blurbs for lobbying clients."""
+    from app.db.session import SessionLocal
+    from app.llm.budget import BudgetExceededError
+    from app.llm.org_profiles import profile_org
+
+    db = SessionLocal()
+    try:
+        for name in org_names[:12]:  # Cap per job; the money page enqueues top clients only.
+            try:
+                await profile_org(db, name)
+            except BudgetExceededError:
+                return
+    finally:
+        db.close()
+
+
 async def analyze_new_content(ctx: dict[str, Any]) -> None:
     """Eager pass: current-session content gets analysis before anyone asks.
 
@@ -93,14 +110,24 @@ async def analyze_new_content(ctx: dict[str, Any]) -> None:
     """
     from app.data.topics import seed_topics
     from app.db.session import SessionLocal
-    from app.llm.analyses import analyze_bill, normalize_vote, tag_bill_topics, tag_petition_topics
+    from app.llm.analyses import analyze_bill, normalize_vote, tag_bill_topics, tag_motion_topics, tag_petition_topics
     from app.llm.budget import BudgetExceededError
-    from app.models import AnalysisResult, Bill, EntityTopic, LegislatureSession, Petition, Vote
+    from app.models import AnalysisResult, Bill, EntityTopic, Jurisdiction, LegislatureSession, Motion, Petition, Vote
 
     db = SessionLocal()
     try:
         seed_topics(db)
-        current = db.scalar(select(LegislatureSession).where(LegislatureSession.is_current.is_(True)))
+        # Federal current session only: with multiple legislatures in the DB
+        # there are several is_current sessions; LLM spend stays scoped to
+        # the federal record until other levels get an explicit budget.
+        current = db.scalar(
+            select(LegislatureSession)
+            .join(Jurisdiction, LegislatureSession.jurisdiction_id == Jurisdiction.id)
+            .where(
+                LegislatureSession.is_current.is_(True),
+                Jurisdiction.code == get_settings().default_jurisdiction,
+            )
+        )
         if current is None:
             return
 
@@ -133,6 +160,17 @@ async def analyze_new_content(ctx: dict[str, Any]) -> None:
             .order_by(Petition.id.desc())
             .limit(20)
         ).all()
+
+        # Untagged municipal motions: alias-only pass, zero LLM cost.
+        tagged_motion_ids = select(EntityTopic.entity_id).where(EntityTopic.entity_type == "motion")
+        motions = db.scalars(
+            select(Motion)
+            .where(Motion.id.not_in(tagged_motion_ids))
+            .order_by(Motion.id.desc())
+            .limit(500)
+        ).all()
+        for motion in motions:
+            tag_motion_topics(db, motion.id)
 
         try:
             for vote in votes:
@@ -199,6 +237,7 @@ async def embed_new_content(ctx: dict[str, Any]) -> None:
         await embed_pending(db, entity_type="bill")
         await embed_pending(db, entity_type="vote")
         await embed_pending(db, entity_type="petition")
+        await embed_pending(db, entity_type="motion")
     finally:
         db.close()
 
@@ -298,6 +337,144 @@ async def sync_expenses_job(ctx: dict[str, Any], quarters: list | None = None) -
         db.close()
 
 
+async def sync_representatives_job(ctx: dict[str, Any]) -> None:
+    """Weekly: provincial MPPs/MLAs + municipal councillors/mayors from the
+    Represent API (all ~120 sets). Rosters change slowly; weekly is plenty."""
+    from datetime import datetime, timezone
+
+    from app.db.session import SessionLocal
+    from app.ingestion.represent_people import RepresentClient, sync_represent_people
+    from app.models import IngestionRun
+
+    db = SessionLocal()
+    try:
+        run = IngestionRun(source_name="represent", job_name="representatives_sync", status="running")
+        db.add(run)
+        db.commit()
+        try:
+            async with RepresentClient() as client:
+                counts = await sync_represent_people(db, client)
+            run.item_count = counts["people"]
+            run.metadata_json = counts
+            run.status = "succeeded"
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            run.status = "failed"
+            run.error_message = str(exc)[:2000]
+            raise
+        finally:
+            run.finished_at = datetime.now(timezone.utc)
+            db.commit()
+    finally:
+        db.close()
+
+
+async def sync_ontario_job(ctx: dict[str, Any]) -> None:
+    """Nightly: Ontario bills + division votes + MPP ballots from ola.org."""
+    from datetime import datetime, timezone
+
+    from app.db.session import SessionLocal
+    from app.ingestion.ontario import OntarioClient, sync_ontario
+    from app.ingestion.stats import mark_current_session
+    from app.models import IngestionRun
+
+    db = SessionLocal()
+    try:
+        run = IngestionRun(source_name="ola", job_name="ontario_sync", status="running")
+        db.add(run)
+        db.commit()
+        try:
+            async with OntarioClient() as client:
+                counts = await sync_ontario(db, client)
+            mark_current_session(db)
+            run.item_count = counts["bills"] + counts["votes"]
+            run.metadata_json = counts
+            run.status = "succeeded"
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            run.status = "failed"
+            run.error_message = str(exc)[:2000]
+            raise
+        finally:
+            run.finished_at = datetime.now(timezone.utc)
+            db.commit()
+    finally:
+        db.close()
+
+
+async def sync_municipal_job(ctx: dict[str, Any], backfill: bool = False) -> None:
+    """Nightly: municipal council/committee minutes via eScribe — attendance,
+    motions, per-member votes, conflict declarations. backfill=True re-syncs
+    each tenant from its council-term start."""
+    from datetime import datetime, timezone
+
+    from app.db.session import SessionLocal
+    from app.ingestion.escribe import sync_all_escribe
+    from app.models import IngestionRun
+
+    db = SessionLocal()
+    try:
+        run = IngestionRun(source_name="escribe", job_name="municipal_sync", status="running")
+        db.add(run)
+        db.commit()
+        try:
+            results = await sync_all_escribe(db, backfill=backfill)
+            run.item_count = sum(
+                c.get("meetings", 0) + c.get("motions", 0) for c in results.values()
+            )
+            run.metadata_json = results
+            run.status = "failed" if all("error" in c for c in results.values()) else "succeeded"
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            run.status = "failed"
+            run.error_message = str(exc)[:2000]
+            raise
+        finally:
+            run.finished_at = datetime.now(timezone.utc)
+            db.commit()
+    finally:
+        db.close()
+
+
+async def sync_opendata_votes_job(ctx: dict[str, Any]) -> None:
+    """Weekly: full per-member council voting records for the two cities
+    that publish them (Toronto CKAN, Vancouver Open Data)."""
+    from datetime import datetime, timezone
+
+    from app.db.session import SessionLocal
+    from app.ingestion.toronto_votes import TorontoClient, sync_toronto_votes
+    from app.ingestion.vancouver_votes import TERM_START, VancouverClient, sync_vancouver_votes
+    from app.models import IngestionRun
+
+    db = SessionLocal()
+    try:
+        run = IngestionRun(source_name="municipal_opendata", job_name="opendata_votes_sync", status="running")
+        db.add(run)
+        db.commit()
+        results: dict[str, Any] = {}
+        try:
+            async with TorontoClient() as client:
+                rows = await client.iter_rows()
+            results["toronto"] = sync_toronto_votes(db, rows)
+            async with VancouverClient() as client:
+                van_rows = await client.fetch_rows(TERM_START)
+            results["vancouver"] = sync_vancouver_votes(db, van_rows)
+            run.item_count = sum(r.get("votes", 0) for r in results.values())
+            run.metadata_json = results
+            run.status = "succeeded"
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            run.status = "failed"
+            run.metadata_json = results or None
+            run.error_message = str(exc)[:2000]
+            raise
+        finally:
+            run.finished_at = datetime.now(timezone.utc)
+            db.commit()
+    finally:
+        db.close()
+
+
 async def run_detectors_job(ctx: dict[str, Any]) -> None:
     """Nightly integrity detectors -> pending_review flags."""
     from app.db.session import SessionLocal
@@ -330,12 +507,17 @@ class WorkerSettings:
         compute_stats,
         analyze_bill_job,
         normalize_vote_job,
+        profile_lobby_orgs_job,
         analyze_new_content,
         enrich_bills_job,
         embed_new_content,
         sync_petitions_job,
         sync_influence_job,
         sync_expenses_job,
+        sync_representatives_job,
+        sync_ontario_job,
+        sync_municipal_job,
+        sync_opendata_votes_job,
         run_detectors_job,
         match_notifications_job,
     ]
@@ -351,6 +533,10 @@ class WorkerSettings:
         cron(refresh_politicians, weekday=0, hour={6}, minute={0}),  # Mondays
         cron(sync_influence_job, weekday=1, hour={4}, minute={0}),  # Tuesdays
         cron(sync_expenses_job, weekday=2, hour={4}, minute={0}),  # Wednesdays
+        cron(sync_representatives_job, weekday=3, hour={4}, minute={0}),  # Thursdays
+        cron(sync_ontario_job, hour={6}, minute={30}),  # nightly 06:30 UTC
+        cron(sync_municipal_job, hour={9}, minute={0}),  # nightly 09:00 UTC
+        cron(sync_opendata_votes_job, weekday=4, hour={4}, minute={0}),  # Fridays
     ]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     job_timeout = 3600 * 6
