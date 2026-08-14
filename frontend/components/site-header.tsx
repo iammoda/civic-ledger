@@ -1,13 +1,14 @@
 import Link from "next/link";
 
-import { AuthWidget } from "@/components/auth-widget";
-
 const navItems = [
   { href: "/ask", label: "Ask" },
+  { href: "/issues", label: "Issues" },
   { href: "/politicians", label: "MPs" },
+  { href: "/cabinet", label: "Cabinet" },
   { href: "/bills", label: "Bills" },
   { href: "/votes", label: "Votes" },
-  { href: "/expenses", label: "Money" }
+  { href: "/expenses", label: "Follow the money" },
+  { href: "/receipts", label: "The Receipts" }
 ];
 
 export function SiteHeader() {
@@ -28,7 +29,6 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <AuthWidget />
       </div>
       {/* Mobile nav: horizontal scroll strip under the wordmark. */}
       <nav

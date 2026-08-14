@@ -8,7 +8,8 @@ const COLUMNS = [
       { href: "/votes", label: "Votes" },
       { href: "/graveyard", label: "The Graveyard" },
       { href: "/politicians", label: "MPs" },
-      { href: "/expenses", label: "MP expenses" },
+      { href: "/expenses", label: "Follow the money" },
+      { href: "/receipts", label: "The Receipts" },
       { href: "/petitions", label: "Petitions" }
     ]
   },
@@ -17,7 +18,8 @@ const COLUMNS = [
     links: [
       { href: "/glossary", label: "Glossary — Parliament in plain words" },
       { href: "/methodology", label: "How we flag patterns" },
-      { href: "/about-data", label: "About the data" }
+      { href: "/about-data", label: "About the data" },
+      { href: "/transparency", label: "Transparency — live pipeline & coverage" }
     ]
   },
   {
@@ -25,7 +27,7 @@ const COLUMNS = [
     links: [
       { href: "/ask", label: "Ask a question" },
       { href: "/act", label: "Write to your MP" },
-      { href: "/my", label: "My representatives" },
+      { href: "/charter", label: "What we are (and aren't)" },
       { href: "/corrections", label: "Report an error" }
     ]
   }
@@ -54,9 +56,14 @@ export function SiteFooter() {
           ))}
         </div>
         <p className="mt-8 border-t border-border pt-6 text-xs leading-5 text-slate-500">
-          Non-partisan and open source. Every number traces to an official government record: Parliament,
-          Elections Canada, the Registry of Lobbyists, and the House of Commons. Federal coverage is deep;
-          provincial and municipal representatives are shown with contact information.
+          <span className="font-semibold text-slate-700">This is not a government website.</span> Civic Ledger is
+          non-partisan and open source. Every number traces to an official government record: Parliament,
+          Elections Canada, the Registry of Lobbyists, the House of Commons, provincial legislatures, and
+          the Represent civic dataset. Federal coverage is deepest; provincial and municipal records grow
+          as their governments publish more.{" "}
+          <Link href="/charter" className="text-accent hover:underline">
+            Read our charter →
+          </Link>
         </p>
       </div>
     </footer>

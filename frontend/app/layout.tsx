@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Source_Serif_4 } from "next/font/google";
 
 import "./globals.css";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+
+const displaySerif = Source_Serif_4({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["400", "600", "700"]
+});
 
 export const metadata: Metadata = {
   title: {
@@ -16,7 +23,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={displaySerif.variable}>
       <body className="text-ink">
         <SiteHeader />
         {children}

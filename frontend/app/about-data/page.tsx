@@ -5,7 +5,11 @@ import { PageShell } from "@/components/page-shell";
 const sections = [
   {
     title: "Sources",
-    body: "Everything traces to official records: OpenParliament, OurCommons, and LEGISinfo for bills and votes; the Registry of Lobbyists for lobbying; Elections Canada for donations; the House of Commons petitions system for e-petitions. No media reports, no advocacy organizations."
+    body: "Everything traces to official records: OpenParliament, OurCommons, and LEGISinfo for bills and votes; the Registry of Lobbyists for lobbying; Elections Canada for donations; the House of Commons petitions system for e-petitions; ola.org for Ontario bills and division votes; official eScribe council minutes for municipal attendance, motions, and votes; Toronto and Vancouver open data for full council voting records. No media reports, no advocacy organizations."
+  },
+  {
+    title: "Municipal minutes parsing",
+    body: "For cities without open-data voting records, attendance, motions (with movers and seconders), per-member votes where printed, and conflict-of-interest declarations are parsed from the official published minutes. Every parsed row links back to the exact minutes page it came from. Names are matched automatically (honorifics, initials, wards normalized); unmatched names are logged and re-checked, never guessed. The live pipeline status and per-city coverage are public on the transparency page."
   },
   {
     title: "Procedural context",

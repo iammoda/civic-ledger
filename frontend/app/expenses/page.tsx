@@ -1,7 +1,9 @@
 import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
+import { ExplainerStrip } from "@/components/explainer-strip";
 import { PageShell } from "@/components/page-shell";
+import { PartyBadge } from "@/components/party-badge";
 import { searchExpenses } from "@/lib/api";
 
 const CATEGORY_CHIPS = [
@@ -38,9 +40,15 @@ export default async function ExpensesPage({
   return (
     <PageShell
       eyebrow="Follow the money"
-      title="MP office expenses, searchable"
-      description="Every contract, travel claim, and hospitality bill from the official quarterly disclosures. Search any supplier, sort by size, judge for yourself."
+      title="Every dollar MPs spend — searchable"
+      description="Contracts, travel claims, hospitality bills, and staff budgets, straight from the official quarterly disclosures. It's taxpayer money: search any supplier, sort by size, judge for yourself."
     >
+      <ExplainerStrip id="mp-office-budget">
+        Where this money comes from: every MP gets a taxpayer-funded office budget set by the House&apos;s
+        Board of Internal Economy — it pays for staff, riding offices, travel, and contracts. Every line
+        below is from their official disclosures.
+      </ExplainerStrip>
+
       <form action="/expenses" method="get" className="glass-card mb-6 rounded-[2rem] p-6">
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
@@ -123,32 +131,60 @@ export default async function ExpensesPage({
                       {item.traveller_type}
                     </span>
                   ) : null}
+                  <span className="min-w-0">
+                    <span className="mr-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      supplier
+                    </span>
+                    <span className="font-semibold">
+                      {item.supplier ?? item.description ?? item.purpose ?? "—"}
+                    </span>
+                  </span>
                   <span className="ml-auto text-lg font-semibold">
                     ${item.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                   </span>
                 </div>
-                <p className="mt-2 font-medium leading-6">
-                  {item.supplier ?? item.description ?? item.purpose ?? "—"}
-                  {item.supplier && item.description ? (
-                    <span className="font-normal text-slate-500"> — {item.description}</span>
-                  ) : null}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
+                {item.supplier && item.description ? (
+                  <p className="mt-1 text-sm text-slate-500">{item.description}</p>
+                ) : null}
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                  {item.mp_image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- external media host, avatar-sized
+                    <img
+                      src={item.mp_image_url}
+                      alt=""
+                      width={28}
+                      height={28}
+                      className="h-7 w-7 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-400"
+                    >
+                      {(item.mp_name ?? "?").charAt(0)}
+                    </span>
+                  )}
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    MP:
+                  </span>
                   {item.mp_slug ? (
-                    <Link href={`/politicians/${item.mp_slug}`} className="text-accent">
+                    <Link href={`/politicians/${item.mp_slug}`} className="font-medium text-accent">
                       {item.mp_name}
                     </Link>
                   ) : (
-                    item.mp_name
+                    <span className="font-medium">{item.mp_name}</span>
                   )}
-                  {" · "}Q{item.quarter} {item.fiscal_year}
-                  {item.occurred_on ? ` · ${item.occurred_on}` : ""}
-                  {item.city ? ` · ${item.city}` : ""}
-                  {" · "}
-                  <a href={item.source_url} target="_blank" rel="noreferrer" className="text-accent">
-                    official record ↗
-                  </a>
-                </p>
+                  {item.mp_party ? <PartyBadge party={item.mp_party} size="xs" /> : null}
+                  <span className="text-slate-400">
+                    Q{item.quarter} {item.fiscal_year}
+                    {item.occurred_on ? ` · ${item.occurred_on}` : ""}
+                    {item.city ? ` · ${item.city}` : ""}
+                    {" · "}
+                    <a href={item.source_url} target="_blank" rel="noreferrer" className="text-accent">
+                      official record ↗
+                    </a>
+                  </span>
+                </div>
               </div>
             ))}
           </div>

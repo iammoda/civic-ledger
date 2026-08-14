@@ -28,6 +28,8 @@ export type PoliticianListItem = {
   slug: string;
   full_name: string;
   chamber?: string | null;
+  level?: string | null;
+  jurisdiction_name?: string | null;
   image_url?: string | null;
   email?: string | null;
   current_membership?: MembershipSummary | null;
@@ -35,6 +37,8 @@ export type PoliticianListItem = {
 
 export type PoliticianDetail = PoliticianListItem & {
   bio_en?: string | null;
+  website_url?: string | null;
+  offices: Array<{ type?: string | null; tel?: string | null; postal?: string | null }>;
   memberships: MembershipSummary[];
   committees: Array<{
     committee_slug: string;
@@ -42,10 +46,15 @@ export type PoliticianDetail = PoliticianListItem & {
     role?: string | null;
   }>;
   sponsored_bill_numbers: string[];
+  roles?: string[];
+  chamber_median_attendance_pct?: number | null;
   stats?: {
     votes_attended_pct?: number | null;
     party_line_voting_pct?: number | null;
     free_vote_participation_pct?: number | null;
+    votes_eligible?: number | null;
+    votes_cast?: number | null;
+    dissent_count?: number | null;
   } | null;
 };
 
@@ -61,11 +70,19 @@ export type VoteListItem = {
   vote_type: string;
   yea_effect?: string | null;
   plain_meaning_en?: string | null;
+  bill_number?: string | null;
+  bill_title?: string | null;
+  bill_one_sentence?: string | null;
 };
 
 export type VoteDetail = VoteListItem & {
   related_bill_number?: string | null;
   source_url?: string | null;
+  bill_short_title?: string | null;
+  bill_summary?: string | null;
+  bill_summary_source?: string | null;
+  bill_status?: string | null;
+  stage?: string | null;
   party_breakdown: Array<{
     party_slug: string;
     party_name?: string | null;
@@ -118,9 +135,22 @@ export type BillListItem = {
   outcome: string;
   is_law: boolean;
   death?: BillDeathInfo | null;
+  one_sentence?: string | null;
+};
+
+export type BillDissenter = {
+  person_slug: string;
+  full_name: string;
+  image_url?: string | null;
+  party_slug?: string | null;
+  ballot: string;
+  vote_number: string;
+  session: string;
+  chamber: string;
 };
 
 export type BillDetail = BillListItem & {
+  status_code?: string | null;
   legisinfo_url?: string | null;
   text_url?: string | null;
   official_summary_en?: string | null;
@@ -129,6 +159,7 @@ export type BillDetail = BillListItem & {
   related_votes: VoteListItem[];
   sector_impacts: Array<Record<string, unknown>>;
   omnibus_components: Array<Record<string, unknown>>;
+  dissenters?: BillDissenter[];
   data_gaps: Array<{
     code: string;
     label: string;
@@ -191,11 +222,18 @@ async function fetchApi<T>(path: string): Promise<T | null> {
   }
 }
 
-export function listPoliticians(params?: { q?: string; party?: string; province?: string; limit?: number }) {
+export function listPoliticians(params?: {
+  q?: string;
+  party?: string;
+  province?: string;
+  level?: string;
+  limit?: number;
+}) {
   const searchParams = new URLSearchParams();
   if (params?.q) searchParams.set("q", params.q);
   if (params?.party) searchParams.set("party", params.party);
   if (params?.province) searchParams.set("province", params.province);
+  if (params?.level) searchParams.set("level", params.level);
   searchParams.set("limit", String(params?.limit ?? 400));
   return fetchApi<PaginatedResponse<PoliticianListItem>>(`/politicians?${searchParams.toString()}`);
 }
@@ -226,6 +264,19 @@ export function getBill(session: string, number: string) {
   return fetchApi<BillDetail>(`/bills/${session}/${number}`);
 }
 
+export type CabinetMinister = {
+  title_en: string;
+  person_slug: string;
+  full_name: string;
+  image_url?: string | null;
+  party_slug?: string | null;
+  riding?: string | null;
+};
+
+export function getCabinet() {
+  return fetchApi<{ items: CabinetMinister[] }>("/politicians/roles/cabinet");
+}
+
 export function listCommittees() {
   return fetchApi<PaginatedResponse<CommitteeListItem>>("/committees");
 }
@@ -237,6 +288,48 @@ export function getCommittee(slug: string) {
 export function getDebate(chamber: string, debateDate: string) {
   return fetchApi<DebateDetail>(`/debates/${chamber}/${debateDate}`);
 }
+
+export type DigestStory = {
+  kind: string;
+  eyebrow: string;
+  headline: string;
+  detail?: string | null;
+  url_path: string;
+  occurred_on?: string | null;
+};
+
+export function getDigest() {
+  return fetchApi<{ stories: DigestStory[] }>("/digest");
+}
+
+export type ReceiptRow = {
+  person_slug?: string | null;
+  person_name: string;
+  party?: string | null;
+  riding?: string | null;
+  image_url?: string | null;
+  value: number;
+  display: string;
+  context?: string | null;
+};
+
+export type ReceiptBoard = {
+  key: string;
+  title: string;
+  subtitle: string;
+  caveat: string;
+  rows: ReceiptRow[];
+};
+
+export type ReceiptsResponse = {
+  boards: ReceiptBoard[];
+  generated_note: string;
+};
+
+export function getReceipts() {
+  return fetchApi<ReceiptsResponse>("/receipts");
+}
+
 
 export type SearchResultItem = {
   entity_type: string;
@@ -326,18 +419,25 @@ export function listPetitions(params?: { state?: string; topic?: string; offset?
   return fetchApi<PaginatedResponse<PetitionItem>>(`/petitions${qs ? `?${qs}` : ""}`);
 }
 
+export type LobbyCommItem = {
+  comm_date?: string | null;
+  client_name?: string | null;
+  client_description?: string | null;
+  registrant_name?: string | null;
+  subjects?: string | null;
+  institution?: string | null;
+  dpoh_title?: string | null;
+  registry_url?: string | null;
+};
+
 export type MoneyResponse = {
   slug: string;
   full_name: string;
   lobbying_total: number;
   lobbying_last_12mo: number;
-  top_clients: Array<{ name: string; count: number }>;
-  recent_communications: Array<{
-    comm_date?: string | null;
-    client_name?: string | null;
-    registrant_name?: string | null;
-    subjects?: string | null;
-  }>;
+  top_clients: Array<{ name: string; count: number; description?: string | null }>;
+  top_subjects: Array<{ name: string; count: number }>;
+  recent_communications: LobbyCommItem[];
   donations_total: number;
   donations_count: number;
   top_donors: Array<{ name: string; total: number; count: number }>;
@@ -355,6 +455,27 @@ export function getPoliticianMoney(slug: string) {
   return fetchApi<MoneyResponse>(`/politicians/${slug}/money`);
 }
 
+export type PoliticianLobbyingResponse = {
+  slug: string;
+  full_name: string;
+  total: number;
+  items: LobbyCommItem[];
+  subjects: Array<{ name: string; count: number }>;
+};
+
+export function getPoliticianLobbying(
+  slug: string,
+  params?: { q?: string; subject?: string; limit?: number; offset?: number }
+) {
+  const searchParams = new URLSearchParams();
+  if (params?.q) searchParams.set("q", params.q);
+  if (params?.subject) searchParams.set("subject", params.subject);
+  if (params?.limit != null) searchParams.set("limit", String(params.limit));
+  if (params?.offset) searchParams.set("offset", String(params.offset));
+  const qs = searchParams.toString();
+  return fetchApi<PoliticianLobbyingResponse>(`/politicians/${slug}/lobbying${qs ? `?${qs}` : ""}`);
+}
+
 export type BallotRecord = {
   vote_number: string;
   session: string;
@@ -368,6 +489,8 @@ export type BallotRecord = {
   broke_party_line: boolean;
   party_context?: string | null;
   bill_number?: string | null;
+  bill_title?: string | null;
+  bill_one_sentence?: string | null;
 };
 
 export type VotingRecordResponse = {
@@ -375,12 +498,27 @@ export type VotingRecordResponse = {
   full_name: string;
   total_ballots: number;
   dissent_count: number;
+  cast_count: number;
+  missed_count: number;
+  participation_pct?: number | null;
+  recent_missed_count: number;
+  recent_total: number;
+  total_filtered: number;
   items: BallotRecord[];
 };
 
-export function getPoliticianVotes(slug: string, options?: { dissentOnly?: boolean }) {
-  const qs = options?.dissentOnly ? "?dissent_only=true" : "";
-  return fetchApi<VotingRecordResponse>(`/politicians/${slug}/votes${qs}`);
+export type VotesFilter = "all" | "dissent" | "missed";
+
+export function getPoliticianVotes(
+  slug: string,
+  options?: { filter?: VotesFilter; dissentOnly?: boolean; offset?: number }
+) {
+  const filter = options?.filter ?? (options?.dissentOnly ? "dissent" : undefined);
+  const searchParams = new URLSearchParams();
+  if (filter && filter !== "all") searchParams.set("filter", filter);
+  if (options?.offset) searchParams.set("offset", String(options.offset));
+  const qs = searchParams.toString();
+  return fetchApi<VotingRecordResponse>(`/politicians/${slug}/votes${qs ? `?${qs}` : ""}`);
 }
 
 export type ComparisonSide = {
@@ -418,6 +556,8 @@ export type ExpenseItemModel = {
   source_url: string;
   mp_name?: string | null;
   mp_slug?: string | null;
+  mp_image_url?: string | null;
+  mp_party?: string | null;
   flagged: boolean;
 };
 
@@ -437,6 +577,16 @@ export type MpExpensesResponse = {
   top_items: ExpenseItemModel[];
   top_suppliers: Array<{ supplier: string; total: number; count: number }>;
   flags: Array<{ detector: string; headline_en: string; detail_en?: string | null }>;
+  budget?: {
+    fiscal_year: number;
+    annual_budget: number;
+    ytd_total: number;
+    quarters_reported: number;
+    utilization_pct: number;
+    note: string;
+  } | null;
+  spend_percentile?: number | null;
+  mp_annual_salary?: number | null;
   sources_note: string;
 };
 
@@ -457,4 +607,127 @@ export function searchExpenses(params: {
     if (value) searchParams.set(key, value);
   }
   return fetchApi<PaginatedResponse<ExpenseItemModel>>(`/expenses/search?${searchParams.toString()}`);
+}
+
+// --- Municipal record (attendance, motions, declarations) -------------------
+
+export type AttendanceByBody = {
+  body_name: string;
+  present: number;
+  absent: number;
+  regrets: number;
+  total_meetings: number;
+};
+
+export type MunicipalMotion = {
+  meeting_date: string;
+  body_name: string;
+  resolution_number?: string | null;
+  item_title?: string | null;
+  text_excerpt: string;
+  role: string;
+  result: string;
+  source_url?: string | null;
+  vote_number?: string | null;
+  session_label?: string | null;
+  chamber_slug?: string | null;
+};
+
+export type MunicipalRecord = {
+  attendance: AttendanceByBody[];
+  attendance_pct?: number | null;
+  motions_moved: number;
+  motions_seconded: number;
+  recent_motions: MunicipalMotion[];
+  declarations: Array<{
+    meeting_date: string;
+    body_name: string;
+    note: string;
+    source_url?: string | null;
+  }>;
+  meetings_tracked_since?: string | null;
+};
+
+export function getMunicipalRecord(slug: string) {
+  return fetchApi<MunicipalRecord>(`/politicians/${slug}/municipal`);
+}
+
+// --- Transparency ------------------------------------------------------------
+
+export type TransparencyJob = {
+  source: string;
+  job: string;
+  status: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  item_count?: number | null;
+  error?: string | null;
+};
+
+export type ScorecardEntry = {
+  name: string;
+  level: string;
+  jurisdiction_code?: string | null;
+  votes: string;
+  attendance: string;
+  money: string;
+  lobbying: string;
+  notes: string;
+  sources: Array<{ label: string; url: string }>;
+  live: { people?: number; votes?: number; ballots?: number; meetings?: number; motions?: number };
+};
+
+export function getTransparencyStatus() {
+  return fetchApi<{ jobs: TransparencyJob[] }>(`/transparency/status`);
+}
+
+export function getTransparencyCoverage() {
+  return fetchApi<{ scorecard: ScorecardEntry[]; honest_limits: string[] }>(`/transparency/coverage`);
+}
+
+// --- Issues (topics with receipts) -------------------------------------------
+
+export type IssueListItem = {
+  slug: string;
+  name_en: string;
+  description_en?: string | null;
+  bill_count: number;
+  law_count: number;
+  dead_count: number;
+};
+
+export type IssueBill = {
+  session: string;
+  number: string;
+  title_en: string;
+  short_title_en?: string | null;
+  outcome: string;
+  is_law: boolean;
+  status_en?: string | null;
+  one_sentence?: string | null;
+};
+
+export type IssuePartyPosition = {
+  party_slug: string;
+  party_name?: string | null;
+  yea: number;
+  nay: number;
+};
+
+export type IssueDetail = {
+  slug: string;
+  name_en: string;
+  description_en?: string | null;
+  bills: IssueBill[];
+  party_positions: IssuePartyPosition[];
+  vote_count: number;
+  positions_note: string;
+};
+
+export function listIssues() {
+  return fetchApi<{ items: IssueListItem[] }>("/issues");
+}
+
+export function getIssue(slug: string) {
+  return fetchApi<IssueDetail>(`/issues/${encodeURIComponent(slug)}`);
 }

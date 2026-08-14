@@ -1,3 +1,4 @@
+import { AiFeedback } from "@/components/ai-feedback";
 import type { AnalysisState } from "@/lib/api";
 
 type PlainSummaryPayload = {
@@ -57,8 +58,8 @@ export function PlainSummaryCard({ analysis }: { analysis: AnalysisState }) {
       ) : null}
 
       <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-black/5 pt-4 text-xs text-slate-500">
-        <span className="rounded-full bg-slate-100 px-3 py-1">
-          AI summary · written for everyone
+        <span className="rounded-full bg-slate-100 px-3 py-1" title="AI-generated — usually accurate, occasionally wrong. Tell us below.">
+          AI summary · may contain errors
         </span>
         {typeof payload.reading_grade === "number" ? (
           <span className="rounded-full bg-slate-100 px-3 py-1">
@@ -80,6 +81,7 @@ export function PlainSummaryCard({ analysis }: { analysis: AnalysisState }) {
           ) : null;
         })}
       </div>
+      <AiFeedback subject="bill summary" />
     </div>
   );
 }

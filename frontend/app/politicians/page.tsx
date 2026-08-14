@@ -6,13 +6,20 @@ import { listPoliticians } from "@/lib/api";
 
 const PROVINCES = ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"];
 
+const LEVELS: Array<{ key: string; label: string }> = [
+  { key: "federal", label: "Federal" },
+  { key: "provincial", label: "Provincial" },
+  { key: "municipal", label: "Municipal" }
+];
+
 export default async function PoliticiansPage({
   searchParams
 }: {
-  searchParams: Promise<{ q?: string; party?: string; province?: string }>;
+  searchParams: Promise<{ q?: string; party?: string; province?: string; level?: string }>;
 }) {
-  const { q, party, province } = await searchParams;
-  const politicians = await listPoliticians({ q, party, province });
+  const { q, party, province, level: levelParam } = await searchParams;
+  const level = LEVELS.some((entry) => entry.key === levelParam) ? levelParam! : "federal";
+  const politicians = await listPoliticians({ q, party, province, level });
 
   // Party filter chips from the data itself — no hardcoded party list.
   const partySlugs = new Map<string, string>();
@@ -21,22 +28,42 @@ export default async function PoliticiansPage({
     if (partyInfo?.slug && partyInfo.short_name) partySlugs.set(partyInfo.slug, partyInfo.short_name);
   }
 
-  const buildHref = (next: { q?: string; party?: string; province?: string }) => {
+  const buildHref = (next: { q?: string; party?: string; province?: string; level?: string }) => {
     const params = new URLSearchParams();
-    const merged = { q, party, province, ...next };
+    const merged = { q, party, province, level, ...next };
     if (merged.q) params.set("q", merged.q);
     if (merged.party) params.set("party", merged.party);
     if (merged.province) params.set("province", merged.province);
+    if (merged.level && merged.level !== "federal") params.set("level", merged.level);
     const qs = params.toString();
     return `/politicians${qs ? `?${qs}` : ""}`;
   };
 
   return (
     <PageShell
-      eyebrow="MPs"
+      eyebrow={level === "federal" ? "MPs" : level === "provincial" ? "MPPs · MLAs · MNAs" : "Councillors · Mayors"}
       title="Your representatives, on the record"
-      description="Every MP with their attendance, party discipline, money, and full voting record — identical measures for everyone."
+      description={
+        level === "federal"
+          ? "Every MP with their attendance, party discipline, money, and full voting record — identical measures for everyone."
+          : "Every representative synced from official rosters — profiles and contact today, legislative records as their governments publish them."
+      }
     >
+      <div className="mb-6 flex flex-wrap gap-2">
+        {LEVELS.map((entry) => (
+          <Link
+            key={entry.key}
+            href={buildHref({ level: entry.key, party: "", province: "" })}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              level === entry.key
+                ? "bg-slate-900 text-white"
+                : "border border-black/10 bg-white text-slate-600 hover:border-accent hover:text-accent"
+            }`}
+          >
+            {entry.label}
+          </Link>
+        ))}
+      </div>
       <form action="/politicians" method="get" className="glass-card mb-6 rounded-[2rem] p-6">
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
@@ -48,6 +75,7 @@ export default async function PoliticiansPage({
           />
           {party ? <input type="hidden" name="party" value={party} /> : null}
           {province ? <input type="hidden" name="province" value={province} /> : null}
+          {level !== "federal" ? <input type="hidden" name="level" value={level} /> : null}
           <button type="submit" className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white">
             Search
           </button>
@@ -132,9 +160,11 @@ export default async function PoliticiansPage({
                       {politician.current_membership?.riding_name ??
                         politician.current_membership?.region_name ??
                         "Constituency pending"}
-                      {politician.current_membership?.province_code
-                        ? `, ${politician.current_membership.province_code}`
-                        : ""}
+                      {politician.level === "municipal" && politician.jurisdiction_name
+                        ? ` · ${politician.jurisdiction_name}`
+                        : politician.current_membership?.province_code
+                          ? `, ${politician.current_membership.province_code}`
+                          : ""}
                     </p>
                   </div>
                 </div>

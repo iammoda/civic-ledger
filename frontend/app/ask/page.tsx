@@ -1,23 +1,8 @@
 import Link from "next/link";
-import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
-import { auth } from "@/lib/auth";
-import { askQuestionAuthed, authedFetch, getMe } from "@/lib/me";
-
-async function watchQuestion(formData: FormData) {
-  "use server";
-  await authedFetch("/me/follows", {
-    method: "POST",
-    body: JSON.stringify({
-      target_type: "question",
-      target_ref: String(formData.get("question") ?? "").slice(0, 500)
-    })
-  });
-  revalidatePath("/ask");
-}
+import { askQuestion } from "@/lib/lookup";
 
 const JURISDICTION_LABELS: Record<string, { label: string; className: string }> = {
   federal: { label: "Federal responsibility", className: "bg-emerald-50 text-emerald-700" },
@@ -30,18 +15,11 @@ const JURISDICTION_LABELS: Record<string, { label: string; className: string }> 
 export default async function AskPage({
   searchParams
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; mp?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, mp } = await searchParams;
   const question = (q ?? "").trim();
-  const [session, response] = await Promise.all([
-    auth.api.getSession({ headers: await headers() }),
-    question.length >= 8 ? askQuestionAuthed(question) : Promise.resolve(null)
-  ]);
-  const me = session ? await getMe() : null;
-  const alreadyWatching = Boolean(
-    me?.follows.some((f) => f.target_type === "question" && f.target_ref === question)
-  );
+  const response = question.length >= 8 ? await askQuestion(question, mp) : null;
   const jurisdiction = response
     ? JURISDICTION_LABELS[response.jurisdiction_level] ?? JURISDICTION_LABELS.unknown
     : null;
@@ -54,6 +32,7 @@ export default async function AskPage({
       description="Type it in plain words. We'll tell you who is responsible and what Parliament has done about it — with sources."
     >
       <form action="/ask" method="get" className="glass-card rounded-[2rem] p-6">
+        {mp ? <input type="hidden" name="mp" value={mp} /> : null}
         <label htmlFor="ask-q" className="text-sm font-medium text-slate-600">
           Your question
         </label>
@@ -110,10 +89,10 @@ export default async function AskPage({
             ) : null}
             {["provincial", "municipal", "mixed"].includes(response.jurisdiction_level) ? (
               <p className="mt-3 text-sm text-slate-600">
-                <Link href="/my" className="font-medium text-accent">
+                <Link href="/" className="font-medium text-accent">
                   Find who represents you at that level →
                 </Link>{" "}
-                (enter your postal code — we show your MPP and city councillor too)
+                (enter your postal code on the home page — we show your MPP and city councillor too)
               </p>
             ) : null}
             {response.minister ? (
@@ -135,26 +114,6 @@ export default async function AskPage({
               <p className="mt-5 whitespace-pre-line border-t border-black/5 pt-5 text-sm leading-7 text-slate-700">
                 {response.answer_detail}
               </p>
-            ) : null}
-            {session && question ? (
-              alreadyWatching ? (
-                <p className="mt-4 text-sm text-emerald-700">
-                  ✓ Watching — we&apos;ll notify you when new bills relate to this.
-                </p>
-              ) : (
-                <form action={watchQuestion} className="mt-4">
-                  <input type="hidden" name="question" value={question} />
-                  <button
-                    type="submit"
-                    className="rounded-full border border-accent px-5 py-2.5 text-sm font-medium text-accent transition hover:bg-accent hover:text-white"
-                  >
-                    Watch this question
-                  </button>
-                  <span className="ml-3 text-xs text-slate-400">
-                    Get notified when new bills relate to it
-                  </span>
-                </form>
-              )
             ) : null}
             {response.generated ? (
               <p className="mt-5 text-xs text-slate-400">
@@ -210,15 +169,6 @@ export default async function AskPage({
                 ))}
               </div>
             </div>
-          ) : null}
-
-          {response.generated && !response.my_mp_name ? (
-            <p className="text-sm text-slate-500">
-              <Link href="/my" className="text-accent">
-                Set your riding
-              </Link>{" "}
-              to see how <span className="font-medium">your own MP</span> voted on these.
-            </p>
           ) : null}
 
           <div className="glass-card rounded-[2rem] p-8">

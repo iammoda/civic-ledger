@@ -3,9 +3,10 @@ import Link from "next/link";
 import { DataGap } from "@/components/data-gap";
 import { LevelBadge, WhoDoesWhat } from "@/components/level-badge";
 import { PageShell } from "@/components/page-shell";
-import { listBills, listPoliticians, listVotes } from "@/lib/api";
+import { SaveMyMp } from "@/components/save-my-mp";
+import { getDigest, listBills, listPoliticians, listVotes } from "@/lib/api";
 import { billTypeLabel, formatDateShort, humanizeBillTitle, humanizeMotion, humanizeStatus } from "@/lib/humanize";
-import { lookupPostal } from "@/lib/me";
+import { lookupPostal } from "@/lib/lookup";
 
 export const metadata = {
   title: "Civic Ledger — who represents you, and what have they done?"
@@ -18,17 +19,15 @@ export default async function HomePage({
 }) {
   const { postal } = await searchParams;
   const postalQuery = (postal ?? "").trim();
-  const [politicians, votes, bills, lookup] = await Promise.all([
-    listPoliticians({ limit: 1 }),
+  const [politicians, votes, bills, digest, lookup] = await Promise.all([
+    listPoliticians({ limit: 1, level: "federal" }),
     listVotes(),
     listBills(),
+    getDigest(),
     postalQuery ? lookupPostal(postalQuery) : Promise.resolve(null)
   ]);
 
   const apiUp = Boolean(politicians || votes || bills);
-  const mpCount = politicians?.meta.total ?? 0;
-  const voteCount = votes?.meta.total ?? 0;
-  const billCount = bills?.meta.total ?? 0;
 
   return (
     <PageShell
@@ -95,6 +94,14 @@ export default async function HomePage({
                     <p className="truncate text-sm text-slate-500">{rep.district_name}</p>
                   </div>
                   {rep.level === "federal" && rep.person_slug ? (
+                    <SaveMyMp
+                      slug={rep.person_slug}
+                      name={rep.name}
+                      party={rep.party_name}
+                      riding={rep.district_name}
+                    />
+                  ) : null}
+                  {rep.person_slug ? (
                     <Link
                       href={`/politicians/${rep.person_slug}`}
                       className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800"
@@ -121,8 +128,9 @@ export default async function HomePage({
                 </div>
               ))}
               <p className="text-xs text-slate-500">
-                Federal MPs get the full record here (votes, money, expenses). Provincial and municipal
-                representatives are contact-only for now — that data lives with their governments.
+                Every level gets a record page here. Federal MPs have the deepest data (votes, money,
+                expenses). Tap <span className="font-medium">Set as my MP</span> and every vote page will
+                show how your MP voted — saved on your device only, never on our servers.
               </p>
             </div>
           ) : postalQuery && lookup && !lookup.ladder?.length ? (
@@ -178,42 +186,80 @@ export default async function HomePage({
         <WhoDoesWhat />
       </section>
 
-      {/* Fast fact + explore */}
+      {/* This week in Ottawa: auto-generated news briefs, zero editorial picks. */}
       <section className="mb-8">
-        <div className="glass-card p-6 sm:p-8">
-          {apiUp ? (
-            <p className="text-xl font-medium leading-8 sm:text-2xl sm:leading-9">
-              Tracking <span className="font-bold text-accent">{mpCount.toLocaleString()} federal politicians</span>,{" "}
-              <span className="font-bold text-accent">{voteCount.toLocaleString()} recorded votes</span>, and{" "}
-              <span className="font-bold text-accent">{billCount.toLocaleString()} bills</span> — every vote
-              translated to plain language, every dead bill with a cause of death, updated every 30 minutes.
-            </p>
-          ) : (
+        <div className="flex items-baseline justify-between border-b-2 border-ink/80 pb-2">
+          <h2 className="font-serif text-xl font-bold">This week in Ottawa</h2>
+          <span className="text-xs text-slate-400">computed from the official record</span>
+        </div>
+        {digest?.stories.length ? (
+          <ol className="divide-y divide-border">
+            {digest.stories.map((story, index) => (
+              <li key={story.kind}>
+                <Link
+                  href={story.url_path}
+                  className="group flex gap-4 py-4 transition hover:bg-white"
+                >
+                  <span className="w-6 shrink-0 pt-0.5 text-right font-serif text-lg font-bold text-slate-300">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="kicker">
+                      {story.eyebrow}
+                      {story.occurred_on ? (
+                        <span className="ml-2 font-normal normal-case tracking-normal text-slate-400">
+                          {formatDateShort(story.occurred_on)}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="mt-1 font-serif text-lg font-semibold leading-6 group-hover:text-accent">
+                      {story.headline}
+                    </p>
+                    {story.detail ? (
+                      <p className="mt-1 text-sm leading-6 text-slate-600">{story.detail}</p>
+                    ) : null}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="mt-4">
             <DataGap
-              title="Data temporarily unavailable"
-              detail="The data service isn't responding right now. Nothing is wrong with your connection — try again in a minute."
+              title={apiUp ? "No stories yet" : "Data temporarily unavailable"}
+              detail={
+                apiUp
+                  ? "Story cards appear after the first data sync."
+                  : "The data service isn't responding right now — try again in a minute."
+              }
             />
-          )}
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Link href="/bills" className="rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
-              Bills
-            </Link>
-            <Link href="/votes" className="rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent">
-              Votes
-            </Link>
-            <Link href="/petitions" className="rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent">
-              Petitions
-            </Link>
-            <Link href="/expenses" className="rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent">
-              MP expenses
-            </Link>
-            <Link href="/graveyard" className="rounded-lg border border-signal/40 bg-white px-4 py-2.5 text-sm font-semibold text-signal transition hover:bg-signal hover:text-white">
-              The Graveyard
-            </Link>
-            <Link href="/search" className="rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent">
-              Search
-            </Link>
           </div>
+        )}
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
+          <Link href="/issues" className="rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
+            Browse by issue
+          </Link>
+          <Link href="/bills" className="rounded-md border border-border bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent">
+            Bills
+          </Link>
+          <Link href="/votes" className="rounded-md border border-border bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent">
+            Votes
+          </Link>
+          <Link href="/cabinet" className="rounded-md border border-border bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent">
+            Cabinet
+          </Link>
+          <Link href="/receipts" className="rounded-md border border-border bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent">
+            The Receipts
+          </Link>
+          <Link href="/expenses" className="rounded-md border border-border bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent">
+            Follow the money
+          </Link>
+          <Link href="/graveyard" className="rounded-md border border-signal/40 bg-white px-4 py-2.5 text-sm font-semibold text-signal transition hover:bg-signal hover:text-white">
+            The Graveyard
+          </Link>
+          <Link href="/search" className="rounded-md border border-border bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent">
+            Search
+          </Link>
         </div>
       </section>
 
@@ -237,6 +283,13 @@ export default async function HomePage({
                 >
                   <div className="flex items-center gap-2">
                     <LevelBadge level="federal" />
+                    {vote.bill_number ? (
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                        {vote.bill_number}
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-500">Motion</span>
+                    )}
                     <span className="text-xs text-slate-500">{formatDateShort(vote.occurred_on)}</span>
                     <span
                       className={`ml-auto text-sm font-semibold ${vote.result === "Passed" ? "text-teal-700" : "text-signal"}`}
@@ -245,10 +298,13 @@ export default async function HomePage({
                       {vote.yea_total}–{vote.nay_total}
                     </span>
                   </div>
-                  <p className="mt-2 font-semibold leading-6">
+                  {vote.bill_title ? (
+                    <p className="mt-2 font-semibold leading-6">{vote.bill_title}</p>
+                  ) : null}
+                  <p className={vote.bill_title ? "mt-1 text-sm leading-6 text-slate-600" : "mt-2 font-semibold leading-6"}>
                     {vote.plain_meaning_en ?? motion.headline}
                   </p>
-                  {!vote.plain_meaning_en && motion.headline !== motion.raw ? (
+                  {!vote.bill_title && !vote.plain_meaning_en && motion.headline !== motion.raw ? (
                     <p className="mt-1 truncate text-xs text-slate-400">{motion.raw}</p>
                   ) : null}
                 </Link>
@@ -292,7 +348,10 @@ export default async function HomePage({
                     <span className="text-xs text-slate-500">{billTypeLabel(bill.bill_type)}</span>
                   </div>
                   <p className="mt-2 font-semibold leading-6">{title.headline}</p>
-                  <p className="mt-1 text-sm text-slate-600" title={status.raw}>
+                  {bill.one_sentence ? (
+                    <p className="mt-1 text-sm leading-6 text-slate-600">{bill.one_sentence}</p>
+                  ) : null}
+                  <p className="mt-1 text-sm text-slate-500" title={status.raw}>
                     {status.label}
                     {status.hint ? <span className="text-slate-400"> — {status.hint}</span> : null}
                   </p>

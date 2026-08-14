@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
 import { outcomeBadge } from "@/components/death-banner";
+import { ExplainerStrip } from "@/components/explainer-strip";
 import { LevelBadge } from "@/components/level-badge";
 import { PageShell } from "@/components/page-shell";
 import { Pagination } from "@/components/pagination";
@@ -29,9 +30,15 @@ export default async function BillsPage({
   return (
     <PageShell
       eyebrow="Federal Parliament"
-      title="Bills — the living and the dead"
-      description="Every proposed federal law with a plain-language status. When a bill dies, we say exactly how."
+      title="What are they trying to change?"
+      description="Every proposed federal law — what it does, where it is on the road to becoming law, and when a bill dies, exactly how."
     >
+      <ExplainerStrip id="bills">
+        <span className="font-semibold">What&apos;s a bill?</span> A proposed law. It must survive three
+        readings in the House, committee study, and the Senate before it becomes real. Most bills — especially
+        MPs&apos; own bills — die somewhere along the way.
+      </ExplainerStrip>
+
       <div className="mb-6 flex flex-wrap gap-2">
         {FILTERS.map((filter) => {
           const active = outcomeGroup === filter.value;
@@ -95,10 +102,12 @@ export default async function BillsPage({
                   ) : null}
                 </div>
                 <h2 className="mt-2 text-lg font-bold leading-7">{title.headline}</h2>
-                {title.legal ? (
+                {bill.one_sentence ? (
+                  <p className="mt-1 text-sm leading-6 text-slate-600">{bill.one_sentence}</p>
+                ) : title.legal ? (
                   <p className="mt-0.5 truncate text-xs text-slate-400">{title.legal}</p>
                 ) : null}
-                <p className="mt-1.5 text-sm text-slate-600" title={status.raw}>
+                <p className="mt-1.5 text-sm text-slate-500" title={status.raw}>
                   {status.label}
                   {status.hint ? <span className="text-slate-400"> — {status.hint}</span> : null}
                   {bill.sponsor_name ? (

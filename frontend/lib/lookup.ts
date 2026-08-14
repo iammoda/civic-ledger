@@ -1,20 +1,15 @@
 import "server-only";
 
-import { headers } from "next/headers";
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/v1";
 
-/** Fetch a user-scoped FastAPI endpoint, forwarding the auth cookie. */
-export async function authedFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
-  const headerStore = await headers();
-  const cookie = headerStore.get("cookie") ?? "";
+/** Fetch a FastAPI endpoint from a server component. Anonymous — no cookies, nothing stored. */
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
-        ...init?.headers,
-        cookie
+        ...init?.headers
       },
       cache: "no-store"
     });
@@ -26,28 +21,6 @@ export async function authedFetch<T>(path: string, init?: RequestInit): Promise<
     return null;
   }
 }
-
-export type MeProfile = {
-  riding_name?: string | null;
-  province_code?: string | null;
-  mp_slug?: string | null;
-  mp_name?: string | null;
-  reading_level: string;
-};
-
-export type MeFollow = {
-  target_type: string;
-  target_ref: string;
-  label?: string | null;
-};
-
-export type MeResponse = {
-  user_id: string;
-  email: string;
-  name: string;
-  profile: MeProfile;
-  follows: MeFollow[];
-};
 
 export type PostalCandidate = {
   riding_name: string;
@@ -80,39 +53,12 @@ export type TopicItem = {
   description_en?: string | null;
 };
 
-export function getMe() {
-  return authedFetch<MeResponse>("/me");
-}
-
 export function lookupPostal(code: string) {
-  return authedFetch<PostalLookupResponse>(`/lookup/postal/${encodeURIComponent(code)}`);
+  return apiFetch<PostalLookupResponse>(`/lookup/postal/${encodeURIComponent(code)}`);
 }
 
 export function listTopics() {
-  return authedFetch<TopicItem[]>("/topics");
-}
-
-export type NotificationItem = {
-  id: number;
-  kind: string;
-  title_en: string;
-  body_en?: string | null;
-  url_path?: string | null;
-  matched_follow?: string | null;
-  is_read: boolean;
-  created_at_date?: string | null;
-};
-
-export type FeedResponse = {
-  parliament_sitting: boolean;
-  unread_count: number;
-  notifications: NotificationItem[];
-  suggestions: Array<{ title: string; detail?: string | null; url_path: string }>;
-  followed_topics: string[];
-};
-
-export function getFeed() {
-  return authedFetch<FeedResponse>("/me/feed");
+  return apiFetch<TopicItem[]>("/topics");
 }
 
 export type LetterResponse = {
@@ -132,11 +78,12 @@ export type LetterResponse = {
 };
 
 export function draftLetter(payload: {
+  mp_slug: string;
   concern: string;
   bill_session?: string;
   bill_number?: string;
 }) {
-  return authedFetch<LetterResponse>("/actions/letter", {
+  return apiFetch<LetterResponse>("/actions/letter", {
     method: "POST",
     body: JSON.stringify(payload)
   });
@@ -144,10 +91,10 @@ export function draftLetter(payload: {
 
 import type { AskResponse } from "@/lib/api";
 
-/** Ask with cookie forwarding: signed-in users get their MP's ballots. */
-export function askQuestionAuthed(question: string) {
-  return authedFetch<AskResponse>("/ask", {
+/** Ask a question. Pass an MP slug (from the postal lookup) to weave in their ballots. */
+export function askQuestion(question: string, mpSlug?: string | null) {
+  return apiFetch<AskResponse>("/ask", {
     method: "POST",
-    body: JSON.stringify({ question })
+    body: JSON.stringify({ question, mp_slug: mpSlug || undefined })
   });
 }
