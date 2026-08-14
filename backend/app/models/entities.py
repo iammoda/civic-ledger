@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 
@@ -535,7 +535,7 @@ class LlmUsage(Base, TimestampMixin):
     entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)
-    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    cost_usd: Mapped[float] = mapped_column(Numeric(12, 6, asdecimal=False), default=0.0)
 
 
 class GlossaryTerm(Base, TimestampMixin):
@@ -567,40 +567,6 @@ class LobbyOrgProfile(Base, TimestampMixin):
     # pending | published | blocked (mirrors AnalysisResult semantics).
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     model_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
-
-
-class UserProfile(Base, TimestampMixin):
-    """App profile for a better-auth user. Privacy: we store only the
-    derived riding — never the postal code or address itself."""
-
-    __tablename__ = "user_profiles"
-
-    # better-auth user.id (text); no cross-metadata FK on purpose.
-    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    riding_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    province_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
-    mp_person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True, index=True)
-    # simple | standard | expert
-    reading_level: Mapped[str] = mapped_column(String(16), default="standard")
-
-    mp: Mapped[Person | None] = relationship()
-
-
-class UserFollow(Base, TimestampMixin):
-    """Explicit follows: topics, MPs, bills, or saved Ask questions."""
-
-    __tablename__ = "user_follows"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(64), index=True)
-    # topic | person | bill | question
-    target_type: Mapped[str] = mapped_column(String(16), index=True)
-    # topic slug / person slug / "session/number" / free-text question
-    target_ref: Mapped[str] = mapped_column(String(500))
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "target_type", "target_ref", name="uq_user_follow"),
-    )
 
 
 class Petition(Base, TimestampMixin):
@@ -678,7 +644,7 @@ class Contribution(Base, TimestampMixin):
     normalized_contributor: Mapped[str] = mapped_column(String(255), index=True)
     contributor_city: Mapped[str | None] = mapped_column(String(128), nullable=True)
     contributor_province: Mapped[str | None] = mapped_column(String(8), nullable=True)
-    amount: Mapped[float] = mapped_column(Float, default=0.0)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False), default=0.0)
     received_on: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     recipient_name: Mapped[str] = mapped_column(String(255), index=True)
     recipient_party: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -731,29 +697,6 @@ class Correction(Base, TimestampMixin):
     resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
-class Notification(Base, TimestampMixin):
-    """In-app notification (no email anywhere). Grouped, quiet by default."""
-
-    __tablename__ = "notifications"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(64), index=True)
-    # bill_new | bill_died | vote_result | mp_dissent | petition_closing
-    kind: Mapped[str] = mapped_column(String(32), index=True)
-    title_en: Mapped[str] = mapped_column(String(500))
-    body_en: Mapped[str | None] = mapped_column(Text, nullable=True)
-    url_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # Which follow triggered it, e.g. "topic:housing" or "person:jane-doe".
-    matched_follow: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
-    # Dedupe: one notification per (user, event).
-    fingerprint: Mapped[str] = mapped_column(String(128), index=True)
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "fingerprint", name="uq_notification_user_event"),
-    )
-
-
 class ExpenseSummary(Base, TimestampMixin):
     """Quarterly expense totals per MP (HoC Proactive Disclosure summary CSV)."""
 
@@ -766,10 +709,10 @@ class ExpenseSummary(Base, TimestampMixin):
     caucus: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     fiscal_year: Mapped[int] = mapped_column(Integer, index=True)  # e.g. 2025 = FY2025-26 page year
     quarter: Mapped[int] = mapped_column(Integer, index=True)  # 1-4
-    salaries: Mapped[float] = mapped_column(Float, default=0.0)
-    travel: Mapped[float] = mapped_column(Float, default=0.0)
-    hospitality: Mapped[float] = mapped_column(Float, default=0.0)
-    contracts: Mapped[float] = mapped_column(Float, default=0.0)
+    salaries: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False), default=0.0)
+    travel: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False), default=0.0)
+    hospitality: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False), default=0.0)
+    contracts: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False), default=0.0)
     source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     person: Mapped[Person | None] = relationship()
@@ -794,7 +737,7 @@ class ExpenseItem(Base, TimestampMixin):
     organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     occurred_on: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
-    amount: Mapped[float] = mapped_column(Float, default=0.0, index=True)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False), default=0.0, index=True)
     # Travel-specific context
     traveller_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     traveller_type: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)

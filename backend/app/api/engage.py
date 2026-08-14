@@ -158,9 +158,22 @@ def _bill_died_story(db: Session) -> DigestStory | None:
     )
 
 
+# The digest is identical for every visitor and its inputs change at most a
+# few times a day — don't recompute four aggregate scans per homepage hit.
+_DIGEST_TTL_SECONDS = 900
+_digest_cache: dict[str, object] = {"expires": 0.0, "value": None}
+
+
 @router.get("/digest", response_model=DigestResponse)
 def digest(db: Session = Depends(get_db)) -> DigestResponse:
     """Auto-generated story cards. Pure algorithm, zero editorial picks."""
+    import time
+
+    now = time.time()
+    cached = _digest_cache["value"]
+    if cached is not None and now < float(_digest_cache["expires"]):
+        return cached  # type: ignore[return-value]
+
     stories = [
         story
         for story in (
@@ -171,7 +184,10 @@ def digest(db: Session = Depends(get_db)) -> DigestResponse:
         )
         if story is not None
     ]
-    return DigestResponse(stories=stories)
+    response = DigestResponse(stories=stories)
+    _digest_cache["value"] = response
+    _digest_cache["expires"] = now + _DIGEST_TTL_SECONDS
+    return response
 
 
 # ---------------------------------------------------------------------------

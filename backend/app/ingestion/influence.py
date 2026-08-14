@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import logging
 import io
 import re
 import unicodedata
@@ -27,6 +28,7 @@ from app.core.config import get_settings
 from app.models import Contribution, LobbyCommunication, Organization, Person
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Normalization / matching helpers
@@ -367,13 +369,20 @@ def _insert_contribution_rows(
             try:
                 db.commit()
             except Exception as exc:
-                print(f"  batch commit failed at count={count}: {exc.__class__.__name__}", flush=True)
+                # Lost rows must not be reported as landed: the returned count
+                # feeds the IngestionRun audit row.
+                logger.warning(
+                    "contribution batch commit failed at count=%d: %s", count, exc.__class__.__name__
+                )
                 db.rollback()
+                count -= batch
             batch = 0
     try:
         db.commit()
-    except Exception:
+    except Exception as exc:
+        logger.warning("contribution final commit failed: %s", exc.__class__.__name__)
         db.rollback()
+        count -= batch
     return count
 
 

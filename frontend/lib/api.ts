@@ -73,6 +73,7 @@ export type VoteListItem = {
   bill_number?: string | null;
   bill_title?: string | null;
   bill_one_sentence?: string | null;
+  stage?: string | null;
 };
 
 export type VoteDetail = VoteListItem & {
@@ -82,7 +83,6 @@ export type VoteDetail = VoteListItem & {
   bill_summary?: string | null;
   bill_summary_source?: string | null;
   bill_status?: string | null;
-  stage?: string | null;
   party_breakdown: Array<{
     party_slug: string;
     party_name?: string | null;

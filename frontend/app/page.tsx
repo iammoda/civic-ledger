@@ -7,6 +7,7 @@ import { SaveMyMp } from "@/components/save-my-mp";
 import { getDigest, listBills, listPoliticians, listVotes } from "@/lib/api";
 import { billTypeLabel, formatDateShort, humanizeBillTitle, humanizeMotion, humanizeStatus } from "@/lib/humanize";
 import { lookupPostal } from "@/lib/lookup";
+import { voteActionLine } from "@/lib/vote-action";
 
 export const metadata = {
   title: "Civic Ledger — who represents you, and what have they done?"
@@ -275,11 +276,20 @@ export default async function HomePage({
           <div className="mt-4 space-y-3">
             {votes?.items.slice(0, 5).map((vote) => {
               const motion = humanizeMotion(vote.description_en);
+              const isBill = Boolean(vote.bill_number);
+              // Never headline a raw "An Act to…" — the one-liner explains better.
+              const headline = isBill
+                ? vote.bill_title && !vote.bill_title.toLowerCase().startsWith("an act")
+                  ? vote.bill_title
+                  : vote.bill_one_sentence ?? vote.bill_title ?? motion.headline
+                : vote.plain_meaning_en ?? motion.headline;
+              const subline = isBill && headline !== vote.bill_one_sentence ? vote.bill_one_sentence : null;
+              const action = voteActionLine(vote);
               return (
                 <Link
                   key={`${vote.chamber}-${vote.session}-${vote.number}`}
                   href={`/votes/${vote.chamber}/${vote.session}/${vote.number}`}
-                  className="block rounded-xl border border-border bg-white p-4 transition hover:border-accent"
+                  className="block rounded-md border border-border bg-white p-4 transition hover:border-accent"
                 >
                   <div className="flex items-center gap-2">
                     <LevelBadge level="federal" />
@@ -292,21 +302,15 @@ export default async function HomePage({
                     )}
                     <span className="text-xs text-slate-500">{formatDateShort(vote.occurred_on)}</span>
                     <span
-                      className={`ml-auto text-sm font-semibold ${vote.result === "Passed" ? "text-teal-700" : "text-signal"}`}
+                      className={`ml-auto text-sm font-semibold tabular-nums ${vote.result === "Passed" ? "text-teal-700" : "text-signal"}`}
                     >
                       {vote.result === "Passed" ? "Passed" : vote.result === "Negatived" ? "Failed" : vote.result}{" "}
                       {vote.yea_total}–{vote.nay_total}
                     </span>
                   </div>
-                  {vote.bill_title ? (
-                    <p className="mt-2 font-semibold leading-6">{vote.bill_title}</p>
-                  ) : null}
-                  <p className={vote.bill_title ? "mt-1 text-sm leading-6 text-slate-600" : "mt-2 font-semibold leading-6"}>
-                    {vote.plain_meaning_en ?? motion.headline}
-                  </p>
-                  {!vote.bill_title && !vote.plain_meaning_en && motion.headline !== motion.raw ? (
-                    <p className="mt-1 truncate text-xs text-slate-400">{motion.raw}</p>
-                  ) : null}
+                  <p className="mt-2 font-semibold leading-6">{headline}</p>
+                  {subline ? <p className="mt-1 text-sm leading-6 text-slate-600">{subline}</p> : null}
+                  {action ? <p className="mt-1 text-xs font-medium text-slate-500">{action}</p> : null}
                 </Link>
               );
             })}

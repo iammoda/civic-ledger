@@ -5,6 +5,7 @@ idempotent upserts keyed on natural keys, so re-running a sync is safe.
 """
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
 from datetime import date
@@ -12,6 +13,8 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.core.classification import PartyDisagreementSignal, classify_vote_type
 from app.core.config import get_settings
@@ -501,11 +504,16 @@ async def upsert_vote_from_detail(ctx: SyncContext, client: OpenParliamentClient
         )
     )
     if vote is None:
+        occurred_on = parse_date(detail.get("date"))
+        if occurred_on is None:
+            # Never fabricate a datum on a provenance-first platform: a vote
+            # without a date in the source is skipped and logged, not guessed.
+            raise ValueError(f"Vote {detail.get('session')}/{number} has no parseable date; skipping upsert")
         vote = Vote(
             session_id=session.id,
             chamber_id=ctx.house.id,
             number=number,
-            occurred_on=parse_date(detail.get("date")) or date.today(),
+            occurred_on=occurred_on,
             description_en=description.get("en") or "",
         )
         db.add(vote)
@@ -599,7 +607,11 @@ async def sync_votes(
                 done = True
                 break
             detail = await client.fetch_detail(item["url"])
-            vote = await upsert_vote_from_detail(ctx, client, detail)
+            try:
+                vote = await upsert_vote_from_detail(ctx, client, detail)
+            except ValueError as exc:
+                logger.warning("skipping vote: %s", exc)
+                continue
             await sync_vote_ballots(ctx, client, vote, item["url"])
             count += 1
         if done:

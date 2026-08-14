@@ -23,7 +23,6 @@ from app.models import (
     LegislatureSession,
     LlmUsage,
     LobbyCommunication,
-    Notification,
     Organization,
     Party,
     Person,
@@ -34,8 +33,6 @@ from app.models import (
     RepresentationEvent,
     Speech,
     Topic,
-    UserFollow,
-    UserProfile,
     Vote,
 )
 from app.models.base import Base
@@ -66,7 +63,6 @@ __all__ = [
     "LegislatureSession",
     "LlmUsage",
     "LobbyCommunication",
-    "Notification",
     "Organization",
     "Party",
     "Person",
@@ -77,7 +73,5 @@ __all__ = [
     "RepresentationEvent",
     "Speech",
     "Topic",
-    "UserFollow",
-    "UserProfile",
     "Vote",
 ]

@@ -38,8 +38,9 @@ class VoteListItem(BaseModel):
     # Related bill, so lists can show WHAT was voted on at a glance.
     bill_number: str | None = None
     bill_title: str | None = None
-    # Published AI one-sentence summary of the bill, when we have one.
     bill_one_sentence: str | None = None
+    # Which step of the bill's journey this vote was (lists + detail).
+    stage: str | None = None
 
 
 class VoteDetail(VoteListItem):
@@ -52,5 +53,3 @@ class VoteDetail(VoteListItem):
     bill_summary: str | None = None
     bill_summary_source: str | None = None  # "ai" | "official"
     bill_status: str | None = None
-    # Which step of the bill's journey this vote was.
-    stage: str | None = None

@@ -243,6 +243,33 @@ def get_politician(slug: str, db: Session = Depends(get_db)) -> PoliticianDetail
         )
     )
 
+    # Rich sponsored-bill rows (linkable, with the plain one-liner).
+    sponsored_rows = db.scalars(
+        select(Bill)
+        .where(Bill.sponsor_person_id == person_record.id)
+        .options(selectinload(Bill.session))
+        .order_by(Bill.introduced_on.desc().nullslast())
+        .limit(20)
+    ).all()
+    from app.api.votes import _bill_one_sentences
+
+    sponsored_sentences = _bill_one_sentences(db, [b.id for b in sponsored_rows])
+    sponsored_bills = [
+        {
+            "number": b.number,
+            "session": b.session.label,
+            "title": (
+                b.short_title_en
+                if b.short_title_en and not b.short_title_en.lower().startswith("an act")
+                else b.title_en
+            ),
+            "one_sentence": sponsored_sentences.get(b.id),
+            "outcome": b.outcome,
+            "is_law": b.is_law,
+        }
+        for b in sponsored_rows
+    ]
+
     current_membership = _current_membership(person_record)
     memberships = [
         MembershipSummary(
@@ -312,6 +339,7 @@ def get_politician(slug: str, db: Session = Depends(get_db)) -> PoliticianDetail
             for membership in person_record.committee_memberships
         ],
         sponsored_bill_numbers=sponsored_bill_numbers,
+        sponsored_bills=sponsored_bills,
         roles=roles,
         chamber_median_attendance_pct=chamber_median_attendance,
         stats=PoliticianVoteStats(

@@ -1,31 +1,22 @@
-"""Phase 8 tests: letters citing real ballots, notification matcher."""
+"""Phase 8 tests: letters citing real ballots."""
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 
-from app.data.topics import seed_topics
 from app.db.session import get_db
 from app.ingestion.sync import SyncContext
 from app.main import app
 from app.models import (
     Ballot,
     Bill,
-    BillDeath,
-    EntityTopic,
-    Notification,
     Person,
     PersonMembership,
-    Petition,
-    Topic,
-    UserFollow,
     Vote,
 )
 from app.services.letters import build_letter
-from app.services.notifications import match_notifications, parliament_is_sitting
 
 
 @pytest.fixture()
@@ -124,84 +115,3 @@ def test_letter_endpoint_full_flow(db, client) -> None:
 # --- Notification matcher ---
 
 
-def _followed_user(db, target_type: str, target_ref: str, user_id: str = "u1") -> None:
-    db.add(UserFollow(user_id=user_id, target_type=target_type, target_ref=target_ref))
-    db.commit()
-
-
-def test_topic_follow_notifies_new_and_dead_bills(db) -> None:
-    mp, bill, vote = _mp_with_bill_votes(db)
-    seed_topics(db)
-    housing = db.scalar(select(Topic).where(Topic.slug == "housing"))
-    db.add(EntityTopic(topic_id=housing.id, entity_type="bill", entity_id=bill.id, source="alias"))
-    db.add(BillDeath(bill_id=bill.id, mechanism="died_committee", occurred_on=date(2026, 6, 20)))
-    db.commit()
-    _followed_user(db, "topic", "housing")
-
-    created = match_notifications(db)
-    kinds = {n.kind for n in db.scalars(select(Notification)).all()}
-    assert "bill_new" in kinds
-    assert "bill_died" in kinds
-    assert created >= 2
-    # Idempotent.
-    assert match_notifications(db) == 0
-
-
-def test_person_follow_notifies_dissent_and_weekly_rollup(db) -> None:
-    mp, bill, vote = _mp_with_bill_votes(db)
-    ballot = db.scalar(select(Ballot))
-    ballot.broke_party_line = True
-    vote.occurred_on = date.today() - timedelta(days=2)
-    db.commit()
-    _followed_user(db, "person", "jane-doe")
-
-    match_notifications(db)
-    notifications = db.scalars(select(Notification)).all()
-    kinds = {n.kind for n in notifications}
-    assert "mp_dissent" in kinds
-    assert "mp_voted" in kinds
-    dissent = next(n for n in notifications if n.kind == "mp_dissent")
-    assert "broke party ranks" in dissent.title_en
-
-
-def test_topic_follow_notifies_closing_petitions(db) -> None:
-    seed_topics(db)
-    housing = db.scalar(select(Topic).where(Topic.slug == "housing"))
-    petition = Petition(
-        number="e-1", title_en="Fix housing", state="open",
-        closes_at=date.today() + timedelta(days=3), signature_count=1200,
-        source_url="https://www.ourcommons.ca/petitions/en/Petition/Details?Petition=e-1",
-    )
-    db.add(petition)
-    db.flush()
-    db.add(EntityTopic(topic_id=housing.id, entity_type="petition", entity_id=petition.id, source="alias"))
-    db.commit()
-    _followed_user(db, "topic", "housing")
-
-    match_notifications(db)
-    notification = db.scalar(select(Notification).where(Notification.kind == "petition_closing"))
-    assert notification is not None
-    assert "closing in 3 days" in notification.title_en
-    assert "1,200 signatures" in notification.body_en
-
-
-def test_bill_follow_notifies_votes(db) -> None:
-    mp, bill, vote = _mp_with_bill_votes(db)
-    vote.occurred_on = date.today() - timedelta(days=1)
-    db.commit()
-    _followed_user(db, "bill", "45-1/C-30")
-
-    match_notifications(db)
-    notification = db.scalar(select(Notification).where(Notification.kind == "vote_result"))
-    assert notification is not None
-    assert "C-30" in notification.title_en
-
-
-# --- Feed API removed with sign-in; notification matcher above still powers digests. ---
-
-
-def test_parliament_sitting_heuristic(db) -> None:
-    assert parliament_is_sitting(db) is False  # No votes at all.
-    _mp_with_bill_votes(db)
-    assert parliament_is_sitting(db, today=date(2026, 6, 25)) is True
-    assert parliament_is_sitting(db, today=date(2026, 9, 25)) is False

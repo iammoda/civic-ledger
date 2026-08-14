@@ -307,20 +307,28 @@ def rrf_fuse(result_lists: list[list[SearchResult]], *, k: int = RRF_K, limit: i
 
 
 async def hybrid_search(db: Session, query: str, *, limit: int = 20) -> list[SearchResult]:
+    import asyncio
+
     from app.llm.embeddings import embed_query
 
-    expanded = expand_query(db, query)
-    # Original-query matches rank ahead of alias-expanded ones: expansion
-    # recalls related content but must not drown direct hits.
-    keyword_lists = [keyword_search(db, query, limit=limit)]
-    if expanded != query:
-        keyword_lists.append(keyword_search(db, expanded, limit=limit))
+    # The sync DB phases run in worker threads so slow queries can't stall
+    # the event loop (the session is used sequentially, never concurrently).
+    def _keyword_phase() -> tuple[str, list[list[SearchResult]]]:
+        expanded = expand_query(db, query)
+        # Original-query matches rank ahead of alias-expanded ones: expansion
+        # recalls related content but must not drown direct hits.
+        lists = [keyword_search(db, query, limit=limit)]
+        if expanded != query:
+            lists.append(keyword_search(db, expanded, limit=limit))
+        return expanded, lists
+
+    expanded, keyword_lists = await asyncio.to_thread(_keyword_phase)
 
     vector_results: list[SearchResult] = []
     if _is_postgres(db):
         query_vector = await embed_query(expanded)
         if query_vector is not None:
-            vector_results = vector_search(db, query_vector, limit=limit)
+            vector_results = await asyncio.to_thread(vector_search, db, query_vector, limit=limit)
 
     if vector_results:
         keyword_lists.append(vector_results)

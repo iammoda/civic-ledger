@@ -4,6 +4,7 @@ from collections import Counter
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -81,6 +82,15 @@ class MoneyResponse(BaseModel):
 
 @router.get("/politicians/{slug}/money", response_model=MoneyResponse)
 async def politician_money(slug: str, db: Session = Depends(get_db)) -> MoneyResponse:
+    # DB aggregation runs in the threadpool (it's a dozen queries); only the
+    # lazy org-profile enqueue (async Redis) stays on the event loop.
+    response, missing_orgs = await run_in_threadpool(_politician_money_sync, db, slug)
+    if missing_orgs:
+        await enqueue("profile_lobby_orgs_job", missing_orgs)
+    return response
+
+
+def _politician_money_sync(db: Session, slug: str) -> tuple[MoneyResponse, list[str]]:
     person = db.scalar(select(Person).where(Person.slug == slug))
     if person is None:
         raise HTTPException(status_code=404, detail="Politician not found")
@@ -103,14 +113,13 @@ async def politician_money(slug: str, db: Session = Depends(get_db)) -> MoneyRes
         .limit(10)
     ).all()
 
-    # Org blurbs: cached where available; unknown orgs get a lazy job (cheap, budget-gated).
+    # Org blurbs: cached where available; unknown orgs get a lazy job (cheap,
+    # budget-gated) — enqueued by the async wrapper.
     from app.llm.org_profiles import published_profiles, unprofiled
 
     client_names = [name for name, _ in top_client_rows]
     descriptions = published_profiles(db, client_names)
     missing = unprofiled(db, client_names)
-    if missing:
-        await enqueue("profile_lobby_orgs_job", missing)
 
     top_clients = [
         TopClient(name=name, count=count, description=descriptions.get(name))
@@ -208,7 +217,7 @@ async def politician_money(slug: str, db: Session = Depends(get_db)) -> MoneyRes
             "human-reviewed before publishing and describe verifiable records, "
             "not conclusions."
         ),
-    )
+    ), missing
 
 
 class CorrectionRequest(BaseModel):

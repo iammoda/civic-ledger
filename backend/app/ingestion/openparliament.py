@@ -7,6 +7,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
+from app.ingestion.http_retry import get_with_retries
 
 
 settings = get_settings()
@@ -53,8 +54,9 @@ class OpenParliamentClient:
             merged: dict[str, Any] | None = dict(params) if params else None
         else:
             merged = {"format": "json", **(params or {})}
-        response = await self._client.get(path, params=merged)
-        response.raise_for_status()
+        # Retries: a single transient 502 must not abort a multi-thousand-item
+        # sync run mid-way.
+        response = await get_with_retries(self._client, path, params=merged)
         await asyncio.sleep(self._rate_limit_seconds)
         return response.json()
 

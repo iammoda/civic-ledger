@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -157,6 +158,27 @@ def list_bills(
 
 @router.get("/{session}/{number}", response_model=BillDetail)
 async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> BillDetail:
+    # All DB work runs in the threadpool so a slow query can't stall the event
+    # loop; only the lazy-analysis enqueue (async Redis) stays on the loop.
+    detail, enqueue_bill_id = await run_in_threadpool(_get_bill_sync, db, session, number)
+    if enqueue_bill_id is not None:
+        queued = await enqueue("analyze_bill_job", enqueue_bill_id)
+        detail.data_gaps.append(
+            DataGap(
+                code="analysis_pending",
+                label="Plain-language summary on its way" if queued else "Analysis pending",
+                detail=(
+                    "We're writing the plain-language summary for this bill right now — "
+                    "check back in a minute."
+                    if queued
+                    else "AI-generated bill analysis has not completed for this bill yet."
+                ),
+            )
+        )
+    return detail
+
+
+def _get_bill_sync(db: Session, session: str, number: str) -> tuple[BillDetail, int | None]:
     bill = db.scalar(
         select(Bill)
         .join(LegislatureSession, Bill.session_id == LegislatureSession.id)
@@ -234,6 +256,7 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
     ]
 
     data_gaps = []
+    enqueue_bill_id: int | None = None
     summary_state = next(
         (a.status for a in analyses if a.analysis_type == "plain_summary"), None
     )
@@ -268,20 +291,9 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
                 )
             )
         else:
-            # Lazy-analysis engine: first view triggers generation; cached forever.
-            queued = await enqueue("analyze_bill_job", bill.id)
-            data_gaps.append(
-                DataGap(
-                    code="analysis_pending",
-                    label="Plain-language summary on its way" if queued else "Analysis pending",
-                    detail=(
-                        "We're writing the plain-language summary for this bill right now — "
-                        "check back in a minute."
-                        if queued
-                        else "AI-generated bill analysis has not completed for this bill yet."
-                    ),
-                )
-            )
+            # Lazy-analysis engine: first view triggers generation; cached
+            # forever. The enqueue itself happens in the async wrapper.
+            enqueue_bill_id = bill.id
 
     return BillDetail(
         session=bill.session.label,
@@ -330,4 +342,4 @@ async def get_bill(session: str, number: str, db: Session = Depends(get_db)) -> 
         ),
         dissenters=dissenters,
         data_gaps=data_gaps,
-    )
+    ), enqueue_bill_id

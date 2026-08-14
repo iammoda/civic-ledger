@@ -42,6 +42,8 @@ class PoliticianDetail(PoliticianListItem):
     committees: list[CommitteeMembershipSummary] = []
     committee_events: list[CommitteeEventSummary] = []
     sponsored_bill_numbers: list[str] = []
+    # Rich sponsored-bill rows: linkable, with the plain one-liner.
+    sponsored_bills: list[dict] = []
     stats: PoliticianVoteStats | None = None
     # Current cabinet/officer roles, e.g. "Prime Minister", "Minister of Finance".
     roles: list[str] = []

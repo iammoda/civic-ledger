@@ -19,6 +19,7 @@ import {
   getPoliticianVotes
 } from "@/lib/api";
 import type { VotesFilter } from "@/lib/api";
+import { SALARY_AS_OF, SALARY_SOURCE_URL, formatSalary, mpSalary } from "@/lib/salaries";
 import { JsonLd, personJsonLd } from "@/lib/jsonld";
 
 export async function generateMetadata({
@@ -101,6 +102,19 @@ export default async function PoliticianDetailPage({
         : "neutral"
       : "neutral";
 
+  // Length of term: earliest membership start.
+  const startDates = politician.memberships
+    .map((m) => m.started_on)
+    .filter((d): d is string => Boolean(d))
+    .sort();
+  const firstStart = startDates[0] ?? null;
+  const yearsInOffice = firstStart
+    ? Math.max(0, Math.floor((Date.now() - new Date(firstStart).getTime()) / (365.25 * 24 * 3600 * 1000)))
+    : null;
+
+  // Published pay: base + dominant role top-up, never computed from thin air.
+  const salary = isFederal ? mpSalary(politician.roles ?? []) : null;
+
   return (
     <PageShell
       eyebrow={politician.jurisdiction_name ?? politician.chamber?.toUpperCase() ?? "Profile"}
@@ -156,6 +170,24 @@ export default async function PoliticianDetailPage({
             value: place ?? "Unknown",
             context: politician.current_membership?.province_code ?? undefined
           },
+          ...(firstStart
+            ? [
+                {
+                  label: "In office since",
+                  value: new Date(firstStart).getFullYear().toString(),
+                  context: yearsInOffice != null ? `${yearsInOffice} year${yearsInOffice === 1 ? "" : "s"} in office` : undefined
+                }
+              ]
+            : []),
+          ...(salary
+            ? [
+                {
+                  label: "Salary",
+                  value: formatSalary(salary.total),
+                  context: `${salary.breakdown.join(" + ")} · as of ${SALARY_AS_OF}`
+                }
+              ]
+            : []),
           ...(isMunicipal
             ? [
                 {

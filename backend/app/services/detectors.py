@@ -258,24 +258,27 @@ def detect_donor_lobbyist_overlap(db: Session) -> int:
 # Detector 3: lobbying before a quiet bill death
 # ---------------------------------------------------------------------------
 
-def _subject_topic_ids(db: Session, subjects: str | None) -> set[int]:
-    if not subjects:
-        return set()
-    text = subjects.lower()
-    matched: set[int] = set()
+def _topic_term_index(db: Session) -> list[tuple[int, list[str]]]:
+    """Topic id -> lowercase match terms (name + aliases), loaded once."""
+    index: list[tuple[int, list[str]]] = []
     for topic in db.scalars(select(Topic)).all():
         terms = [topic.name_en.lower()]
         if topic.aliases_en:
             terms.extend(a.strip().lower() for a in topic.aliases_en.split(","))
-        if any(term and term in text for term in terms):
-            matched.add(topic.id)
-    return matched
+        index.append((topic.id, [t for t in terms if t]))
+    return index
 
 
 def detect_lobbying_before_death(db: Session) -> int:
     """A bill died in committee / on the Order Paper, and lobbying
     communications on overlapping subject matter clustered in the 60 days
-    before it died."""
+    before it died.
+
+    Scale notes (this runs nightly over hundreds of thousands of comm rows):
+    topics are loaded once, subject->topic matching is memoized per unique
+    subjects string, bill topic sets come from one query, and the comm scan
+    is date-restricted in SQL.
+    """
     deaths = db.execute(
         select(BillDeath.bill_id, BillDeath.occurred_on, BillDeath.mechanism).where(
             BillDeath.occurred_on.is_not(None),
@@ -285,25 +288,52 @@ def detect_lobbying_before_death(db: Session) -> int:
     if not deaths:
         return 0
 
+    # One query for every dead bill's topic tags.
+    from collections import defaultdict
+
+    bill_topics: dict[int, set[int]] = defaultdict(set)
+    for entity_id, topic_id in db.execute(
+        select(EntityTopic.entity_id, EntityTopic.topic_id).where(
+            EntityTopic.entity_type == "bill",
+            EntityTopic.entity_id.in_([bill_id for bill_id, _, _ in deaths]),
+        )
+    ).all():
+        bill_topics[entity_id].add(topic_id)
+
+    earliest = min(died_on for _, died_on, _ in deaths) - timedelta(days=DEATH_WINDOW_DAYS)
+    latest = max(died_on for _, died_on, _ in deaths)
     comms = db.execute(
         select(
             LobbyCommunication.id,
             LobbyCommunication.comm_date,
             LobbyCommunication.subjects,
             LobbyCommunication.client_name,
-        ).where(LobbyCommunication.comm_date.is_not(None))
+        ).where(
+            LobbyCommunication.comm_date.is_not(None),
+            LobbyCommunication.comm_date >= earliest,
+            LobbyCommunication.comm_date <= latest,
+        )
     ).all()
+
+    term_index = _topic_term_index(db)
+    subject_topics_cache: dict[str, frozenset[int]] = {}
+
+    def topics_for(subjects: str | None) -> frozenset[int]:
+        if not subjects:
+            return frozenset()
+        cached = subject_topics_cache.get(subjects)
+        if cached is not None:
+            return cached
+        text = subjects.lower()
+        matched = frozenset(
+            topic_id for topic_id, terms in term_index if any(term in text for term in terms)
+        )
+        subject_topics_cache[subjects] = matched
+        return matched
 
     created = 0
     for bill_id, died_on, mechanism in deaths:
-        bill_topic_ids = {
-            row[0]
-            for row in db.execute(
-                select(EntityTopic.topic_id).where(
-                    EntityTopic.entity_type == "bill", EntityTopic.entity_id == bill_id
-                )
-            ).all()
-        }
+        bill_topic_ids = bill_topics.get(bill_id) or set()
         if not bill_topic_ids:
             continue
 
@@ -312,7 +342,7 @@ def detect_lobbying_before_death(db: Session) -> int:
         for comm_id, comm_date, subjects, client in comms:
             if not (window_start <= comm_date <= died_on):
                 continue
-            if _subject_topic_ids(db, subjects) & bill_topic_ids:
+            if topics_for(subjects) & bill_topic_ids:
                 matching.append((comm_id, comm_date.isoformat(), client))
         if len(matching) < DEATH_MIN_CONTACTS:
             continue

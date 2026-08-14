@@ -7,6 +7,7 @@ import { PageShell } from "@/components/page-shell";
 import { Pagination } from "@/components/pagination";
 import { listVotes } from "@/lib/api";
 import { formatDate, humanizeMotion } from "@/lib/humanize";
+import { voteActionLine } from "@/lib/vote-action";
 
 export const metadata = { title: "What just happened in Parliament?" };
 
@@ -44,6 +45,15 @@ export default async function VotesPage({
         <div className="space-y-3">
           {votes.items.map((vote) => {
             const motion = humanizeMotion(vote.description_en);
+            const isBill = Boolean(vote.bill_number);
+            // Never headline a raw "An Act to…" — the one-liner explains better.
+            const headline = isBill
+              ? vote.bill_title && !vote.bill_title.toLowerCase().startsWith("an act")
+                ? vote.bill_title
+                : vote.bill_one_sentence ?? vote.bill_title ?? motion.headline
+              : vote.plain_meaning_en ?? motion.headline;
+            const subline = isBill && headline !== vote.bill_one_sentence ? vote.bill_one_sentence : null;
+            const action = voteActionLine(vote);
             return (
               <Link
                 key={`${vote.chamber}-${vote.session}-${vote.number}`}
@@ -67,25 +77,11 @@ export default async function VotesPage({
                         </span>
                       )}
                     </div>
-                    {vote.bill_title ? (
-                      <h2 className="mt-2 text-lg font-bold leading-7">{vote.bill_title}</h2>
+                    <h2 className="mt-2 text-lg font-bold leading-7">{headline}</h2>
+                    {subline ? (
+                      <p className="mt-1 text-sm leading-6 text-slate-600">{subline}</p>
                     ) : null}
-                    {vote.bill_one_sentence ? (
-                      <>
-                        {/* What the bill is → what this vote did. */}
-                        <p className="mt-1 truncate text-sm leading-6 text-slate-600">
-                          {vote.bill_one_sentence}
-                        </p>
-                        <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                          {vote.plain_meaning_en ?? motion.headline}
-                        </p>
-                      </>
-                    ) : (
-                      <p className={vote.bill_title ? "mt-1 text-sm leading-6 text-slate-600" : "mt-2 text-lg font-bold leading-7"}>
-                        {vote.plain_meaning_en ?? motion.headline}
-                      </p>
-                    )}
-                    <p className="mt-0.5 truncate text-xs text-slate-400">{vote.description_en}</p>
+                    {action ? <p className="mt-1 text-xs font-medium text-slate-500">{action}</p> : null}
                   </div>
                   <div className="shrink-0 text-left tabular-nums sm:text-right">
                     <p

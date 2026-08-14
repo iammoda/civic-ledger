@@ -17,14 +17,11 @@ from app.models import (
     Bill,
     EntityTopic,
     GlossaryTerm,
-    Notification,
     Person,
     PersonRole,
     Topic,
-    UserFollow,
 )
 from app.services.ask import ask
-from app.services.notifications import match_notifications
 from test_search_ask import UnconfiguredLLM
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -130,36 +127,6 @@ async def test_ask_resolves_responsible_minister(db, monkeypatch) -> None:
     assert response.minister is not None
     assert response.minister.name == "Jane Doe"
     assert response.minister.title == "Minister of Housing and Infrastructure"
-
-
-# --- Question follows ---
-
-
-def test_question_follow_matches_new_bills_by_keywords(db) -> None:
-    ctx = SyncContext(db)
-    seed_topics(db)
-    session = ctx.session_for_label("45-1")
-    bill = Bill(
-        session_id=session.id, chamber_id=ctx.house.id, number="C-77",
-        title_en="An Act respecting rent and affordable housing supply",
-    )
-    unrelated = Bill(
-        session_id=session.id, chamber_id=ctx.house.id, number="C-78",
-        title_en="An Act to amend the Fisheries Act",
-    )
-    db.add_all([bill, unrelated])
-    db.commit()
-
-    db.add(UserFollow(user_id="u1", target_type="question", target_ref="why is rent so high in housing markets"))
-    db.commit()
-
-    match_notifications(db)
-    notifications = db.scalars(select(Notification).where(Notification.kind == "question_match")).all()
-    assert len(notifications) == 1
-    assert "C-77" in notifications[0].body_en
-    assert "rent so high" in notifications[0].title_en
-    # Idempotent.
-    assert match_notifications(db) == 0
 
 
 # --- Glossary ---

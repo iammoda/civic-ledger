@@ -97,6 +97,7 @@ def list_votes(
             vote_type=vote.vote_type,
             yea_effect=vote.yea_effect,
             plain_meaning_en=vote.plain_meaning_en,
+            stage=vote_stage(vote.description_en or ""),
             bill_number=vote.bill.number if vote.bill else None,
             bill_title=_bill_display_title(vote.bill),
             bill_one_sentence=one_sentences.get(vote.bill_id) if vote.bill_id else None,

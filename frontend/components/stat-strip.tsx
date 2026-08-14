@@ -14,14 +14,16 @@ const TONE_CLASS: Record<string, string> = {
 };
 
 /**
- * One horizontal stat band with hairline dividers — numbers with their
- * denominators, broadsheet style. Replaces the floating stat cards.
+ * One stat band with hairline dividers — numbers with their denominators,
+ * broadsheet style. Mosaic grid keeps clean rules at any column count.
  */
 export function StatStrip({ stats }: { stats: Stat[] }) {
+  const columns =
+    stats.length <= 4 ? "sm:grid-cols-4" : stats.length === 5 ? "sm:grid-cols-3 lg:grid-cols-5" : "sm:grid-cols-3 lg:grid-cols-6";
   return (
-    <div className="glass-card grid grid-cols-2 divide-y divide-border sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+    <div className={`grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border shadow-card ${columns}`}>
       {stats.map((stat) => (
-        <div key={stat.label} className="px-4 py-3.5">
+        <div key={stat.label} className="bg-white px-4 py-3.5">
           <p className="kicker">{stat.label}</p>
           <p className={`mt-1 text-xl font-bold tracking-tight ${TONE_CLASS[stat.tone ?? "neutral"]}`}>
             {stat.value}

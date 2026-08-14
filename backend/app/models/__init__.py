@@ -28,7 +28,6 @@ from app.models.entities import (
     Meeting,
     MeetingAttendance,
     Motion,
-    Notification,
     Organization,
     Party,
     Person,
@@ -39,8 +38,6 @@ from app.models.entities import (
     RepresentationEvent,
     Speech,
     Topic,
-    UserFollow,
-    UserProfile,
     Vote,
 )
 
@@ -74,7 +71,6 @@ __all__ = [
     "Meeting",
     "MeetingAttendance",
     "Motion",
-    "Notification",
     "Organization",
     "Party",
     "Person",
@@ -85,7 +81,5 @@ __all__ = [
     "RepresentationEvent",
     "Speech",
     "Topic",
-    "UserFollow",
-    "UserProfile",
     "Vote",
 ]
