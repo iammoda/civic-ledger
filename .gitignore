@@ -23,17 +23,16 @@ backend/.coverage
 *.pyd
 .DS_Store
 
-# Local data & imports
-/Volumes/CivicLedgerData/
-.venv/
-/frontend/node_modules/
-/frontend/.next/
-/node_modules/
+# Build artifacts
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo
 
-# Playwright audit artifacts
+# Playwright / screenshot audit artifacts (root-level only)
 .playwright-mcp/
-home*.png
-ask*.png
+/*.png
 
 # Local logs
 /tmp/civic_*.log
+
+# Local backups
+backups/
