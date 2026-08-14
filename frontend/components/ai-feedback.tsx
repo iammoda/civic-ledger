@@ -31,11 +31,11 @@ export function AiFeedback({ subject }: { subject: string }) {
   };
 
   if (sent) {
-    return <p className="mt-2 text-xs text-slate-400">Thanks — noted.</p>;
+    return <p className="mt-2 text-xs text-slate-500">Thanks — noted.</p>;
   }
 
   return (
-    <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+    <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
       Was this summary helpful and accurate?
       {["Yes", "Sort of", "No"].map((answer) => (
         <button

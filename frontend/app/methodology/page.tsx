@@ -73,7 +73,7 @@ export default function MethodologyPage() {
               <div key={detector.name} className="rounded-3xl border border-black/10 bg-white p-5">
                 <h3 className="font-medium">{detector.name}</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-700">{detector.what}</p>
-                <p className="mt-2 text-xs text-slate-400">Source: {detector.source}</p>
+                <p className="mt-2 text-xs text-slate-500">Source: {detector.source}</p>
               </div>
             ))}
           </div>

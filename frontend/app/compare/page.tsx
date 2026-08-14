@@ -68,6 +68,7 @@ export default async function ComparePage({
         <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr_auto]">
           <select
             name="a"
+            aria-label="First MP to compare"
             defaultValue={a ?? ""}
             required
             className="w-full rounded-full border border-black/10 bg-white px-5 py-3 outline-none focus:border-accent"
@@ -81,9 +82,10 @@ export default async function ComparePage({
               </option>
             ))}
           </select>
-          <span className="self-center text-center text-sm text-slate-400">vs</span>
+          <span className="self-center text-center text-sm text-slate-500">vs</span>
           <select
             name="b"
+            aria-label="Second MP to compare"
             defaultValue={b ?? ""}
             required
             className="w-full rounded-full border border-black/10 bg-white px-5 py-3 outline-none focus:border-accent"
@@ -147,7 +149,7 @@ export default async function ComparePage({
             />
           </div>
 
-          <p className="mt-6 border-t border-black/5 pt-4 text-xs text-slate-400">
+          <p className="mt-6 border-t border-black/5 pt-4 text-xs text-slate-500">
             Identical metrics computed identically for every MP.{" "}
             <Link href="/methodology" className="text-accent">
               Methodology →

@@ -49,18 +49,8 @@ export type PostalLookupResponse = {
   ladder: LadderRep[];
 };
 
-export type TopicItem = {
-  slug: string;
-  name_en: string;
-  description_en?: string | null;
-};
-
 export function lookupPostal(code: string) {
   return apiFetch<PostalLookupResponse>(`/lookup/postal/${encodeURIComponent(code)}`);
-}
-
-export function listTopics() {
-  return apiFetch<TopicItem[]>("/topics");
 }
 
 export type LetterResponse = {

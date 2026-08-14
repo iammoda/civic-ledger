@@ -191,7 +191,7 @@ export default async function HomePage({
       <section className="mb-8">
         <div className="flex items-baseline justify-between border-b-2 border-ink/80 pb-2">
           <h2 className="font-serif text-xl font-bold">This week in Ottawa</h2>
-          <span className="text-xs text-slate-400">computed from the official record</span>
+          <span className="text-xs text-slate-500">computed from the official record</span>
         </div>
         {digest?.stories.length ? (
           <ol className="divide-y divide-border">
@@ -208,7 +208,7 @@ export default async function HomePage({
                     <p className="kicker">
                       {story.eyebrow}
                       {story.occurred_on ? (
-                        <span className="ml-2 font-normal normal-case tracking-normal text-slate-400">
+                        <span className="ml-2 font-normal normal-case tracking-normal text-slate-500">
                           {formatDateShort(story.occurred_on)}
                         </span>
                       ) : null}
@@ -357,7 +357,7 @@ export default async function HomePage({
                   ) : null}
                   <p className="mt-1 text-sm text-slate-500" title={status.raw}>
                     {status.label}
-                    {status.hint ? <span className="text-slate-400"> — {status.hint}</span> : null}
+                    {status.hint ? <span className="text-slate-500"> — {status.hint}</span> : null}
                   </p>
                 </Link>
               );

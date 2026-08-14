@@ -56,7 +56,7 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
                 </div>
               );
             })}
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Parsed from the official minutes{record.meetings_tracked_since ? ` since ${record.meetings_tracked_since}` : ""}.
               Members appear from the meeting they joined; partial attendance counts as present.
             </p>
@@ -105,7 +105,7 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
                     </Link>
                   ) : null}
                   {motion.source_url ? (
-                    <a href={motion.source_url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-accent">
+                    <a href={motion.source_url} target="_blank" rel="noreferrer" className="text-slate-500 hover:text-accent">
                       Official minutes ↗
                     </a>
                   ) : null}
@@ -129,7 +129,7 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
                 </p>
                 <p className="mt-1 leading-5 text-slate-700">{declaration.note}</p>
                 {declaration.source_url ? (
-                  <a href={declaration.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-slate-400 hover:text-accent">
+                  <a href={declaration.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-slate-500 hover:text-accent">
                     Official minutes ↗
                   </a>
                 ) : null}

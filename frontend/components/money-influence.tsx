@@ -1,17 +1,7 @@
 import Link from "next/link";
 
+import { AiChip } from "@/components/ai-chip";
 import type { MoneyResponse } from "@/lib/api";
-
-function AiChip() {
-  return (
-    <span
-      title="AI-generated description — may contain errors"
-      className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500"
-    >
-      AI
-    </span>
-  );
-}
 
 export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: string }) {
   const hasLobbying = money.lobbying_total > 0;
@@ -65,7 +55,7 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
                     <li key={client.name}>
                       <div className="flex justify-between gap-2">
                         <span className="truncate font-medium">{client.name}</span>
-                        <span className="shrink-0 text-slate-400">
+                        <span className="shrink-0 text-slate-500">
                           {client.count.toLocaleString()} {client.count === 1 ? "contact" : "contacts"}
                         </span>
                       </div>
@@ -102,14 +92,14 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
                   {money.top_donors.slice(0, 5).map((donor) => (
                     <li key={donor.name} className="flex justify-between gap-2">
                       <span className="truncate">{donor.name}</span>
-                      <span className="shrink-0 text-slate-400">
+                      <span className="shrink-0 text-slate-500">
                         ${donor.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </span>
                     </li>
                   ))}
                 </ul>
               ) : null}
-              <p className="mt-2 text-xs text-slate-400">
+              <p className="mt-2 text-xs text-slate-500">
                 Canada caps individual donations (~$1,700/yr) — lobbying access, not donations, is the main
                 influence channel federally.
               </p>
@@ -150,7 +140,7 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
               <div key={index} className="rounded-2xl border border-black/5 bg-white p-3 text-sm">
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="font-medium">{comm.client_name ?? comm.registrant_name ?? "Unknown client"}</span>
-                  <span className="text-slate-400">{comm.comm_date ?? "date unknown"}</span>
+                  <span className="text-slate-500">{comm.comm_date ?? "date unknown"}</span>
                 </div>
                 {comm.client_description ? (
                   <p className="mt-1 flex items-start gap-1.5 text-xs leading-5 text-slate-500">
@@ -180,7 +170,7 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
             </Link>
           </p>
         ) : null}
-        <p className="mt-3 text-xs leading-5 text-slate-400">
+        <p className="mt-3 text-xs leading-5 text-slate-500">
           {money.sources_note}{" "}
           <Link href="/methodology" className="text-accent">
             How we flag patterns →

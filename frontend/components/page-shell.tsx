@@ -9,7 +9,7 @@ type PageShellProps = {
 
 export function PageShell({ eyebrow, title, description, children }: PageShellProps) {
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+    <main id="main" className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
       {/* Broadsheet masthead: kicker, serif headline, dek, then a rule. */}
       <section className="mb-8 border-b-2 border-ink/80 pb-5">
         {eyebrow ? <p className="kicker text-accent">{eyebrow}</p> : null}

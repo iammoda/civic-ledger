@@ -38,7 +38,7 @@ export function YourMpVote({ ballots }: { ballots: BallotLite[] }) {
 
   if (!myMp) {
     return (
-      <p className="mt-4 text-xs text-slate-400">
+      <p className="mt-4 text-xs text-slate-500">
         <Link href="/" className="text-accent hover:underline">
           Enter your postal code
         </Link>{" "}

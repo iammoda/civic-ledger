@@ -194,36 +194,3 @@ def extract_mp_candidates(payload: dict) -> list[dict]:
             if district and district not in seen:
                 seen[district] = rep
     return list(seen.values())
-
-
-async def lookup_postal(db: Session, postal_code: str) -> list[MpCandidate] | None:
-    """Returns candidates (1 = unambiguous, >1 = user picks), None on failure."""
-    normalized = normalize_postal(postal_code)
-    if normalized is None:
-        return None
-    headers = {"User-Agent": settings.ingestion_user_agent}
-    try:
-        async with httpx.AsyncClient(headers=headers, timeout=15.0) as client:
-            response = await client.get(f"{REPRESENT_BASE}/postcodes/{normalized}/")
-            if response.status_code == 404:
-                return []
-            response.raise_for_status()
-            payload = response.json()
-    except httpx.HTTPError:
-        return None
-
-    province = payload.get("province")
-    candidates = []
-    for rep in extract_mp_candidates(payload):
-        riding = rep.get("district_name") or ""
-        name = rep.get("name") or ""
-        candidates.append(
-            MpCandidate(
-                riding_name=riding,
-                province=province,
-                mp_name=name,
-                party_name=rep.get("party_name"),
-                person_slug=_match_person(db, name, riding),
-            )
-        )
-    return candidates

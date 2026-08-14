@@ -22,6 +22,9 @@ export type MembershipSummary = {
   region_name?: string | null;
   province_code?: string | null;
   role_title?: string | null;
+  is_current?: boolean;
+  started_on?: string | null;
+  ended_on?: string | null;
 };
 
 export type PoliticianListItem = {
@@ -46,6 +49,14 @@ export type PoliticianDetail = PoliticianListItem & {
     role?: string | null;
   }>;
   sponsored_bill_numbers: string[];
+  sponsored_bills?: Array<{
+    number: string;
+    session: string;
+    title: string;
+    one_sentence?: string | null;
+    outcome?: string;
+    is_law?: boolean;
+  }>;
   roles?: string[];
   chamber_median_attendance_pct?: number | null;
   stats?: {
@@ -314,9 +325,6 @@ export function getCommittee(slug: string) {
   return fetchApi<CommitteeDetail>(`/committees/${slug}`, { strict: true });
 }
 
-export function getDebate(chamber: string, debateDate: string) {
-  return fetchApi<DebateDetail>(`/debates/${chamber}/${debateDate}`);
-}
 
 export type DigestStory = {
   kind: string;
@@ -407,22 +415,6 @@ export type AskResponse = {
   minister?: { name: string; slug: string; title: string } | null;
 };
 
-export async function askQuestion(question: string): Promise<AskResponse | null> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/ask`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
-      cache: "no-store"
-    });
-    if (!response.ok) {
-      return null;
-    }
-    return (await response.json()) as AskResponse;
-  } catch {
-    return null;
-  }
-}
 
 export type PetitionItem = {
   number: string;

@@ -75,7 +75,7 @@ export function BallotList({ vote }: { vote: VoteDetail }) {
                       <span className={ballot.broke_party_line ? "font-medium text-amber-700" : ""}>
                         {ballot.full_name}
                       </span>
-                      <span className="text-slate-400">{BALLOT_LABELS[ballot.ballot] ?? ballot.ballot}</span>
+                      <span className="text-slate-500">{BALLOT_LABELS[ballot.ballot] ?? ballot.ballot}</span>
                     </Link>
                   ))}
               </div>

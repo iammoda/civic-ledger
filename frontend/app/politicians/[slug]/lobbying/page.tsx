@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { AiChip } from "@/components/ai-chip";
 import { DataGap } from "@/components/data-gap";
 import { ExplainerStrip } from "@/components/explainer-strip";
 import { PageShell } from "@/components/page-shell";
@@ -137,17 +138,12 @@ export default async function PoliticianLobbyingPage({
               <div key={index} className="glass-card rounded-[2rem] p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="font-semibold">{item.client_name ?? item.registrant_name ?? "Unknown client"}</p>
-                  <span className="ml-auto text-sm text-slate-400">{item.comm_date ?? "date unknown"}</span>
+                  <span className="ml-auto text-sm text-slate-500">{item.comm_date ?? "date unknown"}</span>
                 </div>
                 {item.client_description ? (
                   <p className="mt-1 flex items-start gap-1.5 text-sm leading-6 text-slate-500">
                     <span className="min-w-0">{item.client_description}</span>
-                    <span
-                      title="AI-generated description — may contain errors"
-                      className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500"
-                    >
-                      AI
-                    </span>
+                    <AiChip />
                   </p>
                 ) : null}
                 {item.subjects ? <p className="mt-1 text-sm text-slate-500">{item.subjects}</p> : null}
@@ -179,7 +175,7 @@ export default async function PoliticianLobbyingPage({
         </>
       )}
 
-      <p className="mt-8 text-xs leading-6 text-slate-400">
+      <p className="mt-8 text-xs leading-6 text-slate-500">
         Source: Registry of Lobbyists (Office of the Commissioner of Lobbying of Canada). Lobbyists file
         these reports themselves; dates and subjects are as reported.{" "}
         <Link href="/methodology" className="text-accent">

@@ -142,7 +142,7 @@ export default async function TransparencyPage() {
           ) : (
             <DataGap title="Status unavailable" detail="The data service isn't responding right now." />
           )}
-          <p className="mt-4 text-xs text-slate-400">
+          <p className="mt-4 text-xs text-slate-500">
             Failed runs are shown, not hidden — a broken pipeline is a data gap you deserve to know about.
             Times shown in Eastern Time.
           </p>

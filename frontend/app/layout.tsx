@@ -36,6 +36,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="en" className={displaySerif.variable}>
       <body className="text-ink">
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
         <SiteHeader />
         {children}
         <SiteFooter />

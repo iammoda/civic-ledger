@@ -119,7 +119,7 @@ export function VotingRecord({
                       Broke party ranks
                     </span>
                   ) : null}
-                  <span className="ml-auto text-xs text-slate-400">{item.occurred_on}</span>
+                  <span className="ml-auto text-xs text-slate-500">{item.occurred_on}</span>
                 </div>
                 {item.bill_title ? (
                   <>

@@ -102,6 +102,10 @@ export default async function BillDetailPage({
             className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-800"
           >
             Omnibus bill
+            <span className="sr-only">
+              {" "}
+              — one bill that changes many unrelated laws at once; hard to study, hard to vote on honestly.
+            </span>
           </span>
         ) : null}
         {bill.topics.map((topic) => (
@@ -158,7 +162,7 @@ export default async function BillDetailPage({
                 <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-700">
                   {bill.official_summary_en}
                 </p>
-                <p className="mt-3 border-t border-border pt-3 text-xs text-slate-400">
+                <p className="mt-3 border-t border-border pt-3 text-xs text-slate-500">
                   Written by the non-partisan Library of Parliament — not by us, and not by AI.
                 </p>
               </div>

@@ -134,7 +134,7 @@ export default async function PoliticianDetailPage({
             style={{ width: 104, height: 104 }}
           />
         ) : (
-          <div aria-hidden className="flex h-26 w-26 shrink-0 items-center justify-center rounded-md bg-slate-100 text-3xl font-semibold text-slate-400" style={{ width: 104, height: 104 }}>
+          <div aria-hidden className="flex h-26 w-26 shrink-0 items-center justify-center rounded-md bg-slate-100 text-3xl font-semibold text-slate-500" style={{ width: 104, height: 104 }}>
             {politician.full_name.charAt(0)}
           </div>
         )}
@@ -222,6 +222,15 @@ export default async function PoliticianDetailPage({
               : [{ label: "Role", value: politician.current_membership?.role_title ?? memberWord }])
         ]}
       />
+      {salary ? (
+        <p className="mt-1.5 text-xs text-slate-500">
+          Pay is set by law, not by the MP — figures from the official indemnities table{" "}
+          <a href={SALARY_SOURCE_URL} target="_blank" rel="noreferrer" className="text-accent">
+            (source ↗)
+          </a>
+          .
+        </p>
+      ) : null}
 
       <section className="mt-10 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
         <div className="space-y-6">
@@ -304,7 +313,30 @@ export default async function PoliticianDetailPage({
           {!isMunicipal ? (
             <div className="glass-card rounded-[2rem] p-6">
               <h2 className="text-xl font-semibold">Sponsored bills</h2>
-            {politician.sponsored_bill_numbers.length ? (
+            {(politician.sponsored_bills ?? []).length ? (
+              <div className="mt-4 space-y-2">
+                {(politician.sponsored_bills ?? []).map((bill) => (
+                  <Link
+                    key={`${bill.session}-${bill.number}`}
+                    href={`/bills/${bill.session}/${bill.number}`}
+                    className="block rounded-md border border-border bg-white p-3 transition hover:border-accent"
+                  >
+                    <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                        {bill.number}
+                      </span>
+                      <span className="min-w-0 flex-1">{bill.title}</span>
+                      {bill.is_law ? (
+                        <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Law</span>
+                      ) : null}
+                    </p>
+                    {bill.one_sentence ? (
+                      <p className="mt-1 text-sm leading-6 text-slate-600">{bill.one_sentence}</p>
+                    ) : null}
+                  </Link>
+                ))}
+              </div>
+            ) : politician.sponsored_bill_numbers.length ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 {politician.sponsored_bill_numbers.map((billNumber) => (
                   <span key={billNumber} className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm">
@@ -316,7 +348,7 @@ export default async function PoliticianDetailPage({
               <p className="mt-4 text-sm text-slate-600">No sponsored bill data has been attached yet.</p>
             )}
             {isFederal ? (
-              <p className="mt-4 border-t border-black/5 pt-3 text-xs text-slate-400">
+              <p className="mt-4 border-t border-black/5 pt-3 text-xs text-slate-500">
                 <Link href={`/compare?a=${politician.slug}`} className="text-accent">
                   Compare this MP with another →
                 </Link>

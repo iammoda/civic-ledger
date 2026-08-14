@@ -254,12 +254,6 @@ _BLOCK_PATTERNS = [
     r"\breasoned amendment\b",
     r"\bthat the motion be amended by deleting all the words\b",
 ]
-_BLOCK_PATTERNS = [
-    r"\bbe not now read\b",
-    r"\bsix months hence\b",  # hoist amendment
-    r"\breasoned amendment\b",
-    r"\bthat the motion be amended by deleting all the words\b",
-]
 
 
 _STANDALONE_MOTION_RE = re.compile(

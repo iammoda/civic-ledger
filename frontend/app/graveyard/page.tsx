@@ -58,7 +58,7 @@ export default async function GraveyardPage({
                     bill.outcome.replaceAll("_", " ")}
                 </span>
                 {bill.death?.occurred_on ? (
-                  <span className="text-xs text-slate-400">{formatDate(bill.death.occurred_on)}</span>
+                  <span className="text-xs text-slate-500">{formatDate(bill.death.occurred_on)}</span>
                 ) : null}
                 <span className="ml-auto text-sm uppercase tracking-[0.14em] text-slate-500">
                   {bill.number} · {bill.session}
@@ -69,7 +69,7 @@ export default async function GraveyardPage({
                 <p className="mt-2 text-sm leading-6 text-slate-600">{bill.death.attribution_en}</p>
               ) : null}
               {bill.sponsor_name ? (
-                <p className="mt-2 text-xs text-slate-400">Sponsored by {bill.sponsor_name}</p>
+                <p className="mt-2 text-xs text-slate-500">Sponsored by {bill.sponsor_name}</p>
               ) : null}
             </Link>
           ))}
@@ -86,7 +86,7 @@ export default async function GraveyardPage({
         />
       ) : null}
 
-      <p className="mt-8 text-xs leading-6 text-slate-400">
+      <p className="mt-8 text-xs leading-6 text-slate-500">
         Deaths are derived from LEGISinfo status codes and session-end sweeps (prorogation and dissolution
         kill every unfinished bill). A death is a fact about process, not a judgment — some bills deserve to
         die, some don&apos;t. The record lets you decide which was which.

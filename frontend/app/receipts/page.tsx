@@ -49,7 +49,7 @@ export default async function ReceiptsPage() {
                 {board.rows.map((row, index) => {
                   const inner = (
                     <>
-                      <span className="w-6 shrink-0 text-right text-sm font-semibold text-slate-400">
+                      <span className="w-6 shrink-0 text-right text-sm font-semibold text-slate-500">
                         {index + 1}
                       </span>
                       <Avatar row={row} />
@@ -61,7 +61,7 @@ export default async function ReceiptsPage() {
                         {row.context ? (
                           <span className="block truncate text-xs text-slate-500">{row.context}</span>
                         ) : row.riding ? (
-                          <span className="block truncate text-xs text-slate-400">{row.riding}</span>
+                          <span className="block truncate text-xs text-slate-500">{row.riding}</span>
                         ) : null}
                       </span>
                       <span className="shrink-0 text-sm font-bold text-slate-800">{row.display}</span>
@@ -95,7 +95,7 @@ export default async function ReceiptsPage() {
       )}
 
       {receipts ? (
-        <p className="mt-8 text-xs leading-6 text-slate-400">
+        <p className="mt-8 text-xs leading-6 text-slate-500">
           {receipts.generated_note}{" "}
           <Link href="/charter" className="text-accent">
             How we keep this fair →

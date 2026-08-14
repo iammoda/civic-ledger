@@ -156,7 +156,7 @@ async function AskResults({ question, mp }: { question: string; mp?: string }) {
               </p>
             ) : null}
             {response.generated ? (
-              <p className="mt-5 text-xs text-slate-400">
+              <p className="mt-5 text-xs text-slate-500">
                 AI-generated from the cited parliamentary records below. Neutral by design — we show what happened, you decide what it means.
               </p>
             ) : null}
@@ -202,7 +202,7 @@ async function AskResults({ question, mp }: { question: string; mp?: string }) {
                           {ballot.bill_number}
                         </span>
                       ) : null}
-                      <span className="ml-auto text-xs text-slate-400">{ballot.occurred_on}</span>
+                      <span className="ml-auto text-xs text-slate-500">{ballot.occurred_on}</span>
                     </div>
                     <p className="mt-2 text-sm leading-6">{ballot.description_en}</p>
                   </Link>

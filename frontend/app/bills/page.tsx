@@ -105,13 +105,13 @@ export default async function BillsPage({
                 {bill.one_sentence ? (
                   <p className="mt-1 text-sm leading-6 text-slate-600">{bill.one_sentence}</p>
                 ) : title.legal ? (
-                  <p className="mt-0.5 truncate text-xs text-slate-400">{title.legal}</p>
+                  <p className="mt-0.5 truncate text-xs text-slate-500">{title.legal}</p>
                 ) : null}
                 <p className="mt-1.5 text-sm text-slate-500" title={status.raw}>
                   {status.label}
-                  {status.hint ? <span className="text-slate-400"> — {status.hint}</span> : null}
+                  {status.hint ? <span className="text-slate-500"> — {status.hint}</span> : null}
                   {bill.sponsor_name ? (
-                    <span className="text-slate-400"> · Sponsored by {bill.sponsor_name}</span>
+                    <span className="text-slate-500"> · Sponsored by {bill.sponsor_name}</span>
                   ) : null}
                 </p>
               </Link>

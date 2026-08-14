@@ -4,13 +4,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
-from app.models.base import Base
 
 
 settings = get_settings()
 
 engine = create_engine(settings.database_url, future=True, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+# NOTE: schema provisioning is Alembic-only ("alembic upgrade head").
+# A create_all() path would silently miss migration-only DDL (e.g. the
+# bills.search_tsv generated column that powers /search).
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -19,7 +22,3 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
-
-
-def init_db() -> None:
-    Base.metadata.create_all(bind=engine)

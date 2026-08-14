@@ -70,7 +70,7 @@ Hold Canadian politicians accountable. Make it easy for anyone to see how their 
 
 ## Stack
 
-- **Frontend:** Next.js 16 (App Router), TypeScript, Tailwind CSS 4, shadcn/ui, bottom-tab mobile nav
+- **Frontend:** Next.js 16 (App Router), TypeScript, Tailwind CSS 4, hand-rolled component library (no UI framework), horizontal-scroll mobile nav
 - **Backend:** FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL + pgvector, Redis + arq workers
 - **Auth:** none — the platform is fully anonymous. Admin review queue uses a static `ADMIN_API_TOKEN` header.
 - **Hosting:** Vercel + Fly/Railway + Neon Postgres + Upstash Redis; Sentry; GitHub Actions CI/CD
@@ -89,25 +89,28 @@ Hold Canadian politicians accountable. Make it easy for anyone to see how their 
 | 6 | Money & Integrity — lobbying + donations ingestion, entity resolution, 3 party-blind detectors, human review queue, corrections form, methodology page | ✅ shipped |
 | 7 | Behavior — voting records with party-context lines, dissent filter, MP comparison, Polimetre link-out | ✅ shipped |
 | 8 | Actions & notifications — letters citing real ballots, contact-everywhere, notification matcher, recess-aware catch-me-up feed | ✅ shipped |
-| 9 | Growth, trust & hardening — share cards, cite-this permalinks, CSV exports, bias audits, aggregate counters, rate limits + /ask quotas, privacy/terms, WCAG AA, seat margins | 🔜 next |
-| 10 | Production deployment — public AGPL repo, CI/CD, Vercel + Fly/Railway + Neon + Upstash, Sentry, staging, backups, spend dashboard | 🔜 after 9 |
+| 9 | Growth, trust & hardening — ✅ share cards (OG images), rate limits + /ask quotas + answer cache, privacy/terms, sitemap/robots/JSON-LD, error/loading pages, a11y pass · 🔜 cite-this permalinks, CSV exports, bias audits, aggregate counters, seat margins | 🔶 mostly shipped |
+| 10 | Production deployment — ✅ GitHub Actions CI, backend Dockerfile, real healthcheck, debug-off prod config, nightly pg_dump script · 🔜 Vercel + Fly/Railway + Neon + Upstash, Sentry, staging, spend dashboard | 🔶 in progress |
 | 11 | Backfill — embeddings archive-wide, eager current Parliament, lazy engine for history | 🔜 after 10 |
 
 **Also shipped since:** MP expense reports (scraper + 5 review-gated detectors + searchable `/expenses` explorer + MP-page cards), the Graveyard UI, representative ladder (MP/MPP/councillor contacts), committees + memberships ingestion, cabinet-minister tracking with a "responsible minister" card in Ask (guardrailed — shown only when evidence supports it), and a plain-language glossary with jargon tooltips. **Engagement overhaul (2026-08):** sign-in removed entirely; bill-aware plain-language vote sentences ("MPs passed Bill C-30 at third reading, 166–159 — next stop: the Senate"); party-color donut charts + party identity system + MP photos; bill journey stepper; missed-votes tracking with participation trends; lobbying explainers, AI org blurbs, per-MP searchable lobbying pages and subject chips; budget-utilization + spend percentiles on expenses; "This week in Ottawa" digest; The Receipts leaderboards (with printed caveats — the TheyWorkForYou lesson); device-only "my MP"; public charter page. The database runs locally on an external drive (`scripts/db-start.sh`) with live data: 343 MPs, 57k+ ballots, 100k+ expense line items and growing.
 
 **Fast-follow (parked):** French (#1), opposition-critic tracking, Gazette consultations, elections module, own promise tracker, say-vs-vote flags, keyed public API, embeddable widgets, other provincial legislatures' bills/votes (people are already in), more eScribe cities (Hamilton/London/Markham/etc. — add a tenant config entry), Toronto lobbyist registry ZIP ingestion, municipal pay/expense statements (Municipal Act s.284, per-city PDFs), non-eScribe cities (Winnipeg/Surrey/Windsor need other-vendor parsers), provincial money (lobbyist registries, Elections Ontario), US (indefinitely).
 
-**Current test suite:** 108 backend tests passing; frontend builds and lints clean.
+**Current test suite:** 135 backend tests passing (CI-enforced with ruff); frontend builds, typechecks and lints clean.
 
 **Budget:** ~$1.5–2.5k all-in year one, hard-capped. Publicly useful after Phase 4.
 
 ## Quick start
 
 1. Copy `.env.example` to `.env` and fill in keys (Anthropic, OpenAI).
-2. Start infrastructure with `docker compose up -d`.
+2. Start infrastructure with `docker compose up -d` (or `scripts/db-start.sh` for the external-drive setup).
 3. Install frontend dependencies with `npm install`.
 4. Create a Python virtualenv and install `backend/requirements.txt`.
-5. Run `npm run dev` from the repo root.
+5. Apply migrations: `cd backend && PYTHONPATH=. alembic upgrade head` (Alembic is the only schema path).
+6. Run `npm run dev` from the repo root.
+
+**Backups:** `scripts/db-backup.sh` dumps the DB (custom format, rotated, optional rclone offsite) — run it nightly from cron. **Abuse protection:** per-IP rate limits guard `/ask`, `/actions/letter`, `/corrections` and `/search`; identical Ask questions are served from a 24h answer cache; a site-wide daily generation quota degrades Ask to search-only rather than failing.
 
 ### Enabling AI summaries for new bills
 

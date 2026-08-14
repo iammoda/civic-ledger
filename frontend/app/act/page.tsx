@@ -54,7 +54,7 @@ export default async function ActPage({
               Find my MP
             </button>
           </div>
-          <p className="mt-2 text-xs text-slate-400">Used for the lookup only — never stored.</p>
+          <p className="mt-2 text-xs text-slate-500">Used for the lookup only — never stored.</p>
         </form>
 
         {postalQuery && lookup === null ? (
@@ -128,7 +128,7 @@ export default async function ActPage({
         {bill ? <input type="hidden" name="bill" value={bill} /> : null}
         <label htmlFor="concern" className="text-sm font-medium text-slate-700">
           What do you want to say?
-          {bill ? <span className="ml-2 text-xs text-slate-400">About bill {billNumber}</span> : null}
+          {bill ? <span className="ml-2 text-xs text-slate-500">About bill {billNumber}</span> : null}
         </label>
         <textarea
           id="concern"
@@ -231,7 +231,7 @@ async function DraftedLetter({
             ) : null}
             {letter.mp_email ? <span className="text-slate-500">or copy it to {letter.mp_email}</span> : null}
           </div>
-          <p className="mt-4 border-t border-black/5 pt-3 text-xs text-slate-400">
+          <p className="mt-4 border-t border-black/5 pt-3 text-xs text-slate-500">
             Vote citations come from the official House of Commons record. Edit anything before sending — it&apos;s
             your letter.
           </p>

@@ -134,7 +134,7 @@ export default async function VoteDetailPage({
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   {vote.bill_summary}
                   {vote.bill_summary_source === "ai" ? (
-                    <span className="ml-1 text-xs text-slate-400">(AI summary)</span>
+                    <span className="ml-1 text-xs text-slate-500">(AI summary)</span>
                   ) : null}
                 </p>
               ) : null}
@@ -179,7 +179,7 @@ export default async function VoteDetailPage({
             </>
           )}
           {vote.source_url ? (
-            <p className="mt-4 border-t border-black/5 pt-3 text-xs text-slate-400">
+            <p className="mt-4 border-t border-black/5 pt-3 text-xs text-slate-500">
               <a href={vote.source_url} target="_blank" rel="noreferrer" className="text-accent">
                 Official record ↗
               </a>

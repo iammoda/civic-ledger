@@ -6,6 +6,7 @@ import { ExplainerStrip } from "@/components/explainer-strip";
 import { PageShell } from "@/components/page-shell";
 import { PartyBadge } from "@/components/party-badge";
 import { searchExpenses } from "@/lib/api";
+import { MP_BASE_SALARY, ROLE_TOP_UPS, SALARY_AS_OF, SALARY_SOURCE_URL, formatSalary } from "@/lib/salaries";
 
 const CATEGORY_CHIPS = [
   { label: "All", value: "" },
@@ -56,6 +57,38 @@ export default async function ExpensesPage({
         below is from their official disclosures.
       </ExplainerStrip>
 
+      {/* What MPs are paid: the salary context that frames all this spending. */}
+      <details className="glass-card mb-6 p-5">
+        <summary className="cursor-pointer">
+          <span className="font-serif text-lg font-bold">What MPs are paid</span>
+          <span className="ml-3 text-sm text-slate-500">
+            base {formatSalary(MP_BASE_SALARY)}/yr · role top-ups · as of {SALARY_AS_OF}
+          </span>
+        </summary>
+        <div className="mt-4 grid gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-3">
+          <div className="bg-white px-4 py-3">
+            <p className="kicker">Every MP</p>
+            <p className="mt-1 text-lg font-bold tabular-nums">{formatSalary(MP_BASE_SALARY)}</p>
+            <p className="text-xs text-slate-500">base sessional allowance</p>
+          </div>
+          {ROLE_TOP_UPS.slice(0, 5).map((topUp) => (
+            <div key={topUp.label} className="bg-white px-4 py-3">
+              <p className="kicker">{topUp.label.replace(" top-up", "")}</p>
+              <p className="mt-1 text-lg font-bold tabular-nums">+{formatSalary(topUp.amount)}</p>
+              <p className="text-xs text-slate-500">on top of the base</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs leading-5 text-slate-500">
+          Salaries are set by law and adjust automatically each April — they are separate from the office
+          budgets below. Figures as of {SALARY_AS_OF}, from the official indemnities table{" "}
+          <a href={SALARY_SOURCE_URL} target="_blank" rel="noreferrer" className="text-accent">
+            (source ↗)
+          </a>
+          .
+        </p>
+      </details>
+
       <form action="/expenses" method="get" className="glass-card mb-6 rounded-[2rem] p-6">
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
@@ -67,6 +100,7 @@ export default async function ExpensesPage({
           />
           <input
             name="min_amount"
+            aria-label="Minimum amount in dollars"
             defaultValue={params.min_amount ?? ""}
             placeholder="Min $"
             inputMode="numeric"
@@ -139,7 +173,7 @@ export default async function ExpensesPage({
                     </span>
                   ) : null}
                   <span className="min-w-0">
-                    <span className="mr-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    <span className="mr-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                       supplier
                     </span>
                     <span className="font-semibold">
@@ -166,12 +200,12 @@ export default async function ExpensesPage({
                   ) : (
                     <span
                       aria-hidden
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-400"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500"
                     >
                       {(item.mp_name ?? "?").charAt(0)}
                     </span>
                   )}
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     MP:
                   </span>
                   {item.mp_slug ? (
@@ -182,7 +216,7 @@ export default async function ExpensesPage({
                     <span className="font-medium">{item.mp_name}</span>
                   )}
                   {item.mp_party ? <PartyBadge party={item.mp_party} size="xs" /> : null}
-                  <span className="text-slate-400">
+                  <span className="text-slate-500">
                     Q{item.quarter} {item.fiscal_year}
                     {item.occurred_on ? ` · ${item.occurred_on}` : ""}
                     {item.city ? ` · ${item.city}` : ""}
@@ -198,7 +232,7 @@ export default async function ExpensesPage({
         </>
       )}
 
-      <p className="mt-8 text-xs leading-6 text-slate-400">
+      <p className="mt-8 text-xs leading-6 text-slate-500">
         Source: House of Commons Members&apos; Expenditures (Proactive Disclosure). Large amounts are often
         routine — office leases, printing, northern-riding travel. Patterns worth a second look go through a
         human review queue before being flagged.{" "}

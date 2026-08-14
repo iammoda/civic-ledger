@@ -82,10 +82,10 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
               ] as const
             ).map(([label, value]) => (
               <div key={label} className="rounded-2xl border border-black/5 bg-white p-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-slate-400">{label}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">{label}</p>
                 <p className="mt-1 font-semibold">{money(value)}</p>
                 {latest.total > 0 ? (
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     {Math.round((value / latest.total) * 100)}% of quarter
                   </p>
                 ) : null}
@@ -107,7 +107,7 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
               style={{ width: `${Math.min(100, Math.max(0, budget.utilization_pct))}%` }}
             />
           </div>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-slate-500">
             {budget.note} Covers Q1–Q{budget.quarters_reported} of FY{budget.fiscal_year}–
             {budget.fiscal_year + 1}.
           </p>
@@ -115,7 +115,7 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
       ) : null}
 
       {expenses.mp_annual_salary != null ? (
-        <p className="mt-3 text-xs text-slate-400">
+        <p className="mt-3 text-xs text-slate-500">
           MP salary: {money(expenses.mp_annual_salary)}/yr (set by law, all MPs) — separate from this office
           budget.
         </p>
@@ -143,7 +143,7 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
         </details>
       ) : null}
 
-      <p className="mt-5 border-t border-black/5 pt-4 text-xs leading-5 text-slate-400">
+      <p className="mt-5 border-t border-black/5 pt-4 text-xs leading-5 text-slate-500">
         {expenses.sources_note}{" "}
         <Link href={`/expenses?q=${encodeURIComponent(expenses.full_name)}`} className="text-accent">
           Search all their expenses →

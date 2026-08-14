@@ -154,7 +154,7 @@ export default async function PoliticiansPage({
                       className="h-14 w-14 shrink-0 rounded-2xl object-cover"
                     />
                   ) : (
-                    <div aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-lg font-semibold text-slate-400">
+                    <div aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-lg font-semibold text-slate-500">
                       {politician.full_name.charAt(0)}
                     </div>
                   )}
