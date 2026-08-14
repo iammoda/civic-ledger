@@ -78,6 +78,43 @@ export function listBills(params?: { outcomeGroup?: string; topic?: string; offs
   return fetchApi<PaginatedResponse<BillListItem>>(`/bills${qs ? `?${qs}` : ""}`);
 }
 
+export type GraveyardSummary = {
+  total: number;
+  mechanisms: Array<{ mechanism: string; count: number }>;
+};
+
+/**
+ * "How bills die" — mechanism counts across every dead bill. The API caps
+ * pages at 100, so this walks the pages (each fetch is cached by Next for
+ * the same revalidate window). Hard-capped to stay cheap; if the graveyard
+ * ever outgrows the cap the summary is computed from what was fetched and
+ * still labeled by its real total.
+ */
+export async function getGraveyardSummary(): Promise<GraveyardSummary | null> {
+  const first = await fetchApi<PaginatedResponse<BillListItem>>(`/bills?outcome_group=dead&limit=100`);
+  if (!first) return null;
+  const total = first.meta.total;
+  const pages = Math.min(Math.ceil(total / 100), 12);
+  const rest = await Promise.all(
+    Array.from({ length: Math.max(0, pages - 1) }, (_, i) =>
+      fetchApi<PaginatedResponse<BillListItem>>(`/bills?outcome_group=dead&limit=100&offset=${(i + 1) * 100}`)
+    )
+  );
+  const counts = new Map<string, number>();
+  for (const page of [first, ...rest]) {
+    for (const bill of page?.items ?? []) {
+      const mechanism = bill.death?.mechanism ?? bill.outcome;
+      counts.set(mechanism, (counts.get(mechanism) ?? 0) + 1);
+    }
+  }
+  return {
+    total,
+    mechanisms: [...counts.entries()]
+      .map(([mechanism, count]) => ({ mechanism, count }))
+      .sort((a, b) => b.count - a.count)
+  };
+}
+
 export function getBill(session: string, number: string) {
   return fetchApi<BillDetail>(`/bills/${session}/${number}`, { strict: true });
 }

@@ -1,13 +1,12 @@
 import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
-import { outcomeBadge } from "@/components/death-banner";
-import { ExplainerStrip } from "@/components/explainer-strip";
-import { LevelBadge } from "@/components/level-badge";
 import { PageShell } from "@/components/page-shell";
 import { Pagination } from "@/components/pagination";
+import { SectionTabs, WHAT_HAPPENED_TABS } from "@/components/section-tabs";
+import { StageGlyph } from "@/components/viz/stage-glyph";
 import { listBills } from "@/lib/api";
-import { billTypeLabel, humanizeBillTitle, humanizeStatus } from "@/lib/humanize";
+import { billTypeLabel, formatDateShort, humanizeBillTitle, humanizeStatus } from "@/lib/humanize";
 
 export const metadata = { title: "Federal bills — the living and the dead" };
 
@@ -29,17 +28,14 @@ export default async function BillsPage({
 
   return (
     <PageShell
-      eyebrow="Federal Parliament"
+      eyebrow="What happened · Federal Parliament"
       title="What are they trying to change?"
-      description="Every proposed federal law — what it does, where it is on the road to becoming law, and when a bill dies, exactly how."
+      description="Every proposed federal law — what it does, where it is on the road to becoming law, and when a bill dies, exactly how. A bill must survive three readings in the House, committee study, and the Senate before it becomes real."
     >
-      <ExplainerStrip id="bills">
-        <span className="font-semibold">What&apos;s a bill?</span> A proposed law. It must survive three
-        readings in the House, committee study, and the Senate before it becomes real. Most bills — especially
-        MPs&apos; own bills — die somewhere along the way.
-      </ExplainerStrip>
+      <SectionTabs tabs={WHAT_HAPPENED_TABS} ariaLabel="What happened sections" />
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium">
+        <span className="kicker">Show</span>
         {FILTERS.map((filter) => {
           const active = outcomeGroup === filter.value;
           const href = filter.value ? `/bills?outcome=${filter.value}` : "/bills";
@@ -47,22 +43,16 @@ export default async function BillsPage({
             <Link
               key={filter.label}
               href={href}
-              className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+              className={`border-b-2 pb-0.5 transition ${
                 active
-                  ? "border-accent bg-accent text-white"
-                  : "border-border bg-white text-slate-700 hover:border-accent hover:text-accent"
+                  ? "border-ink font-semibold text-ink"
+                  : "border-transparent text-slate-500 hover:text-ink"
               }`}
             >
               {filter.label}
             </Link>
           );
         })}
-        <Link
-          href="/graveyard"
-          className="rounded-lg border border-signal/40 bg-white px-3 py-1.5 text-sm font-medium text-signal transition hover:bg-signal hover:text-white"
-        >
-          Visit the Graveyard →
-        </Link>
       </div>
 
       {!bills?.items.length ? (
@@ -75,45 +65,47 @@ export default async function BillsPage({
           }
         />
       ) : (
-        <div className="space-y-3">
+        <div>
           {bills.items.map((bill) => {
-            const badge = outcomeBadge(bill.outcome, bill.is_law);
             const title = humanizeBillTitle(bill.title_en, bill.short_title_en);
             const status = humanizeStatus(bill.status_en);
+            const dead = bill.outcome === "dead";
             return (
               <Link
                 key={`${bill.session}-${bill.number}`}
                 href={`/bills/${bill.session}/${bill.number}`}
-                className="glass-card block p-5 transition hover:border-accent"
+                className="rule group grid gap-x-8 gap-y-2 py-6 md:grid-cols-[8.5rem_1fr_auto]"
               >
-                <div className="flex flex-wrap items-center gap-2">
-                  <LevelBadge level="federal" />
-                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                    {bill.number}
-                  </span>
-                  <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${badge.className}`}>
-                    {badge.label}
-                  </span>
-                  <span className="text-xs text-slate-500">{billTypeLabel(bill.bill_type)}</span>
-                  {bill.is_omnibus ? (
-                    <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                      Omnibus — many laws at once
-                    </span>
+                <div className="text-[13px] leading-5 text-slate-400">
+                  <p className="font-semibold text-slate-500">{bill.number}</p>
+                  <p>{billTypeLabel(bill.bill_type)}</p>
+                  {bill.introduced_on ? <p>{formatDateShort(bill.introduced_on)}</p> : null}
+                  {bill.is_omnibus ? <p className="mt-1 font-semibold text-amber-700">Omnibus</p> : null}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="font-serif text-xl font-bold leading-snug tracking-tight text-ink transition group-hover:text-accent sm:text-2xl">
+                    {title.headline}
+                  </h2>
+                  {bill.one_sentence ? (
+                    <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">{bill.one_sentence}</p>
+                  ) : title.legal ? (
+                    <p className="mt-1 max-w-2xl truncate text-xs text-slate-400">{title.legal}</p>
+                  ) : null}
+                  {bill.sponsor_name ? (
+                    <p className="mt-1.5 text-[13px] text-slate-500">Sponsored by {bill.sponsor_name}</p>
                   ) : null}
                 </div>
-                <h2 className="mt-2 text-lg font-bold leading-7">{title.headline}</h2>
-                {bill.one_sentence ? (
-                  <p className="mt-1 text-sm leading-6 text-slate-600">{bill.one_sentence}</p>
-                ) : title.legal ? (
-                  <p className="mt-0.5 truncate text-xs text-slate-500">{title.legal}</p>
-                ) : null}
-                <p className="mt-1.5 text-sm text-slate-500" title={status.raw}>
-                  {status.label}
-                  {status.hint ? <span className="text-slate-500"> — {status.hint}</span> : null}
-                  {bill.sponsor_name ? (
-                    <span className="text-slate-500"> · Sponsored by {bill.sponsor_name}</span>
-                  ) : null}
-                </p>
+                <div className="w-40 shrink-0 md:text-right">
+                  <StageGlyph statusEn={bill.status_en} isLaw={bill.is_law} dead={dead} />
+                  <p
+                    className={`mt-1.5 text-[13px] font-semibold leading-5 ${
+                      bill.is_law ? "text-teal-700" : dead ? "text-signal" : "text-slate-600"
+                    }`}
+                    title={status.raw}
+                  >
+                    {bill.is_law ? "Became law" : dead ? "Dead" : status.label}
+                  </p>
+                </div>
               </Link>
             );
           })}

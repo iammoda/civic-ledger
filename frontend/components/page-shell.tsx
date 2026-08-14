@@ -3,19 +3,42 @@ import { ReactNode } from "react";
 type PageShellProps = {
   eyebrow?: string;
   title: string;
-  description: string;
+  /** Optional italic serif accent applied to this trailing part of the title. */
+  titleAccent?: string;
+  description?: string;
+  /** Extra masthead content (e.g. a stat row) rendered under the dek. */
+  masthead?: ReactNode;
+  /** Wider masthead text column for editorial pages. */
+  wide?: boolean;
   children: ReactNode;
 };
 
-export function PageShell({ eyebrow, title, description, children }: PageShellProps) {
+/**
+ * Broadsheet masthead at editorial scale: a heavy top rule opens the page,
+ * then kicker, a BIG serif headline, and a quiet dek. No boxes — the rule
+ * and the type do the structure.
+ */
+export function PageShell({ eyebrow, title, titleAccent, description, masthead, wide, children }: PageShellProps) {
   return (
     <main id="main" className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-      {/* Broadsheet masthead: kicker, serif headline, dek, then a rule. */}
-      <section className="mb-8 border-b-2 border-ink/80 pb-5">
-        {eyebrow ? <p className="kicker text-accent">{eyebrow}</p> : null}
-        <div className="mt-1.5 max-w-3xl">
-          <h1 className="font-serif text-[2rem] leading-tight tracking-tight sm:text-[2.5rem]">{title}</h1>
-          <p className="mt-2 text-[15px] leading-7 text-slate-600">{description}</p>
+      <section className="mb-10">
+        <div className="rule-heavy pt-4">
+          {eyebrow ? <p className="kicker text-accent">{eyebrow}</p> : null}
+          <div className={`mt-2 ${wide ? "" : "max-w-4xl"}`}>
+            <h1 className="font-serif text-[2.5rem] font-bold leading-[1.05] tracking-tight text-ink sm:text-[3.5rem]">
+              {title}
+              {titleAccent ? (
+                <>
+                  {" "}
+                  <em className="font-serif italic text-accent">{titleAccent}</em>
+                </>
+              ) : null}
+            </h1>
+            {description ? (
+              <p className="mt-4 max-w-2xl text-[17px] leading-7 text-slate-600">{description}</p>
+            ) : null}
+          </div>
+          {masthead ? <div className="mt-6">{masthead}</div> : null}
         </div>
       </section>
       {children}

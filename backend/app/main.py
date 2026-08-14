@@ -19,6 +19,19 @@ logging.basicConfig(
 )
 
 app = FastAPI(title=settings.app_name, debug=settings.app_debug)
+
+
+@app.middleware("http")
+async def server_timing(request, call_next):
+    """X-Process-Time on every response — first stop when diagnosing latency."""
+    import time
+
+    start = time.perf_counter()
+    response = await call_next(request)
+    response.headers["X-Process-Time"] = f"{time.perf_counter() - start:.3f}"
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

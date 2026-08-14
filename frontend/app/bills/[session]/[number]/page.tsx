@@ -6,13 +6,15 @@ import type { ReactNode } from "react";
 import { BillJourney } from "@/components/bill-journey";
 import { CiteThis } from "@/components/cite-this";
 import { DataGap } from "@/components/data-gap";
-import { DeathBanner, outcomeBadge } from "@/components/death-banner";
+import { DeathBanner } from "@/components/death-banner";
 import { PageShell } from "@/components/page-shell";
 import { PartyBadge } from "@/components/party-badge";
 import { PlainSummaryCard } from "@/components/plain-summary-card";
 import { SectorImpactList } from "@/components/sector-impact-list";
+import { SectionHeading } from "@/components/viz/editorial";
+import { VoteOutcome } from "@/components/viz/tally-bar";
 import { getBill } from "@/lib/api";
-import { billTypeLabel, formatDate } from "@/lib/humanize";
+import { billTypeLabel, formatDate, formatDateShort, humanizeBillTitle } from "@/lib/humanize";
 import { billLegislationJsonLd, JsonLd } from "@/lib/jsonld";
 
 export async function generateMetadata({
@@ -62,15 +64,15 @@ export default async function BillDetailPage({
   const blockedGap = bill.data_gaps.find(
     (gap) => gap.code === "analysis_blocked" || gap.code === "analysis_disabled"
   );
-  const badge = outcomeBadge(bill.outcome, bill.is_law);
   const dissenters = bill.dissenters ?? [];
+  const title = humanizeBillTitle(bill.title_en, bill.short_title_en);
 
   const facts: Array<{ label: string; value: ReactNode }> = [
     {
       label: "Sponsor",
       value: bill.sponsor_name ? (
         bill.sponsor_slug ? (
-          <Link href={`/politicians/${bill.sponsor_slug}`} className="text-accent underline-offset-2 hover:underline">
+          <Link href={`/politicians/${bill.sponsor_slug}`} className="link-editorial text-ink">
             {bill.sponsor_name}
           </Link>
         ) : (
@@ -90,54 +92,13 @@ export default async function BillDetailPage({
 
   return (
     <PageShell
-      eyebrow={`${bill.chamber.toUpperCase()} · ${bill.session}`}
-      title={`${bill.number} · ${bill.short_title_en ?? bill.title_en}`}
-      description={bill.status_en ?? "Status pending"}
-    >
-      <JsonLd data={billLegislationJsonLd(bill)} />
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <span className={`rounded-full px-4 py-2 text-sm font-medium ${badge.className}`}>{badge.label}</span>
-        {bill.is_omnibus ? (
-          <span
-            title="One bill that changes many unrelated laws at once — hard to study, hard to vote on honestly."
-            className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-800"
-          >
-            Omnibus bill
-            <span className="sr-only">
-              {" "}
-              — one bill that changes many unrelated laws at once; hard to study, hard to vote on honestly.
-            </span>
-          </span>
-        ) : null}
-        {bill.topics.map((topic) => (
-          <span key={topic} className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-slate-600">
-            {topic}
-          </span>
-        ))}
-      </div>
-
-      {bill.death ? (
-        <div className="mb-6">
-          <DeathBanner death={bill.death} />
-        </div>
-      ) : null}
-
-      <div className="mb-6 flex flex-wrap gap-3">
-        <Link
-          href={`/act?bill=${encodeURIComponent(`${bill.session}/${bill.number}`)}`}
-          className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white"
-        >
-          Contact your MP about this
-        </Link>
-        <Link href="/petitions" className="rounded-full border border-black/10 px-6 py-3 text-sm font-medium">
-          Find a related petition
-        </Link>
-      </div>
-
-      <div className="glass-card mb-6 rounded-[2rem] p-6">
-        <h2 className="text-xl font-semibold">The journey</h2>
-        <p className="mt-1 text-sm text-slate-500">Every bill must clear each stage below to become law.</p>
-        <div className="mt-6">
+      eyebrow={`What happened · ${bill.chamber.toUpperCase()} · ${bill.session} · ${bill.number}`}
+      title={title.headline}
+      description={bill.one_sentence ?? title.legal ?? bill.status_en ?? undefined}
+      wide
+      masthead={
+        <div>
+          {/* The journey — where this bill stands, unboxed. */}
           <BillJourney
             number={bill.number}
             statusCode={bill.status_code}
@@ -146,183 +107,189 @@ export default async function BillDetailPage({
             isLaw={bill.is_law}
             death={bill.death}
           />
+          <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <Link
+              href={`/act?bill=${encodeURIComponent(`${bill.session}/${bill.number}`)}`}
+              className="rounded-full bg-ink px-5 py-2.5 font-semibold text-white transition hover:bg-slate-700"
+            >
+              Contact your MP about this
+            </Link>
+            <Link
+              href="/petitions"
+              className="rounded-full border border-border px-5 py-2.5 font-semibold text-slate-700 transition hover:border-accent hover:text-accent"
+            >
+              Find a related petition
+            </Link>
+            {bill.is_omnibus ? (
+              <span
+                title="One bill that changes many unrelated laws at once — hard to study, hard to vote on honestly."
+                className="font-semibold text-amber-700"
+              >
+                Omnibus bill
+                <span className="sr-only">
+                  {" "}
+                  — one bill that changes many unrelated laws at once; hard to study, hard to vote on honestly.
+                </span>
+              </span>
+            ) : null}
+            {bill.topics.map((topic) => (
+              <span key={topic} className="text-slate-500">
+                {topic}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      }
+    >
+      <JsonLd data={billLegislationJsonLd(bill)} />
 
-      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-6">
-          <div className="glass-card rounded-[2rem] p-6">
-          <h2 className="text-xl font-semibold">What this bill does</h2>
-          <div className="mt-4 space-y-4">
-            {plainSummary ? <PlainSummaryCard analysis={plainSummary} /> : null}
-            {!plainSummary && bill.official_summary_en ? (
-              <div className="rounded-xl border border-border bg-white p-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Official summary · Library of Parliament
-                </p>
-                <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-700">
-                  {bill.official_summary_en}
-                </p>
-                <p className="mt-3 border-t border-border pt-3 text-xs text-slate-500">
-                  Written by the non-partisan Library of Parliament — not by us, and not by AI.
+      {bill.death ? (
+        <div className="mb-12">
+          <DeathBanner death={bill.death} />
+        </div>
+      ) : null}
+
+      <section className="mb-14">
+        <SectionHeading title="What this bill does" />
+        <div className="pt-6">
+          {plainSummary ? <PlainSummaryCard analysis={plainSummary} /> : null}
+          {!plainSummary && bill.official_summary_en ? (
+            <div className="max-w-3xl">
+              <p className="kicker">Official summary · Library of Parliament</p>
+              <p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-slate-700">
+                {bill.official_summary_en}
+              </p>
+              <p className="mt-4 text-xs text-slate-500">
+                Written by the non-partisan Library of Parliament — not by us, and not by AI.
+              </p>
+            </div>
+          ) : null}
+          {!plainSummary && !bill.official_summary_en ? (
+            pendingGap ? (
+              <div className="max-w-2xl border-l-2 border-accent/40 pl-4">
+                <p className="text-sm font-semibold text-ink">Summary being written</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Our AI is reading the bill now. Refresh in a minute.
                 </p>
               </div>
-            ) : null}
-            {!plainSummary && !bill.official_summary_en ? (
-              pendingGap ? (
-                <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
-                  <p className="text-sm font-medium text-slate-800">Summary being written</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Our AI is reading the bill now. Refresh in a minute.
-                  </p>
-                </div>
-              ) : blockedGap ? (
-                <DataGap title={blockedGap.label} detail={blockedGap.detail} />
-              ) : (
-                <DataGap
-                  title="No summary yet"
-                  detail="No summary is available for this bill yet. The official record below is unaffected."
-                />
-              )
-            ) : null}
+            ) : blockedGap ? (
+              <DataGap title={blockedGap.label} detail={blockedGap.detail} />
+            ) : (
+              <DataGap
+                title="No summary yet"
+                detail="No summary is available for this bill yet. The official record below is unaffected."
+              />
+            )
+          ) : null}
+        </div>
+      </section>
 
-            <div className="rounded-xl border border-border bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                What we know from the official record
-              </p>
-              <dl className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2">
-                {facts.map((fact) => (
-                  <div key={fact.label}>
-                    <dt className="text-xs text-slate-500">{fact.label}</dt>
-                    <dd className="mt-0.5 text-sm font-medium text-slate-800">{fact.value}</dd>
-                  </div>
-                ))}
-              </dl>
-              {bill.text_url ? (
-                <a
-                  href={bill.text_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 inline-block text-sm font-medium text-accent"
+      {bill.omnibus_components.length > 0 ? (
+        <section className="mb-14">
+          <SectionHeading
+            title="What this one bill bundles together"
+            aside="Omnibus bills force MPs to vote once on many unrelated changes"
+          />
+          <ul className="pt-2">
+            {bill.omnibus_components.map((component, index) => {
+              const componentTitle =
+                (component.title as string | undefined) ??
+                (component.title_en as string | undefined) ??
+                (component.name as string | undefined) ??
+                (component.area as string | undefined) ??
+                `Component ${index + 1}`;
+              const description =
+                (component.description as string | undefined) ??
+                (component.description_en as string | undefined) ??
+                (component.summary as string | undefined) ??
+                (component.detail as string | undefined) ??
+                null;
+              return (
+                <li key={index} className="rule py-4">
+                  <p className="font-semibold text-ink">{componentTitle}</p>
+                  {description ? (
+                    <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{description}</p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="grid gap-x-16 gap-y-12 lg:grid-cols-2">
+        <div>
+          <SectionHeading title="Recorded votes" />
+          <div>
+            {bill.related_votes.length ? (
+              bill.related_votes.map((vote) => (
+                <Link
+                  key={`${vote.session}-${vote.number}`}
+                  href={`/votes/${vote.chamber}/${vote.session}/${vote.number}`}
+                  className="rule group flex items-start justify-between gap-6 py-5"
                 >
-                  Read the full text of the bill →
-                </a>
-              ) : null}
-            </div>
-          </div>
-          </div>
-
-          {bill.omnibus_components.length > 0 ? (
-            <div className="glass-card rounded-[2rem] p-6">
-              <h2 className="text-xl font-semibold">What this one bill bundles together</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Omnibus bills force MPs to vote once on many unrelated changes. Here is what got packed in.
-              </p>
-              <ul className="mt-4 divide-y divide-border">
-                {bill.omnibus_components.map((component, index) => {
-                  const title =
-                    (component.title as string | undefined) ??
-                    (component.title_en as string | undefined) ??
-                    (component.name as string | undefined) ??
-                    (component.area as string | undefined) ??
-                    `Component ${index + 1}`;
-                  const description =
-                    (component.description as string | undefined) ??
-                    (component.description_en as string | undefined) ??
-                    (component.summary as string | undefined) ??
-                    (component.detail as string | undefined) ??
-                    null;
-                  return (
-                    <li key={index} className="py-3 first:pt-0 last:pb-0">
-                      <p className="text-sm font-semibold text-slate-800">{title}</p>
-                      {description ? (
-                        <p className="mt-0.5 text-sm leading-6 text-slate-600">{description}</p>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="space-y-6">
-          {bill.sector_impacts.length > 0 ? (
-            <div className="glass-card rounded-[2rem] p-6">
-              <h2 className="text-xl font-semibold">Sector impacts</h2>
-              <div className="mt-4">
-                <SectorImpactList impacts={bill.sector_impacts as Array<{ sector?: string; direction?: string; description?: string }>} />
-              </div>
-            </div>
-          ) : null}
-          <div className="glass-card rounded-[2rem] p-6">
-            <h2 className="text-xl font-semibold">Recorded votes</h2>
-            <div className="mt-4 space-y-3">
-              {bill.related_votes.length ? (
-                bill.related_votes.map((vote) => (
-                  <Link
-                    key={`${vote.session}-${vote.number}`}
-                    href={`/votes/${vote.chamber}/${vote.session}/${vote.number}`}
-                    className="block rounded-3xl border border-black/10 bg-white p-4"
-                  >
-                    <p className="font-medium">{vote.plain_meaning_en ?? vote.description_en}</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {formatDate(vote.occurred_on)} · {vote.result ?? "Pending"} · {vote.yea_total} yea /{" "}
-                      {vote.nay_total} nay
+                  <div className="min-w-0">
+                    <p className="text-xs text-slate-400">{formatDateShort(vote.occurred_on)}</p>
+                    <p className="mt-1 text-[15px] font-medium leading-6 text-ink transition group-hover:text-accent">
+                      {vote.plain_meaning_en ?? vote.description_en}
                     </p>
-                  </Link>
-                ))
-              ) : (
+                  </div>
+                  <VoteOutcome result={vote.result} yea={vote.yea_total} nay={vote.nay_total} />
+                </Link>
+              ))
+            ) : (
+              <div className="pt-6">
                 <DataGap
                   title="No recorded votes"
                   detail="No chamber has held a recorded vote on this bill yet. Most bills die waiting — watch this space."
                 />
-              )}
-            </div>
+              </div>
+            )}
           </div>
+
           {dissenters.length > 0 ? (
-            <div className="glass-card rounded-[2rem] p-6">
-              <h2 className="text-xl font-semibold">Broke party ranks on this bill</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                Breaking ranks is rare in Canada&apos;s whipped party system — these MPs defied their party on
-                this bill.
-              </p>
-              <ul className="mt-4 divide-y divide-border">
+            <div className="mt-12">
+              <SectionHeading
+                kicker="The story"
+                title="Broke party ranks on this bill"
+                aside="Breaking ranks is rare in Canada's whipped party system"
+              />
+              <ul>
                 {dissenters.map((dissenter) => (
                   <li
                     key={`${dissenter.person_slug}-${dissenter.vote_number}`}
-                    className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
+                    className="rule flex items-center gap-4 py-4"
                   >
                     {dissenter.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={dissenter.image_url}
                         alt={dissenter.full_name}
-                        className="h-8 w-8 shrink-0 rounded-full border border-border object-cover"
+                        className="h-11 w-11 shrink-0 rounded-full border border-border object-cover"
                       />
                     ) : (
                       <span
                         aria-hidden
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-slate-100 text-xs font-semibold text-slate-600"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-slate-100 text-sm font-semibold text-slate-600"
                       >
                         {dissenter.full_name.charAt(0)}
                       </span>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-baseline gap-2">
                         <Link
                           href={`/politicians/${dissenter.person_slug}`}
-                          className="text-sm font-medium text-ink underline-offset-2 hover:underline"
+                          className="font-serif text-lg font-bold tracking-tight text-ink hover:text-accent"
                         >
                           {dissenter.full_name}
                         </Link>
                         <PartyBadge party={dissenter.party_slug} size="xs" />
                       </div>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        voted {ballotLabel(dissenter.ballot)} ·{" "}
+                      <p className="mt-0.5 text-sm text-slate-500">
+                        voted {ballotLabel(dissenter.ballot)} against their party ·{" "}
                         <Link
                           href={`/votes/${dissenter.chamber}/${dissenter.session}/${dissenter.vote_number}`}
-                          className="text-accent underline-offset-2 hover:underline"
+                          className="link-editorial text-ink"
                         >
                           Vote #{dissenter.vote_number}
                         </Link>
@@ -333,25 +300,44 @@ export default async function BillDetailPage({
               </ul>
             </div>
           ) : null}
-          <div className="glass-card rounded-[2rem] p-6">
-            <h2 className="text-xl font-semibold">Source records</h2>
-            <div className="mt-4 flex flex-col gap-2">
-              {bill.legisinfo_url ? (
-                <a href={bill.legisinfo_url} target="_blank" rel="noreferrer" className="text-sm text-accent">
-                  Open LEGISinfo
-                </a>
-              ) : (
-                <p className="text-sm text-slate-600">LEGISinfo link not attached yet.</p>
-              )}
-              {bill.text_url ? (
-                <a href={bill.text_url} target="_blank" rel="noreferrer" className="text-sm text-accent">
-                  Full text of the bill
-                </a>
-              ) : null}
-            </div>
+        </div>
+
+        <div>
+          <SectionHeading title="From the official record" />
+          <dl className="grid gap-x-8 gap-y-4 pt-6 sm:grid-cols-2">
+            {facts.map((fact) => (
+              <div key={fact.label}>
+                <dt className="kicker">{fact.label}</dt>
+                <dd className="mt-1 text-[15px] font-medium text-ink">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="mt-6 flex flex-col gap-2 border-t border-border pt-5 text-sm">
+            {bill.text_url ? (
+              <a href={bill.text_url} target="_blank" rel="noreferrer" className="link-editorial w-fit text-ink">
+                Read the full text of the bill ↗
+              </a>
+            ) : null}
+            {bill.legisinfo_url ? (
+              <a href={bill.legisinfo_url} target="_blank" rel="noreferrer" className="link-editorial w-fit text-ink">
+                Open LEGISinfo ↗
+              </a>
+            ) : (
+              <p className="text-slate-500">LEGISinfo link not attached yet.</p>
+            )}
           </div>
+
+          {bill.sector_impacts.length > 0 ? (
+            <div className="mt-12">
+              <SectionHeading title="Sector impacts" />
+              <div className="pt-5">
+                <SectorImpactList impacts={bill.sector_impacts as Array<{ sector?: string; direction?: string; description?: string }>} />
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
+
       <CiteThis
         title={`Bill ${bill.number}: ${bill.short_title_en ?? bill.title_en} (${bill.session})`}
         sourceUrl={bill.legisinfo_url}

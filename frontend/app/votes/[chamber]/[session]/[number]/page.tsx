@@ -5,11 +5,15 @@ import { notFound } from "next/navigation";
 import { BallotList } from "@/components/ballot-list";
 import { CiteThis } from "@/components/cite-this";
 import { DataGap } from "@/components/data-gap";
-import { Hemicycle } from "@/components/hemicycle";
 import { PageShell } from "@/components/page-shell";
 import { VoteTypeBadge } from "@/components/vote-type-badge";
 import { YourMpVote } from "@/components/your-mp-vote";
+import { DotGrid } from "@/components/viz/dot-grid";
+import { SectionHeading } from "@/components/viz/editorial";
+import { VoteOutcome } from "@/components/viz/tally-bar";
 import { getVote } from "@/lib/api";
+import { formatDate } from "@/lib/humanize";
+import { partyInfo } from "@/lib/parties";
 
 export async function generateMetadata({
   params
@@ -78,141 +82,204 @@ export default async function VoteDetailPage({
   const totalCast = vote.yea_total + vote.nay_total;
   const flipCount = Math.floor(margin / 2) + 1;
   const isClose = totalCast > 0 && margin / totalCast <= 0.1;
-  const passed = (vote.result ?? "").toLowerCase() === "passed";
   const meanings = ballotMeanings(vote.yea_effect, vote.stage);
+  const memberNoun = vote.chamber === "senate" ? "Senator" : "MP";
+  const dissenters = vote.ballots.filter((ballot) => ballot.broke_party_line);
 
   return (
     <PageShell
-      eyebrow={`${vote.chamber === "senate" ? "Senate" : "House"} · ${vote.session} · Vote ${vote.number}`}
+      eyebrow={`${vote.chamber === "senate" ? "Senate" : "House"} · ${vote.session} · Vote ${vote.number} · ${formatDate(vote.occurred_on)}`}
       title={vote.bill_title ? `The ${vote.bill_number} vote` : `Vote ${vote.number}`}
-      description={vote.description_en}
-    >
-      {/* What happened, in one plain sentence. */}
-      <div className="glass-card rounded-[2rem] border-l-4 border-accent p-6">
-        <p className="text-xs uppercase tracking-[0.22em] text-slate-500">What this vote decided</p>
-        <p className="mt-2 text-lg font-medium leading-8">
-          {vote.plain_meaning_en ??
-            `${passed ? "Passed" : "Did not pass"}, ${vote.yea_total} to ${vote.nay_total}.`}
-        </p>
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <VoteTypeBadge voteType={vote.vote_type} />
-          {isClose ? (
-            <span className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-              Close vote — {flipCount} MP{flipCount === 1 ? "" : "s"} switching sides would have flipped it
-            </span>
-          ) : null}
-        </div>
-        {meanings ? (
-          <div className="mt-4 grid gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-2">
-            <div className="bg-white px-4 py-2.5 text-sm">
-              <span className="font-bold text-teal-700">A Yes vote</span>{" "}
-              <span className="text-slate-600">meant: {meanings.yes}.</span>
-            </div>
-            <div className="bg-white px-4 py-2.5 text-sm">
-              <span className="font-bold text-signal">A No vote</span>{" "}
-              <span className="text-slate-600">meant: {meanings.no}.</span>
-            </div>
+      wide
+      masthead={
+        /* Layer 1+2: the verdict, at full scale. */
+        <div>
+          <VoteOutcome size="hero" result={vote.result} yea={vote.yea_total} nay={vote.nay_total} />
+          <p className="mt-6 max-w-3xl font-serif text-xl leading-relaxed text-ink sm:text-2xl">
+            {vote.plain_meaning_en ?? vote.description_en}
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <VoteTypeBadge voteType={vote.vote_type} />
+            {isClose ? (
+              <span className="font-semibold text-amber-700">
+                Close vote — {flipCount} {memberNoun}{flipCount === 1 ? "" : "s"} switching sides would have flipped it
+              </span>
+            ) : null}
           </div>
-        ) : null}
-        {vote.chamber !== "senate" ? <YourMpVote ballots={vote.ballots} /> : null}
-      </div>
-
-      <section className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
-        {/* About the bill under vote. */}
-        <div className="glass-card rounded-[2rem] p-6">
-          {vote.bill_number ? (
-            <>
-              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                What&apos;s being voted on
-              </h2>
-              <p className="mt-2 text-lg font-semibold leading-7">
-                <Link href={`/bills/${vote.session}/${vote.bill_number}`} className="hover:text-accent">
-                  {vote.bill_number}
-                  {vote.bill_title ? ` — ${vote.bill_title}` : ""}
-                </Link>
-              </p>
-              {vote.bill_summary ? (
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {vote.bill_summary}
-                  {vote.bill_summary_source === "ai" ? (
-                    <span className="ml-1 text-xs text-slate-500">(AI summary)</span>
-                  ) : null}
-                </p>
-              ) : null}
-              {vote.stage && STAGE_LABELS[vote.stage] ? (
-                <p className="mt-3 text-sm text-slate-500">
-                  <span className="font-medium text-slate-700">This vote:</span> {STAGE_LABELS[vote.stage]}
-                </p>
-              ) : null}
-              {vote.bill_status ? (
-                <p className="mt-1 text-sm text-slate-500">
-                  <span className="font-medium text-slate-700">Where the bill is now:</span> {vote.bill_status}
-                </p>
-              ) : null}
-              <div className="mt-4 flex flex-wrap gap-3 text-sm">
-                <Link
-                  href={`/bills/${vote.session}/${vote.bill_number}`}
-                  className="rounded-full bg-slate-900 px-5 py-2.5 font-medium text-white"
-                >
-                  Full bill record →
-                </Link>
-                <Link
-                  href={`/act?bill=${encodeURIComponent(`${vote.session}/${vote.bill_number}`)}`}
-                  className="rounded-full border border-black/10 px-5 py-2.5 font-medium text-slate-700 transition hover:border-accent hover:text-accent"
-                >
-                  Contact your MP about this
-                </Link>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                What&apos;s being voted on
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                This was a motion, not a bill — Parliament also votes to state positions, manage its schedule,
-                and control debate. Motions don&apos;t change the law by themselves, but they show where each
-                MP stands.
-              </p>
-              <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm leading-6 text-slate-700">
-                {vote.description_en}
-              </p>
-            </>
-          )}
-          {vote.source_url ? (
-            <p className="mt-4 border-t border-black/5 pt-3 text-xs text-slate-500">
-              <a href={vote.source_url} target="_blank" rel="noreferrer" className="text-accent">
-                Official record ↗
-              </a>
+          {meanings ? (
+            <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-600">
+              <span className="font-bold text-teal-700">A Yes</span> meant: {meanings.yes}.{" "}
+              <span className="ml-2 font-bold text-signal">A No</span> meant: {meanings.no}.
             </p>
           ) : null}
+          {vote.chamber !== "senate" ? <YourMpVote ballots={vote.ballots} /> : null}
+        </div>
+      }
+    >
+      {/* Who broke ranks — the actual news in a whipped parliament. */}
+      {dissenters.length ? (
+        <section className="mb-12">
+          <SectionHeading
+            kicker="The story"
+            title={`${dissenters.length} ${memberNoun}${dissenters.length === 1 ? "" : "s"} broke party ranks`}
+          />
+          <div className="mt-1">
+            {dissenters.map((ballot) => {
+              const party = partyInfo(ballot.party_slug);
+              return (
+                <Link
+                  key={ballot.person_slug}
+                  href={`/politicians/${ballot.person_slug}`}
+                  className="rule group flex flex-wrap items-baseline gap-x-3 py-3.5"
+                >
+                  <span className="font-serif text-lg font-bold tracking-tight text-ink transition group-hover:text-accent">
+                    {ballot.full_name}
+                  </span>
+                  <span className="text-sm text-slate-500">{party.label}</span>
+                  <span
+                    className={`ml-auto text-sm font-bold ${ballot.ballot === "yea" ? "text-teal-700" : "text-signal"}`}
+                  >
+                    voted {ballot.ballot === "yea" ? "Yes" : "No"} against their party
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ) : vote.ballots.length ? (
+        <p className="mb-12 border-l-2 border-border pl-4 text-sm leading-6 text-slate-500">
+          No {memberNoun} broke party ranks on this vote — every recorded ballot followed the party line.
+        </p>
+      ) : null}
+
+      <section className="grid gap-x-16 gap-y-12 lg:grid-cols-2">
+        {/* How the chamber voted: every member, one dot. */}
+        <div>
+          <SectionHeading title={`How the ${vote.chamber === "senate" ? "Senate" : "House"} voted`} />
+          <div className="pt-6">
+            {vote.ballots.length ? (
+              <DotGrid ballots={vote.ballots} />
+            ) : null}
+            {/* Accessible per-party summary. */}
+            <table className="mt-6 w-full text-sm">
+              <caption className="sr-only">Vote totals by party</caption>
+              <thead>
+                <tr className="kicker text-left">
+                  <th className="pb-2 font-bold">Party</th>
+                  <th className="pb-2 text-right font-bold">Yes</th>
+                  <th className="pb-2 text-right font-bold">No</th>
+                  <th className="pb-2 text-right font-bold">Didn&apos;t vote</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vote.party_breakdown.map((row) => {
+                  const party = partyInfo(row.party_slug);
+                  return (
+                    <tr key={row.party_slug} className="border-t border-border">
+                      <td className="py-2">
+                        <span
+                          className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: party.color }}
+                          aria-hidden
+                        />
+                        {row.party_name ?? party.label}
+                      </td>
+                      <td className="stat-figure py-2 text-right">{row.yea}</td>
+                      <td className="stat-figure py-2 text-right">{row.nay}</td>
+                      <td className="stat-figure py-2 text-right text-slate-400">{row.absent + row.paired}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        {/* How the chamber voted, in party colors. */}
-        <div className="glass-card rounded-[2rem] p-6">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            How the {vote.chamber === "senate" ? "Senate" : "House"} voted
-          </h2>
-          <div className="mt-3">
-            <Hemicycle
-              rows={vote.party_breakdown}
-              result={vote.result}
-              yeaTotal={vote.yea_total}
-              nayTotal={vote.nay_total}
-            />
+        {/* What was being voted on. */}
+        <div>
+          <SectionHeading title="What was being voted on" />
+          <div className="pt-6">
+            {vote.bill_number ? (
+              <>
+                <p className="font-serif text-xl font-bold leading-snug tracking-tight">
+                  <Link href={`/bills/${vote.session}/${vote.bill_number}`} className="transition hover:text-accent">
+                    {vote.bill_number}
+                    {vote.bill_title ? ` — ${vote.bill_title}` : ""}
+                  </Link>
+                </p>
+                {vote.bill_summary ? (
+                  <p className="mt-3 text-[15px] leading-7 text-slate-600">
+                    {vote.bill_summary}
+                    {vote.bill_summary_source === "ai" ? (
+                      <span className="ml-1 text-xs text-slate-400">(AI summary)</span>
+                    ) : null}
+                  </p>
+                ) : null}
+                <dl className="mt-5 space-y-2 border-t border-border pt-4 text-sm leading-6">
+                  {vote.stage && STAGE_LABELS[vote.stage] ? (
+                    <div className="flex gap-2">
+                      <dt className="shrink-0 font-semibold text-ink">This vote:</dt>
+                      <dd className="text-slate-600">{STAGE_LABELS[vote.stage]}</dd>
+                    </div>
+                  ) : null}
+                  {vote.bill_status ? (
+                    <div className="flex gap-2">
+                      <dt className="shrink-0 font-semibold text-ink">Where the bill is now:</dt>
+                      <dd className="text-slate-600">{vote.bill_status}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+                <div className="mt-6 flex flex-wrap gap-3 text-sm">
+                  <Link
+                    href={`/bills/${vote.session}/${vote.bill_number}`}
+                    className="rounded-full bg-ink px-5 py-2.5 font-semibold text-white transition hover:bg-slate-700"
+                  >
+                    Full bill record →
+                  </Link>
+                  <Link
+                    href={`/act?bill=${encodeURIComponent(`${vote.session}/${vote.bill_number}`)}`}
+                    className="rounded-full border border-border px-5 py-2.5 font-semibold text-slate-700 transition hover:border-accent hover:text-accent"
+                  >
+                    Contact your MP about this
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-[15px] leading-7 text-slate-600">
+                  This was a motion, not a bill — Parliament also votes to state positions, manage its schedule,
+                  and control debate. Motions don&apos;t change the law by themselves, but they show where each{" "}
+                  {memberNoun} stands.
+                </p>
+                <p className="mt-4 border-l-2 border-border pl-4 text-sm leading-6 text-slate-500">
+                  {vote.description_en}
+                </p>
+              </>
+            )}
+            {vote.source_url ? (
+              <p className="mt-6 text-sm">
+                <a href={vote.source_url} target="_blank" rel="noreferrer" className="link-editorial text-ink">
+                  Official record ↗
+                </a>
+              </p>
+            ) : null}
           </div>
         </div>
       </section>
 
-      <section className="mt-6">
-        <div className="glass-card rounded-[2rem] p-6">
-          <h2 className="text-xl font-semibold">
-            How every {vote.chamber === "senate" ? "Senator" : "MP"} voted
+      {/* Layer 3: every individual ballot, on demand. */}
+      <section className="mt-14">
+        <details className="group/details">
+          <summary className="rule-heavy flex cursor-pointer list-none items-baseline justify-between gap-4 pt-3 [&::-webkit-details-marker]:hidden">
+            <span className="font-serif text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+              <span className="mr-2 inline-block text-lg transition group-open/details:rotate-90">▸</span>
+              How every {memberNoun} voted
+            </span>
             {vote.ballots.length ? (
-              <span className="ml-2 text-base font-normal text-slate-500">({vote.ballots.length} ballots)</span>
+              <span className="text-sm text-slate-500">{vote.ballots.length} ballots — search inside</span>
             ) : null}
-          </h2>
-          <div className="mt-4">
+          </summary>
+          <div className="mt-6">
             {vote.ballots.length ? (
               <BallotList vote={vote} />
             ) : (
@@ -222,8 +289,9 @@ export default async function VoteDetailPage({
               />
             )}
           </div>
-        </div>
+        </details>
       </section>
+
       <CiteThis
         title={`Vote ${vote.number} (${vote.session}): ${vote.plain_meaning_en ?? vote.description_en}`}
         sourceUrl={vote.source_url}

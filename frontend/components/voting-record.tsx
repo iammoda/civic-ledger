@@ -58,21 +58,21 @@ export function VotingRecord({
   ];
 
   return (
-    <div className="glass-card rounded-[2rem] p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section>
+      <div className="rule-heavy flex flex-wrap items-end justify-between gap-3 pt-3">
         <div>
-          <h2 className="text-xl font-semibold">Voting record</h2>
+          <h2 className="font-serif text-2xl font-bold tracking-tight text-ink sm:text-3xl">Voting record</h2>
           <p className="mt-1 text-sm text-slate-500">{statSegments.join(" · ")}</p>
         </div>
-        <div className="flex flex-wrap gap-2 text-sm">
+        <div className="flex flex-wrap gap-x-5 gap-y-1 pb-1 text-sm font-medium">
           {pills.map((pill) => (
             <Link
               key={pill.value}
               href={pill.href}
-              className={`rounded-full border px-4 py-2 transition ${
+              className={`border-b-2 pb-0.5 transition ${
                 filter === pill.value
-                  ? "border-accent bg-accent text-white"
-                  : "border-black/10 bg-white hover:border-accent"
+                  ? "border-ink font-semibold text-ink"
+                  : "border-transparent text-slate-500 hover:text-ink"
               }`}
             >
               {pill.label}
@@ -87,7 +87,7 @@ export function VotingRecord({
         </p>
       ) : null}
 
-      <div className="mt-5 space-y-2">
+      <div className="mt-2">
         {record.items.length ? (
           record.items.map((item) => {
             const missed = !PARTICIPATED.has(item.ballot);
@@ -97,7 +97,7 @@ export function VotingRecord({
               <Link
                 key={`${item.session}-${item.vote_number}`}
                 href={`/votes/${item.chamber}/${item.session}/${item.vote_number}`}
-                className="block rounded-md border border-border bg-white px-3 py-2 transition hover:border-accent"
+                className="rule group block py-3"
               >
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   {missed ? (
@@ -123,7 +123,7 @@ export function VotingRecord({
                   <span className="rounded-full border border-black/10 px-2 py-0.5 text-xs text-slate-500">
                     {item.bill_number ?? "Motion"}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-6">{title}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-6 transition group-hover:text-accent">{title}</span>
                   <span className="ml-auto shrink-0 text-xs text-slate-500">{item.occurred_on}</span>
                 </div>
                 {subline && subline !== title ? (
@@ -144,7 +144,9 @@ export function VotingRecord({
               ← Newer
             </Link>
           ) : (
-            <span className="text-slate-300">← Newer</span>
+            <span aria-disabled="true" className="text-slate-400">
+              ← Newer<span className="sr-only"> (you are on the first page)</span>
+            </span>
           )}
           <span className="text-xs text-slate-500">
             Page {Math.floor(offset / PAGE_SIZE) + 1} of {Math.max(1, Math.ceil(record.total_filtered / PAGE_SIZE))}
@@ -154,10 +156,12 @@ export function VotingRecord({
               Older →
             </Link>
           ) : (
-            <span className="text-slate-300">Older →</span>
+            <span aria-disabled="true" className="text-slate-400">
+              Older →<span className="sr-only"> (you are on the last page)</span>
+            </span>
           )}
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }

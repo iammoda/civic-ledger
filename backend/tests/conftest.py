@@ -21,6 +21,13 @@ from app.models.base import Base
 
 @pytest.fixture()
 def db() -> Session:
+    # In-process caches must not leak across tests — each test is a fresh DB.
+    import app.api.engage as engage_module
+    import app.services.search as search_module
+
+    search_module._topic_cache.update({"expires": 0.0, "rows": None})
+    engage_module._digest_cache.update({"expires": 0.0, "value": None})
+
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},  # TestClient uses threads

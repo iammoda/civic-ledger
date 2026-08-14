@@ -11,6 +11,7 @@ import hashlib
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.llm.base import EmbeddingClient, StructuredResult
 from app.llm.budget import record_usage
 from app.models import Bill, Chamber, Embedding, Meeting, Motion, Petition, Vote
@@ -143,8 +144,36 @@ async def embed_pending(db: Session, *, entity_type: str, limit: int = 500) -> i
 
 
 async def embed_query(text: str) -> list[float] | None:
+    """Embed a search/Ask query, with a Redis cache.
+
+    Embeddings are deterministic per (model, text): repeated queries skip
+    the ~1s OpenAI round-trip and its cost entirely.
+    """
     client = EmbeddingClient()
     if not client.is_configured():
         return None
+
+    import json
+
+    from app.core.kv import redis_client
+
+    settings = get_settings()
+    digest = hashlib.sha256(f"{settings.embedding_model}:{text}".encode()).hexdigest()
+    key = f"embq:{digest}"
+    r = redis_client()
+    if r is not None:
+        try:
+            cached = r.get(key)
+            if cached:
+                return json.loads(cached)
+        except Exception:
+            pass
+
     vectors = await asyncio.to_thread(client.embed, [text])
-    return vectors[0]
+    vector = vectors[0]
+    if r is not None and vector is not None:
+        try:
+            r.setex(key, 86400, json.dumps(vector))
+        except Exception:
+            pass
+    return vector

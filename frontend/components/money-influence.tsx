@@ -31,17 +31,19 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
   const hasDonations = money.donations_count > 0;
 
   return (
-    <div className="glass-card rounded-[2rem] p-6">
-      <h2 className="text-xl font-semibold">Money &amp; influence</h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Who lobbies them and who funds them — straight from the official registries.
-      </p>
+    <section>
+      <div className="rule-heavy pt-3">
+        <h2 className="font-serif text-2xl font-bold tracking-tight text-ink sm:text-3xl">Money &amp; influence</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Who lobbies them and who funds them — straight from the official registries.
+        </p>
+      </div>
 
-      <details className="mt-3 rounded-2xl border border-accent/20 bg-teal-50/50 px-4 py-3 text-sm leading-6 text-slate-700">
+      <details className="mt-4 max-w-2xl text-sm leading-6 text-slate-700">
         <summary className="cursor-pointer font-medium text-accent">
           What counts as a lobbying contact?
         </summary>
-        <p className="mt-2">
+        <p className="mt-2 border-l-2 border-accent/30 pl-4">
           A lobbying contact is a communication report lobbyists are legally required to file under the
           Lobbying Act. Each one records a meeting, call, or arranged communication between a paid lobbyist
           and this office holder, with the subjects discussed. It&apos;s evidence of access, not wrongdoing.
@@ -62,14 +64,14 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-6 sm:grid-cols-2">
+      <div className="mt-6 grid gap-x-12 gap-y-6 sm:grid-cols-2">
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Lobbying contacts</h3>
+          <h3 className="kicker">Lobbying contacts</h3>
           {hasLobbying ? (
             <>
-              <p className="mt-2 text-2xl font-semibold">
+              <p className="stat-figure mt-2 font-sans text-4xl text-ink">
                 {money.lobbying_last_12mo.toLocaleString()}
-                <span className="ml-2 text-sm font-normal text-slate-500">contacts in the last 12 months</span>
+                <span className="ml-2 font-sans text-sm font-normal tracking-normal text-slate-500">contacts in the last 12 months</span>
               </p>
               <p className="text-sm text-slate-500">{money.lobbying_total.toLocaleString()} on record in total</p>
               {money.top_clients.length ? (
@@ -101,12 +103,12 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
         </div>
 
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Campaign donations</h3>
+          <h3 className="kicker">Campaign donations</h3>
           {hasDonations ? (
             <>
-              <p className="mt-2 text-2xl font-semibold">
+              <p className="stat-figure mt-2 font-sans text-4xl text-ink">
                 ${money.donations_total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                <span className="ml-2 text-sm font-normal text-slate-500">
+                <span className="ml-2 font-sans text-sm font-normal tracking-normal text-slate-500">
                   from {money.donations_count.toLocaleString()} contributions
                 </span>
               </p>

@@ -26,19 +26,19 @@ export function outcomeBadge(outcome: string, isLaw: boolean) {
 
 export function DeathBanner({ death }: { death: BillDeathInfo }) {
   return (
-    <div className="glass-card rounded-[2rem] border-l-4 border-signal p-6">
-      <p className="text-xs uppercase tracking-[0.22em] text-signal">This bill is dead</p>
-      <p className="mt-2 text-lg font-semibold">
+    <div className="border-l-4 border-signal pl-5">
+      <p className="kicker text-signal">This bill is dead</p>
+      <p className="mt-2 font-serif text-2xl font-bold tracking-tight text-ink sm:text-3xl">
         {MECHANISM_LABELS[death.mechanism] ?? death.mechanism.replaceAll("_", " ")}
-        {death.occurred_on ? ` — ${death.occurred_on}` : ""}
+        {death.occurred_on ? <span className="text-slate-400"> — {death.occurred_on}</span> : ""}
       </p>
       {death.attribution_en ? (
-        <p className="mt-2 text-sm leading-6 text-slate-600">{death.attribution_en}</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{death.attribution_en}</p>
       ) : null}
       {death.kill_vote_number && death.kill_vote_chamber && death.kill_vote_session ? (
         <Link
           href={`/votes/${death.kill_vote_chamber}/${death.kill_vote_session}/${death.kill_vote_number}`}
-          className="mt-3 inline-block text-sm font-medium text-accent"
+          className="link-editorial mt-3 inline-block text-sm font-medium text-ink"
         >
           See the vote that killed it — and who voted which way →
         </Link>

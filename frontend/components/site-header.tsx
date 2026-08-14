@@ -1,50 +1,70 @@
 import Link from "next/link";
 
 import { HeaderSearch } from "@/components/header-search";
+import { MyRepsChip } from "@/components/my-reps-chip";
 import { NavLink } from "@/components/nav-link";
 
-const navItems = [
-  { href: "/politicians", label: "Representatives" },
-  { href: "/cabinet", label: "Cabinet" },
-  { href: "/bills", label: "Bills" },
-  { href: "/votes", label: "Votes" },
-  { href: "/issues", label: "Issues" },
-  { href: "/expenses", label: "Follow the money" },
-  { href: "/receipts", label: "The Receipts" }
+/**
+ * Four doors, not eight: each nav item is a question, and the routes that
+ * answer it light the item up. Sub-navigation lives inside each section
+ * (SectionTabs) so first-time visitors see one simple choice.
+ */
+const NAV_SECTIONS = [
+  {
+    href: "/politicians",
+    label: "Your reps",
+    matchPrefixes: ["/politicians", "/cabinet", "/compare", "/committees"]
+  },
+  {
+    href: "/votes",
+    label: "What happened",
+    matchPrefixes: ["/votes", "/bills", "/graveyard", "/petitions"]
+  },
+  { href: "/issues", label: "Issues", matchPrefixes: ["/issues"] },
+  {
+    href: "/money",
+    label: "Money",
+    matchPrefixes: ["/money", "/expenses", "/receipts"]
+  }
 ];
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href="/" className="shrink-0 font-serif text-lg font-bold tracking-tight">
-          Civic Ledger
+    <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3.5 sm:px-6">
+        <Link href="/" className="shrink-0 font-serif text-[1.35rem] font-bold leading-none tracking-tight">
+          Civic Ledger<span className="text-accent">.</span>
         </Link>
-        <nav aria-label="Main" className="hidden items-center gap-1 text-sm font-medium text-slate-700 sm:flex">
-          {navItems.map((item) => (
+        <nav aria-label="Main" className="hidden items-center gap-1 text-[15px] font-medium text-slate-600 sm:flex">
+          {NAV_SECTIONS.map((item) => (
             <NavLink
               key={item.href}
               href={item.href}
               label={item.label}
-              className="rounded-lg px-3 py-2 transition hover:bg-slate-100 hover:text-ink"
-              activeClassName="bg-slate-100 font-semibold text-ink"
+              matchPrefixes={item.matchPrefixes}
+              className="border-b-2 border-transparent px-3 py-2 transition hover:text-ink"
+              activeClassName="border-ink font-semibold text-ink"
             />
           ))}
         </nav>
-        <HeaderSearch />
+        <div className="ml-auto flex items-center gap-2">
+          <MyRepsChip />
+          <HeaderSearch />
+        </div>
       </div>
       {/* Mobile nav: horizontal scroll strip under the wordmark. */}
       <nav
         aria-label="Main mobile"
-        className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 text-sm font-medium text-slate-700 sm:hidden"
+        className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 text-sm font-medium text-slate-600 sm:hidden"
       >
-        {[{ href: "/", label: "Home" }, ...navItems].map((item) => (
+        {[{ href: "/", label: "Home", matchPrefixes: ["/"] }, ...NAV_SECTIONS].map((item) => (
           <NavLink
             key={item.href}
             href={item.href}
             label={item.label}
-            className="shrink-0 rounded-lg px-3 py-1.5 transition hover:bg-slate-100"
-            activeClassName="bg-slate-100 font-semibold text-ink"
+            matchPrefixes={item.matchPrefixes}
+            className="shrink-0 rounded-full px-3 py-1.5 transition hover:bg-slate-100"
+            activeClassName="bg-ink font-semibold text-white"
           />
         ))}
       </nav>

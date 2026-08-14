@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  /* Core palette: near-black on warm paper, government-grade contrast.
-     Color is reserved for MEANING: party colors, pass/fail, one accent. */
+  /* Core palette: near-black ink on warm paper. Color is reserved for
+     MEANING: party colors, pass/fail, one accent. The design system is
+     typographic — scale, rules and space do the structure, not boxes. */
   --color-ink: #16181d;
   --color-surface: #faf9f6;
   --color-accent: #0f766e;
@@ -16,7 +17,8 @@
 
   --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.05);
 
-  --font-sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Data/UI face: Inter (via next/font), tabular numerals available. */
+  --font-sans: var(--font-ui), ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   /* Broadsheet display face for headlines (Source Serif via next/font). */
   --font-serif: var(--font-display), Georgia, "Times New Roman", serif;
 }
@@ -42,6 +44,12 @@
     scroll-behavior: smooth;
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
   body {
     margin: 0;
     min-height: 100vh;
@@ -49,6 +57,7 @@
     color: var(--foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   a {
@@ -60,12 +69,17 @@
   h1,
   h2 {
     font-family: var(--font-serif);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
     font-weight: 700;
   }
 
   h3 {
     letter-spacing: -0.015em;
+  }
+
+  ::selection {
+    background: #0f766e;
+    color: #fff;
   }
 
   /* Visible keyboard focus everywhere (GOV.UK-style). */
@@ -77,22 +91,56 @@
 }
 
 @layer components {
-  /* Flat, hairline-ruled panel. The class name is legacy ("glass") but the
-     look is broadsheet: white paper, 1px rule, small radius, whisper shadow. */
-  .glass-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-card);
-    border-radius: 8px !important;
+  /* ------------------------------------------------------------------ */
+  /* Editorial primitives: the page is structured by rules and type      */
+  /* scale, not boxes. Hairlines separate, whitespace groups.            */
+  /* ------------------------------------------------------------------ */
+
+  /* Heavy top rule: opens a section, broadsheet-style. */
+  .rule-heavy {
+    border-top: 2px solid var(--foreground);
+  }
+
+  /* Hairline rule: separates items inside a section. */
+  .rule {
+    border-top: 1px solid var(--border);
   }
 
   /* Small-caps section label (kicker), used across the site. */
   .kicker {
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: #6b7280;
+  }
+
+  /* Display numerals: the numbers ARE the graphics. */
+  .stat-figure {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    font-weight: 650;
+  }
+
+  /* Editorial link: subtle underline that strengthens on hover. */
+  .link-editorial {
+    text-decoration: underline;
+    text-decoration-color: rgba(22, 24, 29, 0.25);
+    text-underline-offset: 3px;
+    transition: text-decoration-color 120ms ease;
+  }
+  .link-editorial:hover {
+    text-decoration-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Legacy panel (forms and a few remaining surfaces only — the default
+     content unit is now unboxed type over rules, not cards). */
+  .glass-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-card);
+    border-radius: 8px !important;
   }
 
   /* Keyboard users: first Tab reveals a jump-to-content link. */

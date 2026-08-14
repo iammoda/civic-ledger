@@ -21,19 +21,21 @@ export function PlainSummaryCard({ analysis }: { analysis: AnalysisState }) {
   const payload = (analysis.payload ?? {}) as PlainSummaryPayload;
 
   return (
-    <div className="rounded-3xl border border-black/10 bg-white p-6">
+    <div className="max-w-4xl">
       {payload.one_sentence ? (
-        <p className="text-lg font-medium leading-8">{payload.one_sentence}</p>
+        <p className="max-w-3xl font-serif text-xl leading-relaxed text-ink sm:text-2xl">
+          {payload.one_sentence}
+        </p>
       ) : null}
 
-      <div className="mt-5 grid gap-5 sm:grid-cols-3">
+      <div className="mt-8 grid gap-8 border-t border-border pt-6 sm:grid-cols-3">
         {BULLET_SECTIONS.map(({ key, title }) => {
           const items = payload[key];
           if (!Array.isArray(items) || items.length === 0) return null;
           return (
             <div key={key}>
-              <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{title}</h4>
-              <ul className="mt-2 space-y-2 text-sm leading-6 text-slate-700">
+              <h4 className="kicker">{title}</h4>
+              <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
                 {items.map((item) => (
                   <li key={item} className="flex gap-2">
                     <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
@@ -47,7 +49,7 @@ export function PlainSummaryCard({ analysis }: { analysis: AnalysisState }) {
       </div>
 
       {payload.detailed_summary ? (
-        <details className="mt-5 border-t border-black/5 pt-4">
+        <details className="mt-6 border-t border-border pt-4">
           <summary className="cursor-pointer text-sm font-medium text-accent">
             Read the full summary
           </summary>
@@ -57,7 +59,7 @@ export function PlainSummaryCard({ analysis }: { analysis: AnalysisState }) {
         </details>
       ) : null}
 
-      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-black/5 pt-4 text-xs text-slate-500">
+      <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-4 text-xs text-slate-500">
         <span className="rounded-full bg-slate-100 px-3 py-1" title="AI-generated — usually accurate, occasionally wrong. Tell us below.">
           AI summary · may contain errors
         </span>

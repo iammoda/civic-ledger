@@ -1,4 +1,12 @@
-export default function Loading() {
+/**
+ * Loading skeleton for list-style routes that never call notFound().
+ *
+ * Deliberately NOT at the app root: a root loading.tsx wraps every route in
+ * Suspense, which forces a 200 status before notFound() can run — detail
+ * pages would soft-404 (200 + error UI) and crawlers would index junk.
+ * Only segments where a 200 is always correct get a skeleton.
+ */
+export function ListSkeleton() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10" aria-busy="true">
       <section className="mb-8 border-b-2 border-ink/80 pb-5">

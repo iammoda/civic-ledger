@@ -30,20 +30,40 @@ def _is_postgres(db: Session) -> bool:
     return db.get_bind().dialect.name == "postgresql"
 
 
+# Topics change only on reseed; don't rescan the table on every search/ask.
+_TOPIC_CACHE_TTL = 300
+_topic_cache: dict[str, object] = {"expires": 0.0, "rows": None}
+
+
+def _topic_terms(db: Session) -> list[tuple[str, list[str], list[str]]]:
+    """(name_en, aliases, significant name words) per topic, briefly cached."""
+    import time
+
+    now = time.time()
+    if _topic_cache["rows"] is not None and now < float(_topic_cache["expires"]):
+        return _topic_cache["rows"]  # type: ignore[return-value]
+    rows = []
+    for topic in db.scalars(select(Topic)).all():
+        aliases = [a.strip() for a in (topic.aliases_en or "").split(",") if a.strip()]
+        name_words = [w for w in topic.name_en.lower().replace("&", " ").split() if len(w) >= 5]
+        rows.append((topic.name_en, aliases, name_words))
+    _topic_cache["rows"] = rows
+    _topic_cache["expires"] = now + _TOPIC_CACHE_TTL
+    return rows
+
+
 def expand_query(db: Session, query: str) -> str:
     """Append topic names/aliases matched by the query text. Matches both
     aliases ('carbon tax') and significant words of topic names
     ('environment' in 'Climate & Environment')."""
     query_lower = query.lower()
     extras: list[str] = []
-    for topic in db.scalars(select(Topic)).all():
-        aliases = [a.strip() for a in (topic.aliases_en or "").split(",") if a.strip()]
-        name_words = [w for w in topic.name_en.lower().replace("&", " ").split() if len(w) >= 5]
+    for name_en, aliases, name_words in _topic_terms(db):
         hit = any(alias.lower() in query_lower for alias in aliases) or any(
             word in query_lower for word in name_words
         )
-        if hit and topic.name_en.lower() not in query_lower:
-            extras.append(topic.name_en)
+        if hit and name_en.lower() not in query_lower:
+            extras.append(name_en)
             extras.extend(aliases)
     if not extras:
         return query
@@ -311,24 +331,28 @@ async def hybrid_search(db: Session, query: str, *, limit: int = 20) -> list[Sea
 
     from app.llm.embeddings import embed_query
 
-    # The sync DB phases run in worker threads so slow queries can't stall
-    # the event loop (the session is used sequentially, never concurrently).
-    def _keyword_phase() -> tuple[str, list[list[SearchResult]]]:
-        expanded = expand_query(db, query)
+    # Expansion is cheap (topic cache); the DB session is then used ONLY by
+    # the keyword thread while the embedding HTTP call runs concurrently —
+    # on new queries that overlaps ~1s of OpenAI latency with the FTS work.
+    expanded = await asyncio.to_thread(expand_query, db, query)
+
+    def _keyword_phase() -> list[list[SearchResult]]:
         # Original-query matches rank ahead of alias-expanded ones: expansion
         # recalls related content but must not drown direct hits.
         lists = [keyword_search(db, query, limit=limit)]
         if expanded != query:
             lists.append(keyword_search(db, expanded, limit=limit))
-        return expanded, lists
+        return lists
 
-    expanded, keyword_lists = await asyncio.to_thread(_keyword_phase)
+    keyword_future = asyncio.to_thread(_keyword_phase)
+    if _is_postgres(db):
+        keyword_lists, query_vector = await asyncio.gather(keyword_future, embed_query(expanded))
+    else:
+        keyword_lists, query_vector = await keyword_future, None
 
     vector_results: list[SearchResult] = []
-    if _is_postgres(db):
-        query_vector = await embed_query(expanded)
-        if query_vector is not None:
-            vector_results = await asyncio.to_thread(vector_search, db, query_vector, limit=limit)
+    if query_vector is not None:
+        vector_results = await asyncio.to_thread(vector_search, db, query_vector, limit=limit)
 
     if vector_results:
         keyword_lists.append(vector_results)

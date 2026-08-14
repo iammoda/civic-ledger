@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Source_Serif_4 } from "next/font/google";
+import { Inter, Source_Serif_4 } from "next/font/google";
 
 import "./globals.css";
 import { SiteFooter } from "@/components/site-footer";
@@ -9,7 +9,13 @@ import { SiteHeader } from "@/components/site-header";
 const displaySerif = Source_Serif_4({
   subsets: ["latin"],
   variable: "--font-display",
+  style: ["normal", "italic"],
   weight: ["400", "600", "700"]
+});
+
+const uiSans = Inter({
+  subsets: ["latin"],
+  variable: "--font-ui"
 });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -34,7 +40,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" className={displaySerif.variable}>
+    <html lang="en" className={`${displaySerif.variable} ${uiSans.variable}`}>
       <body className="text-ink">
         <a href="#main" className="skip-link">
           Skip to content
