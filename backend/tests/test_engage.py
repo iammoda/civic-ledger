@@ -12,8 +12,11 @@ from app.main import app
 from app.models import (
     Ballot,
     Bill,
+    Jurisdiction,
+    LegislatureSession,
     Person,
     PersonMembership,
+    PersonStats,
     Vote,
 )
 from app.services.letters import build_letter
@@ -110,6 +113,51 @@ def test_letter_endpoint_full_flow(db, client) -> None:
     assert "Vote 173" in data["letter_text"]
     assert data["citations"][0]["effect"] == "blocked"
     assert data["polished"] is False
+
+
+# --- The Receipts ---
+
+
+def test_receipts_ontario_scope(db, client) -> None:
+    jur = Jurisdiction(code="ca-on", name_en="Legislative Assembly of Ontario", level="provincial")
+    db.add(jur)
+    db.flush()
+    session = LegislatureSession(jurisdiction_id=jur.id, parliament_number=44, session_number=1)
+    db.add(session)
+    mpp = Person(slug="pat-mpp", full_name="Pat MPP")
+    db.add(mpp)
+    db.flush()
+    db.add(
+        PersonMembership(
+            person_id=mpp.id, riding_name="Testville North", province_code="ON", is_current=True
+        )
+    )
+    db.add(
+        PersonStats(
+            person_id=mpp.id,
+            session_id=session.id,
+            votes_eligible=40,
+            votes_cast=32,
+            attendance_pct=80.0,
+            dissent_count=2,
+        )
+    )
+    db.commit()
+
+    response = client.get("/v1/receipts?scope=ontario")
+    assert response.status_code == 200
+    data = response.json()
+    keys = [board["key"] for board in data["boards"]]
+    # Ontario = voting boards only; money boards stay federal.
+    assert keys == ["most_dissents", "lowest_attendance"]
+    assert all("Queen's Park" in board["subtitle"] for board in data["boards"])
+    row = data["boards"][0]["rows"][0]
+    assert row["person_name"] == "Pat MPP"
+    assert row["riding"] == "Testville North, ON"  # province appended
+
+    # Federal scope still answers (and rejects unknown scopes).
+    assert client.get("/v1/receipts").status_code == 200
+    assert client.get("/v1/receipts?scope=alberta").status_code == 422
 
 
 # --- Notification matcher ---

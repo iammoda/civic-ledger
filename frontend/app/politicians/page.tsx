@@ -2,21 +2,25 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
+import { LevelBadge } from "@/components/level-badge";
 import { PageShell } from "@/components/page-shell";
+import { PartyBadge } from "@/components/party-badge";
+import { PartyLogo } from "@/components/party-logo";
 import { listPoliticians } from "@/lib/api";
 
 const PROVINCES = ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"];
 
 const LEVELS: Array<{ key: string; label: string }> = [
-  { key: "federal", label: "Federal" },
-  { key: "provincial", label: "Provincial" },
-  { key: "municipal", label: "Municipal" }
+  { key: "all", label: "All" },
+  { key: "federal", label: "MPs — federal" },
+  { key: "provincial", label: "MPPs & MLAs — provincial" },
+  { key: "municipal", label: "Councillors & Mayors — municipal" }
 ];
 
 export const metadata: Metadata = {
-  title: "Find your representatives",
+  title: "Who represents you?",
   description:
-    "Every MP with party, riding and photo — filter by party, province or name, or look up who represents your postal code."
+    "Every representative — federal, provincial and municipal — with party, riding and photo. Filter by party, province or name."
 };
 
 export default async function PoliticiansPage({
@@ -48,20 +52,24 @@ export default async function PoliticiansPage({
 
   return (
     <PageShell
-      eyebrow={level === "federal" ? "MPs" : level === "provincial" ? "MPPs · MLAs · MNAs" : "Councillors · Mayors"}
-      title="Your representatives, on the record"
+      eyebrow="Representatives"
+      title="Who represents you?"
       description={
-        level === "federal"
-          ? "Every MP with their attendance, party discipline, money, and full voting record — identical measures for everyone."
-          : "Every representative synced from official rosters — profiles and contact today, legislative records as their governments publish them."
+        level === "all"
+          ? "Every current representative — federal, provincial and municipal — synced from official rosters, with identical measures wherever their governments publish records."
+          : level === "federal"
+            ? "Every MP with their attendance, party discipline, money, and full voting record — identical measures for everyone."
+            : "Every representative synced from official rosters — profiles and contact today, legislative records as their governments publish them."
       }
     >
+      {/* Level tabs first: the primary way into the directory. */}
       <div className="mb-6 flex flex-wrap gap-2">
         {LEVELS.map((entry) => (
           <Link
             key={entry.key}
             href={buildHref({ level: entry.key, party: "", province: "" })}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+            aria-current={level === entry.key ? "page" : undefined}
+            className={`rounded-full px-5 py-2.5 text-sm font-semibold transition sm:text-base ${
               level === entry.key
                 ? "bg-slate-900 text-white"
                 : "border border-black/10 bg-white text-slate-600 hover:border-accent hover:text-accent"
@@ -75,7 +83,7 @@ export default async function PoliticiansPage({
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
             name="q"
-            aria-label="Search MPs by name"
+            aria-label="Search representatives by name"
             defaultValue={q ?? ""}
             placeholder="Search by name…"
             className="w-full rounded-full border border-black/10 bg-white px-5 py-3 outline-none focus:border-accent"
@@ -146,22 +154,28 @@ export default async function PoliticiansPage({
                   {politician.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element -- external media host, avatar-sized
                     <img
-                      src={politician.image_url}
+                      src={politician.image_url.replace(/^http:\/\//, "https://")}
                       alt=""
                       width={56}
                       height={56}
                       loading="lazy"
-                      className="h-14 w-14 shrink-0 rounded-2xl object-cover"
+                      className="h-14 w-14 shrink-0 rounded-md border border-border object-cover"
                     />
                   ) : (
-                    <div aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-lg font-semibold text-slate-500">
+                    <div aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-slate-100 text-lg font-semibold text-slate-500">
                       {politician.full_name.charAt(0)}
                     </div>
                   )}
                   <div className="min-w-0">
                     <h2 className="truncate text-lg font-semibold">{politician.full_name}</h2>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {politician.current_membership?.party?.short_name ?? "Independent or unknown"}
+                    {level === "all" && politician.level ? (
+                      <div className="mt-1">
+                        <LevelBadge level={politician.level} />
+                      </div>
+                    ) : null}
+                    <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600">
+                      <PartyLogo party={politician.current_membership?.party?.slug} size={16} />
+                      <PartyBadge party={politician.current_membership?.party?.slug} size="xs" />
                     </p>
                     <p className="truncate text-sm text-slate-500">
                       {politician.current_membership?.riding_name ??

@@ -363,8 +363,8 @@ export type ReceiptsResponse = {
   generated_note: string;
 };
 
-export function getReceipts() {
-  return fetchApi<ReceiptsResponse>("/receipts");
+export function getReceipts(scope: "federal" | "ontario" = "federal") {
+  return fetchApi<ReceiptsResponse>(`/receipts${scope === "ontario" ? "?scope=ontario" : ""}`);
 }
 
 
@@ -377,9 +377,35 @@ export type SearchResultItem = {
   outcome?: string | null;
 };
 
+export type SearchPersonItem = {
+  slug: string;
+  full_name: string;
+  image_url?: string | null;
+  party_slug?: string | null;
+  riding?: string | null;
+  province_code?: string | null;
+  level?: string | null;
+  roles: string[];
+};
+
+export type SearchExpenseItem = {
+  id: number;
+  supplier?: string | null;
+  description?: string | null;
+  category: string;
+  amount: number;
+  quarter: number;
+  fiscal_year: number;
+  mp_name?: string | null;
+  mp_slug?: string | null;
+  source_url: string;
+};
+
 export type SearchResponse = {
   query: string;
   results: SearchResultItem[];
+  people?: SearchPersonItem[];
+  expenses?: SearchExpenseItem[];
 };
 
 export function searchContent(q: string) {
@@ -461,7 +487,6 @@ export type MoneyResponse = {
   recent_communications: LobbyCommItem[];
   donations_total: number;
   donations_count: number;
-  top_donors: Array<{ name: string; total: number; count: number }>;
   flags: Array<{
     detector: string;
     headline_en: string;
@@ -534,12 +559,13 @@ export type VotesFilter = "all" | "dissent" | "missed";
 
 export function getPoliticianVotes(
   slug: string,
-  options?: { filter?: VotesFilter; dissentOnly?: boolean; offset?: number }
+  options?: { filter?: VotesFilter; dissentOnly?: boolean; offset?: number; limit?: number }
 ) {
   const filter = options?.filter ?? (options?.dissentOnly ? "dissent" : undefined);
   const searchParams = new URLSearchParams();
   if (filter && filter !== "all") searchParams.set("filter", filter);
   if (options?.offset) searchParams.set("offset", String(options.offset));
+  if (options?.limit) searchParams.set("limit", String(options.limit));
   const qs = searchParams.toString();
   return fetchApi<VotingRecordResponse>(`/politicians/${slug}/votes${qs ? `?${qs}` : ""}`);
 }

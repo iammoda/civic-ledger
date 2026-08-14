@@ -35,6 +35,15 @@ export default async function ExpensesPage({
   const params = await searchParams;
   const results = await searchExpenses(params);
 
+  // CSV export of the current filters (served by the API; capped at 10k rows).
+  const csvParams = new URLSearchParams();
+  for (const key of ["q", "category", "fiscal_year", "min_amount"] as const) {
+    if (params[key]) csvParams.set(key, params[key]!);
+  }
+  const csvHref = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/v1"}/expenses/search.csv${
+    csvParams.size ? `?${csvParams.toString()}` : ""
+  }`;
+
   const buildHref = (next: Record<string, string | undefined>) => {
     const merged = { ...params, ...next };
     const searchParamsOut = new URLSearchParams();
@@ -114,6 +123,13 @@ export default async function ExpensesPage({
           <button type="submit" className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white">
             Search
           </button>
+          <a
+            href={csvHref}
+            download
+            className="self-center text-sm text-slate-600 underline-offset-2 hover:text-accent hover:underline"
+          >
+            Download CSV
+          </a>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {CATEGORY_CHIPS.map((chip) => {

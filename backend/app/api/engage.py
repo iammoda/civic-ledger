@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
@@ -20,6 +20,7 @@ from app.models import (
     Chamber,
     ExpenseItem,
     ExpenseSummary,
+    Jurisdiction,
     LegislatureSession,
     LobbyCommunication,
     Person,
@@ -230,11 +231,19 @@ def _person_display(db: Session, person_ids: list[int]) -> dict[int, tuple[str, 
         ).all()
     }
     memberships: dict[int, tuple[str | None, str | None]] = {}
-    for pid, party_slug, riding in db.execute(
-        select(PersonMembership.person_id, Party.slug, PersonMembership.riding_name)
+    for pid, party_slug, riding, province in db.execute(
+        select(
+            PersonMembership.person_id,
+            Party.slug,
+            PersonMembership.riding_name,
+            PersonMembership.province_code,
+        )
         .outerjoin(Party, PersonMembership.party_id == Party.id)
         .where(PersonMembership.person_id.in_(person_ids), PersonMembership.is_current.is_(True))
     ).all():
+        # "Winnipeg South Centre, MB" — the riding alone rarely places the MP.
+        if riding and province:
+            riding = f"{riding}, {province}"
         memberships[pid] = (party_slug, riding)
     return {
         pid: (name, slug, image, memberships.get(pid, (None, None))[0], memberships.get(pid, (None, None))[1])
@@ -251,12 +260,80 @@ def _latest_quarter(db: Session) -> tuple[int, int] | None:
     return (row[0], row[1]) if row else None
 
 
-@router.get("/receipts", response_model=ReceiptsResponse)
-def receipts(db: Session = Depends(get_db)) -> ReceiptsResponse:
-    boards: list[ReceiptBoard] = []
+def _biggest_expense_contexts(db: Session, person_ids: list[int], fy: int, q: int) -> dict[int, str]:
+    """id -> "biggest: $83,000 contract — Marco Paoli o/a Kylemore Solutions".
 
-    # 1. Top office spenders, latest quarter.
-    quarter = _latest_quarter(db)
+    One tiny max-amount lookup per leaderboard row (10 ids) — glance context
+    so a big total is immediately explainable without a click.
+    """
+    contexts: dict[int, str] = {}
+    for pid in person_ids:
+        item = db.scalar(
+            select(ExpenseItem)
+            .where(ExpenseItem.person_id == pid, ExpenseItem.fiscal_year == fy, ExpenseItem.quarter == q)
+            .order_by(ExpenseItem.amount.desc())
+            .limit(1)
+        )
+        if item is None:
+            continue
+        what = item.supplier or item.description or item.purpose
+        label = f"biggest: ${item.amount:,.0f} {item.category}"
+        contexts[pid] = f"{label} — {what}" if what else label
+    return contexts
+
+
+def _top_client_contexts(db: Session, person_ids: list[int], cutoff: date) -> dict[int, str]:
+    """id -> "most contacts: Calgary Confederation (31)" for the same window."""
+    if not person_ids:
+        return {}
+    top: dict[int, tuple[str, int]] = {}
+    for pid, client, n in db.execute(
+        select(LobbyCommunication.dpoh_person_id, LobbyCommunication.client_name, func.count().label("n"))
+        .where(
+            LobbyCommunication.dpoh_person_id.in_(person_ids),
+            LobbyCommunication.comm_date >= cutoff,
+            LobbyCommunication.client_name.is_not(None),
+        )
+        .group_by(LobbyCommunication.dpoh_person_id, LobbyCommunication.client_name)
+    ).all():
+        if pid not in top or n > top[pid][1]:
+            top[pid] = (client, n)
+    return {pid: f"most contacts: {client} ({n})" for pid, (client, n) in top.items()}
+
+
+def _latest_stats_session_id(db: Session, scope: str) -> int | None:
+    """Latest session (that has PersonStats) for the requested legislature."""
+    query = (
+        select(PersonStats.session_id)
+        .join(LegislatureSession, PersonStats.session_id == LegislatureSession.id)
+        .join(Jurisdiction, LegislatureSession.jurisdiction_id == Jurisdiction.id)
+        .order_by(LegislatureSession.parliament_number.desc(), LegislatureSession.session_number.desc())
+        .limit(1)
+    )
+    if scope == "ontario":
+        query = query.where(Jurisdiction.level == "provincial", Jurisdiction.code == "ca-on")
+    else:
+        query = query.where(Jurisdiction.level == "federal")
+    return db.scalar(query)
+
+
+# Ontario ships voting boards only — say why, on the board itself.
+_ONTARIO_MONEY_CAVEAT = (
+    " Ontario publishes no machine-readable per-MPP expense or lobbying data, "
+    "so the money boards remain federal-only."
+)
+
+
+@router.get("/receipts", response_model=ReceiptsResponse)
+def receipts(
+    scope: str = Query(default="federal", pattern="^(federal|ontario)$"),
+    db: Session = Depends(get_db),
+) -> ReceiptsResponse:
+    boards: list[ReceiptBoard] = []
+    is_ontario = scope == "ontario"
+
+    # 1. Top office spenders, latest quarter (federal only — HoC disclosures).
+    quarter = _latest_quarter(db) if not is_ontario else None
     if quarter:
         fy, q = quarter
         rows = db.execute(
@@ -281,6 +358,7 @@ def receipts(db: Session = Depends(get_db)) -> ReceiptsResponse:
             .limit(10)
         ).all()
         display = _person_display(db, [r[0] for r in rows if r[0]])
+        item_contexts = _biggest_expense_contexts(db, [r[0] for r in rows if r[0]], fy, q)
         boards.append(
             ReceiptBoard(
                 key="top_spenders",
@@ -300,14 +378,15 @@ def receipts(db: Session = Depends(get_db)) -> ReceiptsResponse:
                         riding=display.get(pid, (None, None, None, None, None))[4] if pid else None,
                         value=float(total or 0),
                         display=f"${float(total or 0):,.0f}",
+                        context=item_contexts.get(pid) if pid else None,
                     )
                     for pid, raw_name, total in rows
                 ],
             )
         )
 
-    # 2. Most lobbied, last 12 months.
-    latest_comm = db.scalar(select(func.max(LobbyCommunication.comm_date)))
+    # 2. Most lobbied, last 12 months (federal only — Registry of Lobbyists).
+    latest_comm = None if is_ontario else db.scalar(select(func.max(LobbyCommunication.comm_date)))
     if latest_comm:
         cutoff = latest_comm - timedelta(days=365)
         rows = db.execute(
@@ -318,6 +397,7 @@ def receipts(db: Session = Depends(get_db)) -> ReceiptsResponse:
             .limit(10)
         ).all()
         display = _person_display(db, [r[0] for r in rows])
+        client_contexts = _top_client_contexts(db, [r[0] for r in rows], cutoff)
         boards.append(
             ReceiptBoard(
                 key="most_lobbied",
@@ -337,19 +417,18 @@ def receipts(db: Session = Depends(get_db)) -> ReceiptsResponse:
                         riding=display.get(pid, (None, None, None, None, None))[4],
                         value=float(n),
                         display=f"{n} contacts",
+                        context=client_contexts.get(pid),
                     )
                     for pid, n in rows
                 ],
             )
         )
 
-    # 3 + 4. Dissent + attendance from PersonStats (latest federal session).
-    latest_session_id = db.scalar(
-        select(PersonStats.session_id)
-        .join(LegislatureSession, PersonStats.session_id == LegislatureSession.id)
-        .order_by(LegislatureSession.parliament_number.desc(), LegislatureSession.session_number.desc())
-        .limit(1)
-    )
+    # 3 + 4. Dissent + attendance from PersonStats — latest session of the
+    # requested legislature (federal Parliament or Ontario's Queen's Park).
+    session_phrase = "this session at Queen's Park" if is_ontario else "this session"
+    member_label = "MPPs" if is_ontario else "MPs"
+    latest_session_id = _latest_stats_session_id(db, scope)
     if latest_session_id:
         dissent_rows = db.scalars(
             select(PersonStats)
@@ -363,10 +442,11 @@ def receipts(db: Session = Depends(get_db)) -> ReceiptsResponse:
                 ReceiptBoard(
                     key="most_dissents",
                     title="Most independent voters",
-                    subtitle="Votes against their own party this session",
+                    subtitle=f"Votes against their own party {session_phrase}",
                     caveat=(
-                        "Breaking ranks is rare in Canada's whipped party system — these MPs did it "
+                        f"Breaking ranks is rare in Canada's whipped party system — these {member_label} did it "
                         "most. Independents can't 'dissent' (no party line to break)."
+                        + (_ONTARIO_MONEY_CAVEAT if is_ontario else "")
                     ),
                     rows=[
                         ReceiptRow(
@@ -404,12 +484,13 @@ def receipts(db: Session = Depends(get_db)) -> ReceiptsResponse:
                 ReceiptBoard(
                     key="lowest_attendance",
                     title="Missed the most votes",
-                    subtitle="Lowest share of eligible votes cast this session (min. 30 eligible votes)",
+                    subtitle=f"Lowest share of eligible votes cast {session_phrase} (min. 30 eligible votes)",
                     caveat=(
                         "Some absences are structural: ministers travel on government business, party "
-                        "leaders campaign, and MPs miss votes for health and family reasons the record "
+                        f"leaders campaign, and {member_label} miss votes for health and family reasons the record "
                         "doesn't show. The Speaker (who only votes to break ties) is excluded. A low "
                         "number is a question to ask, not a verdict."
+                        + (_ONTARIO_MONEY_CAVEAT if is_ontario else "")
                     ),
                     rows=[
                         ReceiptRow(
@@ -427,8 +508,8 @@ def receipts(db: Session = Depends(get_db)) -> ReceiptsResponse:
                 )
             )
 
-    # 5. Biggest single contracts on record.
-    contract_rows = db.scalars(
+    # 5. Biggest single contracts on record (federal only — HoC disclosures).
+    contract_rows = [] if is_ontario else db.scalars(
         select(ExpenseItem)
         .where(ExpenseItem.category == "contract")
         .order_by(ExpenseItem.amount.desc())

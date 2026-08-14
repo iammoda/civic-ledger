@@ -9,7 +9,7 @@ const EFFECT_STYLES: Record<string, string> = {
 
 const PARTICIPATED = new Set(["yea", "nay", "paired"]);
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
 
 const EMPTY_COPY: Record<VotesFilter, string> = {
   all: "No recorded votes yet — ballots appear after the first data sync.",
@@ -87,72 +87,47 @@ export function VotingRecord({
         </p>
       ) : null}
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-5 space-y-2">
         {record.items.length ? (
           record.items.map((item) => {
             const missed = !PARTICIPATED.has(item.ballot);
-            const subline = item.plain_meaning_en ?? item.description_en;
+            const title = item.bill_title ?? item.plain_meaning_en ?? item.description_en;
+            const subline = item.bill_one_sentence ?? item.plain_meaning_en;
             return (
               <Link
                 key={`${item.session}-${item.vote_number}`}
                 href={`/votes/${item.chamber}/${item.session}/${item.vote_number}`}
-                className="block rounded-3xl border border-black/10 bg-white p-4 transition hover:-translate-y-0.5"
+                className="block rounded-md border border-border bg-white px-3 py-2 transition hover:border-accent"
               >
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   {missed ? (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
                       Didn&apos;t vote
                     </span>
                   ) : item.ballot_effect ? (
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${EFFECT_STYLES[item.ballot_effect] ?? "bg-slate-100 text-slate-600"}`}
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${EFFECT_STYLES[item.ballot_effect] ?? "bg-slate-100 text-slate-600"}`}
                     >
                       Voted to {item.ballot_effect === "advanced" ? "advance" : "block"}
                     </span>
                   ) : (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs uppercase tracking-[0.14em] text-slate-600">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs uppercase tracking-[0.14em] text-slate-600">
                       {item.ballot}
                     </span>
                   )}
                   {item.broke_party_line ? (
-                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                    <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
                       Broke party ranks
                     </span>
                   ) : null}
-                  <span className="ml-auto text-xs text-slate-500">{item.occurred_on}</span>
+                  <span className="rounded-full border border-black/10 px-2 py-0.5 text-xs text-slate-500">
+                    {item.bill_number ?? "Motion"}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-6">{title}</span>
+                  <span className="ml-auto shrink-0 text-xs text-slate-500">{item.occurred_on}</span>
                 </div>
-                {item.bill_title ? (
-                  <>
-                    <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold leading-6">
-                      {item.bill_title}
-                      {item.bill_number ? (
-                        <span className="rounded-full border border-black/10 px-2.5 py-0.5 text-xs font-normal text-slate-500">
-                          {item.bill_number}
-                        </span>
-                      ) : null}
-                    </p>
-                    {item.bill_one_sentence ? (
-                      <>
-                        {/* What the bill is, then what happened in this vote. */}
-                        <p className="mt-1 text-sm leading-6 text-slate-600">{item.bill_one_sentence}</p>
-                        {item.plain_meaning_en ? (
-                          <p className="mt-0.5 text-xs leading-5 text-slate-500">{item.plain_meaning_en}</p>
-                        ) : null}
-                      </>
-                    ) : (
-                      <p className="mt-1 text-sm leading-6 text-slate-600">{subline}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-medium leading-6">
-                    {subline}
-                    <span className="rounded-full border border-black/10 px-2.5 py-0.5 text-xs font-normal text-slate-500">
-                      {item.bill_number ?? "Motion"}
-                    </span>
-                  </p>
-                )}
-                {item.party_context ? (
-                  <p className="mt-1 text-xs text-slate-500">{item.party_context}</p>
+                {subline && subline !== title ? (
+                  <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{subline}</p>
                 ) : null}
               </Link>
             );

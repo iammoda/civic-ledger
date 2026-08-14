@@ -3,13 +3,26 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 import app.services.ask as ask_mod
 from app.data.topics import seed_topics
+from app.db.session import get_db
 from app.ingestion.sync import SyncContext
 from app.llm.base import StructuredResult
-from app.models import Bill, LlmUsage, Vote
+from app.main import app
+from app.models import (
+    Bill,
+    ExpenseItem,
+    LlmUsage,
+    Party,
+    Person,
+    PersonMembership,
+    PersonRole,
+    Vote,
+)
 from app.services.ask import ask, heuristic_jurisdiction
 from app.services.search import (
     SearchResult,
@@ -18,6 +31,14 @@ from app.services.search import (
     keyword_search,
     rrf_fuse,
 )
+
+
+@pytest.fixture()
+def client(db):
+    app.dependency_overrides[get_db] = lambda: db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
 
 
 def _seed_content(db) -> None:
@@ -100,6 +121,82 @@ async def test_hybrid_search_fallback_without_vectors(db) -> None:
     _seed_content(db)
     results = await hybrid_search(db, "housing")
     assert results and results[0].score > 0
+
+
+# --- /v1/search: people + expenses sections ---
+
+
+def test_search_endpoint_returns_people_and_expenses(db, client) -> None:
+    _seed_content(db)
+    ctx = SyncContext(db)
+    party = Party(
+        jurisdiction_id=ctx.jurisdiction.id,
+        name_en="Liberal Party of Canada",
+        short_name="Liberal",
+        slug="liberal",
+    )
+    person = Person(slug="jane-doe", full_name="Jane Doe", chamber_id=ctx.house.id)
+    db.add_all([party, person])
+    db.flush()
+    db.add(
+        PersonMembership(
+            person_id=person.id,
+            party_id=party.id,
+            chamber_id=ctx.house.id,
+            riding_name="Ottawa Centre",
+            province_code="ON",
+            is_current=True,
+        )
+    )
+    db.add(
+        PersonRole(
+            person_id=person.id,
+            role_type="minister",
+            title_en="Minister of Finance",
+            is_current=True,
+        )
+    )
+    db.add(
+        ExpenseItem(
+            person_id=person.id,
+            mp_name_raw="Jane Doe",
+            category="travel",
+            fiscal_year=2026,
+            quarter=1,
+            supplier="Air Canada",
+            description="Flight Ottawa–Vancouver",
+            amount=2345.67,
+            source_url="https://www.ourcommons.ca/x",
+            fingerprint="fp-jane-travel-1",
+        )
+    )
+    db.commit()
+
+    # Name match hits both the person and their expense line.
+    data = client.get("/v1/search", params={"q": "jane doe"}).json()
+    assert "results" in data  # Existing shape untouched.
+    person_hit = next(p for p in data["people"] if p["slug"] == "jane-doe")
+    assert person_hit["full_name"] == "Jane Doe"
+    assert person_hit["party_slug"] == "liberal"
+    assert person_hit["riding"] == "Ottawa Centre"
+    assert person_hit["province_code"] == "ON"
+    assert person_hit["level"] == "federal"
+    assert person_hit["roles"] == ["Minister of Finance"]
+    expense_hit = next(e for e in data["expenses"] if e["supplier"] == "Air Canada")
+    assert expense_hit["amount"] == 2345.67
+    assert expense_hit["mp_slug"] == "jane-doe"
+    assert expense_hit["mp_name"] == "Jane Doe"
+    assert expense_hit["category"] == "travel"
+    assert expense_hit["source_url"].startswith("https://www.ourcommons.ca")
+
+    # Riding match also surfaces the representative.
+    by_riding = client.get("/v1/search", params={"q": "ottawa centre"}).json()
+    assert any(p["slug"] == "jane-doe" for p in by_riding["people"])
+
+    # Supplier match surfaces the expense without matching any person.
+    by_supplier = client.get("/v1/search", params={"q": "air canada"}).json()
+    assert any(e["supplier"] == "Air Canada" for e in by_supplier["expenses"])
+    assert all(p["slug"] != "jane-doe" for p in by_supplier["people"])
 
 
 # --- Jurisdiction heuristics ---

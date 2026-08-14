@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { BallotList } from "@/components/ballot-list";
+import { CiteThis } from "@/components/cite-this";
 import { DataGap } from "@/components/data-gap";
 import { Hemicycle } from "@/components/hemicycle";
 import { PageShell } from "@/components/page-shell";
@@ -223,6 +224,11 @@ export default async function VoteDetailPage({
           </div>
         </div>
       </section>
+      <CiteThis
+        title={`Vote ${vote.number} (${vote.session}): ${vote.plain_meaning_en ?? vote.description_en}`}
+        sourceUrl={vote.source_url}
+        sourceLabel="House of Commons vote record"
+      />
     </PageShell>
   );
 }

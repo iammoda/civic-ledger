@@ -56,7 +56,7 @@ def list_politicians(
     party: str | None = None,
     province: str | None = None,
     chamber: str | None = None,
-    level: str | None = Query(default=None, pattern="^(federal|provincial|municipal)$"),
+    level: str | None = Query(default=None, pattern="^(federal|provincial|municipal|all)$"),
     include_former: bool = Query(default=False),
     limit: int = Query(default=25, le=400),
     offset: int = Query(default=0, ge=0),
@@ -73,7 +73,9 @@ def list_politicians(
         query = query.where(func.lower(Person.full_name).contains(q.strip().lower(), autoescape=True))
     if chamber:
         query = query.join(Chamber, Person.chamber_id == Chamber.id).where(Chamber.slug == chamber)
-    if level:
+    if level and level != "all":
+        # "all" is the explicit no-filter value: every current representative
+        # across federal/provincial/municipal, still ordered by full_name.
         query = query.where(
             Person.chamber.has(Chamber.jurisdiction.has(Jurisdiction.level == level))
         )

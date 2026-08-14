@@ -20,7 +20,10 @@ from arq.connections import RedisSettings
 from sqlalchemy import select
 
 from app.core.config import get_settings
+from app.core.observability import init_sentry
 from app.ingestion.run import run_stats, run_sync
+
+init_sentry(process="worker")
 
 
 async def ingest_incremental(ctx: dict[str, Any]) -> None:

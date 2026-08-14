@@ -282,3 +282,20 @@ def test_expense_search_filters_and_sort(db, client) -> None:
 
     by_mp_name = client.get("/v1/expenses/search", params={"q": "bob roe"}).json()
     assert by_mp_name["meta"]["total"] == 2
+
+
+def test_expense_csv_export(db, client) -> None:
+    jane = _mp(db)
+    _item(db, jane, category="contract", amount=30000.0, supplier="Acme Consulting")
+    _item(db, jane, category="travel", amount=900.0, supplier="Air Co", seq=1)
+    db.commit()
+
+    response = client.get("/v1/expenses/search.csv", params={"category": "contract"})
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "attachment" in response.headers["content-disposition"]
+    lines = response.text.strip().splitlines()
+    assert lines[0].startswith("fiscal_year,quarter,date,mp_name,category,supplier")
+    assert len(lines) == 2  # header + the one contract row
+    assert "Acme Consulting" in lines[1]
+    assert "30000.00" in lines[1]

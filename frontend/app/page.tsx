@@ -3,29 +3,21 @@ import Link from "next/link";
 import { DataGap } from "@/components/data-gap";
 import { LevelBadge, WhoDoesWhat } from "@/components/level-badge";
 import { PageShell } from "@/components/page-shell";
-import { SaveMyMp } from "@/components/save-my-mp";
+import { PostalLookupForm } from "@/components/postal-lookup-form";
 import { getDigest, listBills, listPoliticians, listVotes } from "@/lib/api";
 import { billTypeLabel, formatDateShort, humanizeBillTitle, humanizeMotion, humanizeStatus } from "@/lib/humanize";
-import { lookupPostal } from "@/lib/lookup";
 import { voteActionLine } from "@/lib/vote-action";
 
 export const metadata = {
   title: "Civic Ledger — who represents you, and what have they done?"
 };
 
-export default async function HomePage({
-  searchParams
-}: {
-  searchParams: Promise<{ postal?: string }>;
-}) {
-  const { postal } = await searchParams;
-  const postalQuery = (postal ?? "").trim();
-  const [politicians, votes, bills, digest, lookup] = await Promise.all([
+export default async function HomePage() {
+  const [politicians, votes, bills, digest] = await Promise.all([
     listPoliticians({ limit: 1, level: "federal" }),
     listVotes(),
     listBills(),
-    getDigest(),
-    postalQuery ? lookupPostal(postalQuery) : Promise.resolve(null)
+    getDigest()
   ]);
 
   const apiUp = Boolean(politicians || votes || bills);
@@ -42,101 +34,8 @@ export default async function HomePage({
           <label htmlFor="home-postal" className="text-sm font-semibold uppercase tracking-wide text-accent">
             Start with your postal code
           </label>
-          <form action="/" method="get" className="mt-3 flex flex-col gap-3 sm:flex-row">
-            <input
-              id="home-postal"
-              name="postal"
-              defaultValue={postalQuery}
-              placeholder="K1A 0A6"
-              maxLength={7}
-              required
-              className="w-full rounded-lg border border-border bg-white px-4 py-3 text-lg outline-none focus:border-accent sm:max-w-xs"
-            />
-            <button
-              type="submit"
-              className="rounded-lg bg-ink px-6 py-3 text-base font-semibold text-white transition hover:bg-slate-700"
-            >
-              Find my representatives
-            </button>
-            <span className="self-center text-xs text-slate-500">
-              Used for the lookup only — never stored.
-            </span>
-          </form>
-
-          {postalQuery && lookup === null ? (
-            <p className="mt-4 text-sm text-signal">
-              That doesn&apos;t look like a valid postal code (format: K1A 0A6), or the lookup service is
-              briefly unavailable.
-            </p>
-          ) : null}
-
-          {lookup?.ladder?.length ? (
-            <div className="mt-5 grid gap-2">
-              {lookup.ladder.map((rep) => (
-                <div
-                  key={`${rep.office}-${rep.name}`}
-                  className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-white p-3"
-                >
-                  <LevelBadge level={rep.level} />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">
-                      {rep.person_slug ? (
-                        <Link href={`/politicians/${rep.person_slug}`} className="text-accent hover:underline">
-                          {rep.name}
-                        </Link>
-                      ) : (
-                        rep.name
-                      )}
-                      <span className="ml-2 font-normal text-slate-500">
-                        {rep.office}
-                        {rep.party_name ? ` · ${rep.party_name}` : ""}
-                      </span>
-                    </p>
-                    <p className="truncate text-sm text-slate-500">{rep.district_name}</p>
-                  </div>
-                  {rep.level === "federal" && rep.person_slug ? (
-                    <SaveMyMp
-                      slug={rep.person_slug}
-                      name={rep.name}
-                      party={rep.party_name}
-                      riding={rep.district_name}
-                    />
-                  ) : null}
-                  {rep.person_slug ? (
-                    <Link
-                      href={`/politicians/${rep.person_slug}`}
-                      className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800"
-                    >
-                      Full record →
-                    </Link>
-                  ) : rep.email ? (
-                    <a
-                      href={`mailto:${rep.email}`}
-                      className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent"
-                    >
-                      Contact
-                    </a>
-                  ) : rep.url ? (
-                    <a
-                      href={rep.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent"
-                    >
-                      Official page ↗
-                    </a>
-                  ) : null}
-                </div>
-              ))}
-              <p className="text-xs text-slate-500">
-                Every level gets a record page here. Federal MPs have the deepest data (votes, money,
-                expenses). Tap <span className="font-medium">Set as my MP</span> and every vote page will
-                show how your MP voted — saved on your device only, never on our servers.
-              </p>
-            </div>
-          ) : postalQuery && lookup && !lookup.ladder?.length ? (
-            <p className="mt-4 text-sm text-slate-600">No representatives found for that postal code.</p>
-          ) : null}
+          {/* POST via server action: the postal code never enters a URL. */}
+          <PostalLookupForm mode="ladder" />
         </div>
       </section>
 

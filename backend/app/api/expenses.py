@@ -4,10 +4,12 @@ from datetime import date
 from statistics import median
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.ratelimit import rate_limit
 from app.db.session import get_db
 from app.models import ExpenseItem, ExpenseSummary, IntegrityFlag, Party, Person, PersonMembership
 from app.schemas.common import PageMeta
@@ -240,19 +242,14 @@ def politician_expenses(slug: str, db: Session = Depends(get_db)) -> MpExpensesR
     )
 
 
-@router.get("/expenses/search")
-def search_expenses(
-    q: str | None = Query(default=None, max_length=200),
-    category: str | None = Query(default=None, pattern="^(travel|hospitality|contract)$"),
-    fiscal_year: int | None = None,
-    min_amount: float | None = Query(default=None, ge=0),
-    traveller_type: str | None = Query(default=None, max_length=64),
-    sort: str = Query(default="amount", pattern="^(amount|date)$"),
-    limit: int = Query(default=25, le=100),
-    offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
-) -> dict:
-    """Cross-MP searchable expense explorer. Biggest-first by default."""
+def _expense_search_query(
+    q: str | None,
+    category: str | None,
+    fiscal_year: int | None,
+    min_amount: float | None,
+    traveller_type: str | None,
+):
+    """Shared filter set for the JSON explorer and the CSV export."""
     query = select(ExpenseItem)
     if q:
         needle = q.strip().lower()
@@ -273,6 +270,77 @@ def search_expenses(
         query = query.where(ExpenseItem.amount >= min_amount)
     if traveller_type:
         query = query.where(func.lower(ExpenseItem.traveller_type) == traveller_type.lower())
+    return query
+
+
+CSV_EXPORT_CAP = 10_000
+
+
+@router.get(
+    "/expenses/search.csv",
+    # Bulk export: cheap per row but big; keep scrapers polite.
+    dependencies=[Depends(rate_limit("export", limit=10, window_seconds=600))],
+)
+def search_expenses_csv(
+    q: str | None = Query(default=None, max_length=200),
+    category: str | None = Query(default=None, pattern="^(travel|hospitality|contract)$"),
+    fiscal_year: int | None = None,
+    min_amount: float | None = Query(default=None, ge=0),
+    traveller_type: str | None = Query(default=None, max_length=64),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """The current expense search, as a CSV — for journalists and spreadsheets.
+
+    Same filters as /expenses/search; capped at 10k rows (narrow the filters
+    for more specific slices). Data source: House of Commons Members' Expenditure
+    Reports (Proactive Disclosure).
+    """
+    import csv
+    import io
+
+    query = _expense_search_query(q, category, fiscal_year, min_amount, traveller_type)
+    items = db.scalars(query.order_by(ExpenseItem.amount.desc()).limit(CSV_EXPORT_CAP)).all()
+
+    def rows():
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(
+            ["fiscal_year", "quarter", "date", "mp_name", "category", "supplier",
+             "description", "purpose", "city", "traveller_type", "amount_cad"]
+        )
+        for item in items:
+            writer.writerow([
+                item.fiscal_year, item.quarter,
+                item.occurred_on.isoformat() if item.occurred_on else "",
+                item.mp_name_raw, item.category, item.supplier or "",
+                item.description or "", item.purpose or "", item.city or "",
+                item.traveller_type or "", f"{item.amount:.2f}",
+            ])
+            yield buffer.getvalue()
+            buffer.seek(0)
+            buffer.truncate(0)
+
+    return StreamingResponse(
+        rows(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="mp-expenses.csv"'},
+    )
+
+
+@router.get("/expenses/search")
+def search_expenses(
+    q: str | None = Query(default=None, max_length=200),
+    category: str | None = Query(default=None, pattern="^(travel|hospitality|contract)$"),
+    fiscal_year: int | None = None,
+    min_amount: float | None = Query(default=None, ge=0),
+    traveller_type: str | None = Query(default=None, max_length=64),
+    sort: str = Query(default="amount", pattern="^(amount|date)$"),
+    limit: int = Query(default=25, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Cross-MP searchable expense explorer. Biggest-first by default."""
+    query = _expense_search_query(q, category, fiscal_year, min_amount, traveller_type)
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     order = ExpenseItem.amount.desc() if sort == "amount" else ExpenseItem.occurred_on.desc().nullslast()

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { DataGap } from "@/components/data-gap";
+import { CiteThis } from "@/components/cite-this";
 import { ExpensesCard } from "@/components/expenses-card";
 import { MoneyInfluence } from "@/components/money-influence";
 import { MunicipalRecordCards } from "@/components/municipal-record";
@@ -76,7 +77,7 @@ export default async function PoliticianDetailPage({
   const isMunicipal = politician.level === "municipal";
   const [money, votingRecord, expenses, municipal] = await Promise.all([
     isFederal ? getPoliticianMoney(slug) : Promise.resolve(null),
-    getPoliticianVotes(slug, { filter, offset }),
+    getPoliticianVotes(slug, { filter, offset, limit: 10 }),
     isFederal ? getPoliticianExpenses(slug) : Promise.resolve(null),
     isMunicipal ? getMunicipalRecord(slug) : Promise.resolve(null)
   ]);
@@ -150,7 +151,7 @@ export default async function PoliticianDetailPage({
           ) : null}
           {party ? (
             <div className="flex items-center gap-2">
-              <PartyLogo party={party.slug} size={22} />
+              <PartyLogo party={party.slug} size={28} />
               <PartyBadge party={party.slug} />
             </div>
           ) : null}
@@ -377,6 +378,7 @@ export default async function PoliticianDetailPage({
           ) : null}
         </div>
       </section>
+      <CiteThis title={`${politician.full_name} — voting record and disclosures`} />
     </PageShell>
   );
 }

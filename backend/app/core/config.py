@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     ask_daily_generate_limit: int = Field(default=300, alias="ASK_DAILY_GENERATE_LIMIT")
     # Static admin token (review queue, corrections). Unset = admin disabled.
     admin_api_token: str = Field(default="", alias="ADMIN_API_TOKEN")
+    # Sentry error reporting. Empty = disabled (no external calls).
+    sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
     # Members' Office Budget (annual, CAD). Published by the Board of Internal
     # Economy; set it from the current Members' Allowances and Services Manual.
     # 0 = budget context hidden in the UI (no invented numbers).

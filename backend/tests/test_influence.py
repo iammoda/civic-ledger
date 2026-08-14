@@ -331,5 +331,22 @@ def test_money_endpoint_aggregates(db, client) -> None:
     assert money["lobbying_total"] == 3
     assert money["top_clients"][0]["name"] == "Acme Pipelines Inc."
     assert money["donations_total"] == 1550.0
-    assert money["top_donors"][0]["name"] == "Acme Pipelines Inc."
+    # Privacy by design: donations are aggregate-only — no named-donor list.
+    assert "top_donors" not in money
     assert "human-reviewed" in money["sources_note"]
+
+
+def test_lobbying_csv_export(db, client) -> None:
+    mp = _mp(db)
+    sync_lobby_communications(db, build_lobby_zip())
+    db.commit()
+
+    response = client.get(f"/v1/politicians/{mp.slug}/lobbying.csv")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    lines = response.text.strip().splitlines()
+    assert lines[0] == "date,client,lobbyist,institution,office_holder_title,subjects,registry_url"
+    assert len(lines) > 1
+
+    # 404s cleanly for unknown people.
+    assert client.get("/v1/politicians/nobody/lobbying.csv").status_code == 404

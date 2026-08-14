@@ -3,6 +3,29 @@ import Link from "next/link";
 import { AiChip } from "@/components/ai-chip";
 import type { MoneyResponse } from "@/lib/api";
 
+/** Registry subject codes, comma-separated -> quiet chips (capped). */
+function SubjectChips({ subjects, cap }: { subjects?: string | null; cap: number }) {
+  const list = (subjects ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!list.length) {
+    return <p className="mt-1 text-xs text-slate-400">no subjects filed</p>;
+  }
+  const shown = list.slice(0, cap);
+  const extra = list.length - shown.length;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      {shown.map((name) => (
+        <span key={name} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+          {name}
+        </span>
+      ))}
+      {extra > 0 ? <span className="text-xs text-slate-400">+{extra} more</span> : null}
+    </div>
+  );
+}
+
 export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: string }) {
   const hasLobbying = money.lobbying_total > 0;
   const hasDonations = money.donations_count > 0;
@@ -87,21 +110,10 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
                   from {money.donations_count.toLocaleString()} contributions
                 </span>
               </p>
-              {money.top_donors.length ? (
-                <ul className="mt-3 space-y-1 text-sm text-slate-700">
-                  {money.top_donors.slice(0, 5).map((donor) => (
-                    <li key={donor.name} className="flex justify-between gap-2">
-                      <span className="truncate">{donor.name}</span>
-                      <span className="shrink-0 text-slate-500">
-                        ${donor.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <p className="mt-2 text-xs text-slate-500">
-                Canada caps individual donations (~$1,700/yr) — lobbying access, not donations, is the main
-                influence channel federally.
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Canada caps individual donations (~$1,700/yr) and bans corporate ones — lobbying access,
+                not donations, is the main influence channel federally. We show totals only: donors are
+                ordinary citizens, and naming them would punish participation, not power.
               </p>
             </>
           ) : (
@@ -148,7 +160,12 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
                     <AiChip />
                   </p>
                 ) : null}
-                {comm.subjects ? <p className="mt-1 text-slate-500">{comm.subjects}</p> : null}
+                {comm.registrant_name ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Lobbyist {comm.registrant_name} → lobbied {money.full_name}
+                  </p>
+                ) : null}
+                <SubjectChips subjects={comm.subjects} cap={4} />
                 {comm.registry_url ? (
                   <p className="mt-1 text-xs">
                     <a href={comm.registry_url} target="_blank" rel="noreferrer" className="text-accent">

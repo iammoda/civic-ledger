@@ -1,12 +1,13 @@
 import Link from "next/link";
 
+import { HeaderSearch } from "@/components/header-search";
+
 const navItems = [
-  { href: "/ask", label: "Ask" },
-  { href: "/issues", label: "Issues" },
-  { href: "/politicians", label: "MPs" },
+  { href: "/politicians", label: "Representatives" },
   { href: "/cabinet", label: "Cabinet" },
   { href: "/bills", label: "Bills" },
   { href: "/votes", label: "Votes" },
+  { href: "/issues", label: "Issues" },
   { href: "/expenses", label: "Follow the money" },
   { href: "/receipts", label: "The Receipts" }
 ];
@@ -29,6 +30,7 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
+        <HeaderSearch />
       </div>
       {/* Mobile nav: horizontal scroll strip under the wordmark. */}
       <nav

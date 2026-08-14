@@ -6,9 +6,11 @@ from sqlalchemy import text
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.observability import init_sentry
 
 
 settings = get_settings()
+init_sentry(process="api")
 
 # One predictable log format for API + workers; level opens up in dev.
 logging.basicConfig(

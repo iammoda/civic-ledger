@@ -15,7 +15,8 @@ export function PartyLogo({
   className?: string;
 }) {
   const info = partyInfo(party);
-  if (info.logo) {
+  // Below ~16px even symbol marks turn to noise — a colored dot reads better.
+  if (info.logo && size >= 16) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img

@@ -1,9 +1,11 @@
 import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
+import { ExplainerStrip } from "@/components/explainer-strip";
 import { PageShell } from "@/components/page-shell";
-import { PartyBadge } from "@/components/party-badge";
+import { PartyLogo } from "@/components/party-logo";
 import { getReceipts, type ReceiptRow } from "@/lib/api";
+import { partyInfo } from "@/lib/parties";
 
 export const metadata = { title: "The Receipts — who spends, who's lobbied, who shows up" };
 
@@ -25,8 +27,30 @@ function Avatar({ row }: { row: ReceiptRow }) {
   );
 }
 
-export default async function ReceiptsPage() {
-  const receipts = await getReceipts();
+function ScopePill({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={`rounded-full border px-4 py-2 text-sm transition ${
+        active
+          ? "border-accent bg-accent text-white"
+          : "border-black/10 bg-white text-slate-700 hover:border-accent hover:text-accent"
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+export default async function ReceiptsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ scope?: string }>;
+}) {
+  const { scope: scopeParam } = await searchParams;
+  const scope = scopeParam === "ontario" ? "ontario" : "federal";
+  const receipts = await getReceipts(scope);
 
   return (
     <PageShell
@@ -34,6 +58,23 @@ export default async function ReceiptsPage() {
       title="The Receipts"
       description="Who spends the most, who gets lobbied the most, who breaks ranks, who misses votes, and the biggest contracts on the books — computed straight from official records, same math for everyone."
     >
+      <div className="mb-6 flex flex-wrap gap-2">
+        <ScopePill href="/receipts" active={scope === "federal"}>
+          MPs — federal
+        </ScopePill>
+        <ScopePill href="/receipts?scope=ontario" active={scope === "ontario"}>
+          MPPs — Ontario
+        </ScopePill>
+      </div>
+
+      {scope === "ontario" ? (
+        <ExplainerStrip id="receipts-ontario-data">
+          Ontario publishes no machine-readable per-MPP expense or lobbying data, so only the voting
+          boards — dissent and attendance at Queen&apos;s Park — are available here. The money boards
+          remain federal-only.
+        </ExplainerStrip>
+      ) : null}
+
       {!receipts?.boards.length ? (
         <DataGap
           title="Not enough data yet"
@@ -54,9 +95,14 @@ export default async function ReceiptsPage() {
                       </span>
                       <Avatar row={row} />
                       <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-2">
+                        <span className="flex flex-wrap items-center gap-1.5">
                           <span className="font-semibold">{row.person_name}</span>
-                          {row.party ? <PartyBadge party={row.party} size="xs" /> : null}
+                          {row.party ? (
+                            <>
+                              <PartyLogo party={row.party} size={18} />
+                              <span className="text-xs text-slate-500">{partyInfo(row.party).label}</span>
+                            </>
+                          ) : null}
                         </span>
                         {row.context ? (
                           <span className="block truncate text-xs text-slate-500">{row.context}</span>

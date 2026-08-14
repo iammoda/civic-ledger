@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.ratelimit import rate_limit
 from app.db.session import get_db
-from app.models import Person
+from app.models import Chamber, ExpenseItem, Person, PersonMembership, PersonRole
 from app.services.ask import ask as run_ask
 from app.services.search import hybrid_search
 
@@ -24,9 +26,148 @@ class SearchResultItem(BaseModel):
     outcome: str | None = None
 
 
+class SearchPersonItem(BaseModel):
+    slug: str
+    full_name: str
+    image_url: str | None = None
+    party_slug: str | None = None
+    riding: str | None = None
+    province_code: str | None = None
+    level: str | None = None
+    roles: list[str] = []
+
+
+class SearchExpenseItem(BaseModel):
+    id: int
+    supplier: str | None = None
+    description: str | None = None
+    category: str
+    amount: float
+    quarter: int
+    fiscal_year: int
+    mp_name: str | None = None
+    mp_slug: str | None = None
+    source_url: str
+
+
 class SearchResponse(BaseModel):
     query: str
     results: list[SearchResultItem]
+    people: list[SearchPersonItem] = []
+    expenses: list[SearchExpenseItem] = []
+
+
+def _search_people(db: Session, q: str, *, limit: int = 8) -> list[SearchPersonItem]:
+    """Representatives matched by name or riding (current memberships).
+
+    Exact-prefix name matches lead so "jag" surfaces "Jagmeet Singh" ahead of
+    anyone whose riding merely contains the string.
+    """
+    from app.api.politicians import _current_membership, _level_of
+
+    needle = q.strip().lower()
+    name_prefix = func.lower(Person.full_name).startswith(needle, autoescape=True)
+    people = db.scalars(
+        select(Person)
+        .where(
+            or_(
+                func.lower(Person.full_name).contains(needle, autoescape=True),
+                Person.memberships.any(
+                    and_(
+                        PersonMembership.is_current.is_(True),
+                        func.lower(func.coalesce(PersonMembership.riding_name, "")).contains(
+                            needle, autoescape=True
+                        ),
+                    )
+                ),
+            )
+        )
+        .options(
+            selectinload(Person.memberships).selectinload(PersonMembership.party),
+            selectinload(Person.chamber).selectinload(Chamber.jurisdiction),
+        )
+        .order_by(name_prefix.desc(), Person.full_name)
+        .limit(limit)
+    ).all()
+    if not people:
+        return []
+
+    # Current cabinet/officer titles, batched (e.g. "Minister of Finance").
+    roles_by_person: dict[int, list[str]] = {}
+    for person_id, title in db.execute(
+        select(PersonRole.person_id, PersonRole.title_en)
+        .where(
+            PersonRole.person_id.in_([p.id for p in people]),
+            PersonRole.is_current.is_(True),
+        )
+        .order_by(PersonRole.id)
+    ).all():
+        roles_by_person.setdefault(person_id, []).append(title)
+
+    items: list[SearchPersonItem] = []
+    for person in people:
+        membership = _current_membership(person)
+        items.append(
+            SearchPersonItem(
+                slug=person.slug,
+                full_name=person.full_name,
+                image_url=person.image_url,
+                party_slug=membership.party.slug if membership and membership.party else None,
+                riding=membership.riding_name if membership else None,
+                province_code=membership.province_code if membership else None,
+                level=_level_of(person),
+                roles=roles_by_person.get(person.id, []),
+            )
+        )
+    return items
+
+
+def _search_expenses(db: Session, q: str, *, limit: int = 8) -> list[SearchExpenseItem]:
+    """Expense line items — same matching as /v1/expenses/search, biggest first."""
+    needle = q.strip().lower()
+    items = db.scalars(
+        select(ExpenseItem)
+        .where(
+            or_(
+                func.lower(func.coalesce(ExpenseItem.supplier, "")).contains(needle, autoescape=True),
+                func.lower(func.coalesce(ExpenseItem.description, "")).contains(needle, autoescape=True),
+                func.lower(func.coalesce(ExpenseItem.purpose, "")).contains(needle, autoescape=True),
+                func.lower(func.coalesce(ExpenseItem.city, "")).contains(needle, autoescape=True),
+                func.lower(ExpenseItem.mp_name_raw).contains(needle, autoescape=True),
+            )
+        )
+        .order_by(ExpenseItem.amount.desc())
+        .limit(limit)
+    ).all()
+    if not items:
+        return []
+
+    person_ids = {i.person_id for i in items if i.person_id}
+    people: dict[int, tuple[str, str | None]] = {
+        pid: (name, slug)
+        for pid, name, slug in db.execute(
+            select(Person.id, Person.full_name, Person.slug).where(Person.id.in_(person_ids or {0}))
+        ).all()
+    }
+
+    results: list[SearchExpenseItem] = []
+    for item in items:
+        name, slug = people.get(item.person_id or 0, (item.mp_name_raw, None))
+        results.append(
+            SearchExpenseItem(
+                id=item.id,
+                supplier=item.supplier,
+                description=item.description,
+                category=item.category,
+                amount=item.amount,
+                quarter=item.quarter,
+                fiscal_year=item.fiscal_year,
+                mp_name=name,
+                mp_slug=slug,
+                source_url=item.source_url,
+            )
+        )
+    return results
 
 
 @router.get(
@@ -41,6 +182,11 @@ async def search(
     db: Session = Depends(get_db),
 ) -> SearchResponse:
     results = await hybrid_search(db, q, limit=limit)
+    # People + expenses run after hybrid_search (the session is sync — used
+    # sequentially, in a worker thread so slow queries can't stall the loop).
+    people, expenses = await asyncio.to_thread(
+        lambda: (_search_people(db, q), _search_expenses(db, q))
+    )
     return SearchResponse(
         query=q,
         results=[
@@ -54,6 +200,8 @@ async def search(
             )
             for r in results
         ],
+        people=people,
+        expenses=expenses,
     )
 
 

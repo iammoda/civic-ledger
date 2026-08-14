@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -50,12 +51,6 @@ class SubjectCount(BaseModel):
     count: int
 
 
-class TopDonor(BaseModel):
-    name: str
-    total: float
-    count: int
-
-
 class FlagItem(BaseModel):
     detector: str
     headline_en: str
@@ -75,7 +70,9 @@ class MoneyResponse(BaseModel):
     recent_communications: list[LobbyCommItem]
     donations_total: float
     donations_count: int
-    top_donors: list[TopDonor]
+    # Privacy by design: federal donors are private individuals (corporate
+    # donations are banned) capped at ~$1,700/yr. We publish aggregates only —
+    # naming ordinary citizens would punish participation, not power.
     flags: list[FlagItem]
     sources_note: str
 
@@ -155,20 +152,10 @@ def _politician_money_sync(db: Session, slug: str) -> tuple[MoneyResponse, list[
         select(func.count()).select_from(Contribution).where(Contribution.recipient_person_id == person.id)
     ) or 0
 
-    top_donors = [
-        TopDonor(name=name, total=float(total), count=count)
-        for name, total, count in db.execute(
-            select(
-                Contribution.contributor_name,
-                func.sum(Contribution.amount).label("total"),
-                func.count().label("n"),
-            )
-            .where(Contribution.recipient_person_id == person.id)
-            .group_by(Contribution.contributor_name)
-            .order_by(func.sum(Contribution.amount).desc())
-            .limit(10)
-        ).all()
-    ]
+    # NOTE: no named donor list, deliberately. Federal donors are private
+    # individuals capped at ~$1,700 — naming them would expose ordinary
+    # citizens, not power. Aggregates only; the detectors still see the
+    # raw rows and human-reviewed flags can cite specifics when warranted.
 
     # Only human-approved flags are public.
     flags = db.scalars(
@@ -199,7 +186,6 @@ def _politician_money_sync(db: Session, slug: str) -> tuple[MoneyResponse, list[
         ],
         donations_total=float(donations_total),
         donations_count=donations_count,
-        top_donors=top_donors,
         flags=[
             FlagItem(
                 detector=f.detector,
@@ -234,6 +220,78 @@ class LobbyingSearchResponse(BaseModel):
     subjects: list[SubjectCount]
 
 
+def _lobbying_search_query(person_id: int, q: str | None, subject: str | None):
+    """Shared filter set for the JSON search and the CSV export."""
+    query = select(LobbyCommunication).where(LobbyCommunication.dpoh_person_id == person_id)
+    if q:
+        needle = q.strip().lower()
+        query = query.where(
+            or_(
+                func.lower(func.coalesce(LobbyCommunication.client_name, "")).contains(needle, autoescape=True),
+                func.lower(func.coalesce(LobbyCommunication.registrant_name, "")).contains(needle, autoescape=True),
+                func.lower(func.coalesce(LobbyCommunication.subjects, "")).contains(needle, autoescape=True),
+            )
+        )
+    if subject:
+        query = query.where(
+            func.lower(func.coalesce(LobbyCommunication.subjects, "")).contains(subject.strip().lower(), autoescape=True)
+        )
+    return query
+
+
+CSV_EXPORT_CAP = 10_000
+
+
+@router.get(
+    "/politicians/{slug}/lobbying.csv",
+    dependencies=[Depends(rate_limit("export", limit=10, window_seconds=600))],
+)
+def politician_lobbying_csv(
+    slug: str,
+    q: str | None = Query(default=None, max_length=200),
+    subject: str | None = Query(default=None, max_length=200),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Every registered lobbying contact naming this MP, as a CSV.
+
+    Same filters as the search page; capped at 10k rows. Data source:
+    Registry of Lobbyists communication reports.
+    """
+    import csv
+    import io
+
+    person = db.scalar(select(Person).where(Person.slug == slug))
+    if person is None:
+        raise HTTPException(status_code=404, detail="Politician not found")
+
+    query = _lobbying_search_query(person.id, q, subject)
+    comms = db.scalars(
+        query.order_by(LobbyCommunication.comm_date.desc().nullslast()).limit(CSV_EXPORT_CAP)
+    ).all()
+
+    def rows():
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(
+            ["date", "client", "lobbyist", "institution", "office_holder_title", "subjects", "registry_url"]
+        )
+        for c in comms:
+            writer.writerow([
+                c.comm_date.isoformat() if c.comm_date else "",
+                c.client_name or "", c.registrant_name or "", c.institution or "",
+                c.dpoh_title or "", c.subjects or "", _registry_url(c.source_ref) or "",
+            ])
+            yield buffer.getvalue()
+            buffer.seek(0)
+            buffer.truncate(0)
+
+    return StreamingResponse(
+        rows(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="lobbying-{slug}.csv"'},
+    )
+
+
 @router.get("/politicians/{slug}/lobbying", response_model=LobbyingSearchResponse)
 def politician_lobbying(
     slug: str,
@@ -252,20 +310,7 @@ def politician_lobbying(
     if person is None:
         raise HTTPException(status_code=404, detail="Politician not found")
 
-    query = select(LobbyCommunication).where(LobbyCommunication.dpoh_person_id == person.id)
-    if q:
-        needle = q.strip().lower()
-        query = query.where(
-            or_(
-                func.lower(func.coalesce(LobbyCommunication.client_name, "")).contains(needle, autoescape=True),
-                func.lower(func.coalesce(LobbyCommunication.registrant_name, "")).contains(needle, autoescape=True),
-                func.lower(func.coalesce(LobbyCommunication.subjects, "")).contains(needle, autoescape=True),
-            )
-        )
-    if subject:
-        query = query.where(
-            func.lower(func.coalesce(LobbyCommunication.subjects, "")).contains(subject.strip().lower(), autoescape=True)
-        )
+    query = _lobbying_search_query(person.id, q, subject)
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     comms = db.scalars(

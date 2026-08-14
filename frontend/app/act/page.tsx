@@ -4,8 +4,9 @@ import { Suspense } from "react";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
+import { PostalLookupForm } from "@/components/postal-lookup-form";
 import { getPolitician } from "@/lib/api";
-import { draftLetter, lookupPostal } from "@/lib/lookup";
+import { draftLetter } from "@/lib/lookup";
 
 export const metadata: Metadata = {
   title: "Contact your MP",
@@ -16,90 +17,28 @@ export const metadata: Metadata = {
 export default async function ActPage({
   searchParams
 }: {
-  searchParams: Promise<{ bill?: string; concern?: string; mp?: string; postal?: string }>;
+  searchParams: Promise<{ bill?: string; concern?: string; mp?: string }>;
 }) {
-  const { bill, concern, mp, postal } = await searchParams;
+  const { bill, concern, mp } = await searchParams;
   // bill format: "45-1/C-30"
   const [billSession, billNumber] = (bill ?? "").split("/");
   const trimmedConcern = (concern ?? "").trim();
-  const postalQuery = (postal ?? "").trim();
 
-  // Step 1: no MP picked yet — find them by postal code. Nothing stored.
+  // Step 1: no MP picked yet — find them by postal code. Nothing stored,
+  // and the postal code travels in a POST body, never a URL.
   if (!mp) {
-    const lookup = postalQuery ? await lookupPostal(postalQuery) : null;
-    const federalReps = (lookup?.ladder ?? []).filter((rep) => rep.level === "federal" && rep.person_slug);
     return (
       <PageShell
         eyebrow="Take action"
         title="Write to your MP — with their record attached"
         description="Tell us your postal code so we know who your MP is. We draft the letter and cite how they actually voted. You send it from your own email."
       >
-        <form action="/act" method="get" className="glass-card rounded-[2rem] p-6">
-          {bill ? <input type="hidden" name="bill" value={bill} /> : null}
-          {trimmedConcern ? <input type="hidden" name="concern" value={trimmedConcern} /> : null}
-          <label htmlFor="act-postal" className="text-sm font-medium text-slate-700">
+        <div className="glass-card rounded-[2rem] p-6">
+          <label htmlFor="postal-act" className="text-sm font-medium text-slate-700">
             Your postal code
           </label>
-          <div className="mt-2 flex flex-col gap-3 sm:flex-row">
-            <input
-              id="act-postal"
-              name="postal"
-              defaultValue={postalQuery}
-              placeholder="K1A 0A6"
-              maxLength={7}
-              required
-              className="w-full rounded-full border border-black/10 bg-white px-5 py-3 outline-none focus:border-accent sm:max-w-xs"
-            />
-            <button type="submit" className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white">
-              Find my MP
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">Used for the lookup only — never stored.</p>
-        </form>
-
-        {postalQuery && lookup === null ? (
-          <div className="mt-6">
-            <DataGap
-              title="Postal code lookup failed"
-              detail="That doesn't look like a valid postal code (format: K1A 0A6), or the lookup service is briefly unavailable."
-            />
-          </div>
-        ) : null}
-
-        {federalReps.length ? (
-          <div className="mt-6 space-y-2">
-            <p className="text-sm font-medium text-slate-700">Your MP:</p>
-            {federalReps.map((rep) => {
-              const params = new URLSearchParams();
-              params.set("mp", rep.person_slug!);
-              if (bill) params.set("bill", bill);
-              if (trimmedConcern) params.set("concern", trimmedConcern);
-              return (
-                <Link
-                  key={rep.person_slug}
-                  href={`/act?${params.toString()}`}
-                  className="block rounded-3xl border border-black/10 bg-white p-4 transition hover:border-accent"
-                >
-                  <p className="font-semibold">
-                    {rep.name}
-                    <span className="ml-2 font-normal text-slate-500">
-                      {rep.party_name ? `${rep.party_name} · ` : ""}
-                      {rep.district_name}
-                    </span>
-                  </p>
-                  <p className="mt-1 text-sm text-accent">Write to them →</p>
-                </Link>
-              );
-            })}
-          </div>
-        ) : postalQuery && lookup ? (
-          <div className="mt-6">
-            <DataGap
-              title="No MP found for that postal code"
-              detail="The lookup came back empty. Double-check the postal code, or browse MPs directly."
-            />
-          </div>
-        ) : null}
+          <PostalLookupForm mode="act" actBill={bill} actConcern={trimmedConcern || undefined} />
+        </div>
       </PageShell>
     );
   }

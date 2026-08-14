@@ -10,6 +10,30 @@ import { Pagination } from "@/components/pagination";
 import { getPoliticianLobbying } from "@/lib/api";
 
 const PAGE_SIZE = 25;
+const SUBJECT_CHIP_CAP = 6;
+
+/** Registry subject codes, comma-separated -> quiet chips (capped). */
+function SubjectChips({ subjects, cap }: { subjects?: string | null; cap: number }) {
+  const list = (subjects ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!list.length) {
+    return <p className="mt-2 text-xs text-slate-400">no subjects filed</p>;
+  }
+  const shown = list.slice(0, cap);
+  const extra = list.length - shown.length;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      {shown.map((name) => (
+        <span key={name} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+          {name}
+        </span>
+      ))}
+      {extra > 0 ? <span className="text-xs text-slate-400">+{extra} more</span> : null}
+    </div>
+  );
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -51,6 +75,14 @@ export default async function PoliticianLobbyingPage({
 
   const basePath = `/politicians/${slug}/lobbying`;
 
+  // CSV export of the current filters (served by the API; capped at 10k rows).
+  const csvParams = new URLSearchParams();
+  if (q) csvParams.set("q", q);
+  if (subject) csvParams.set("subject", subject);
+  const csvHref = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/v1"}/politicians/${slug}/lobbying.csv${
+    csvParams.size ? `?${csvParams.toString()}` : ""
+  }`;
+
   const chipHref = (nextSubject?: string) => {
     const searchParamsOut = new URLSearchParams();
     if (q) searchParamsOut.set("q", q);
@@ -74,6 +106,7 @@ export default async function PoliticianLobbyingPage({
       <ExplainerStrip id="lobbying-registry">
         The Registry of Lobbyists is the federal public record where paid lobbyists must report every
         communication with office holders like MPs and ministers. It&apos;s evidence of access, not wrongdoing.
+        The registry records who met whom and the subjects — it does not publish what was said or asked for.
       </ExplainerStrip>
 
       <form action={basePath} method="get" className="glass-card mb-6 rounded-[2rem] p-6">
@@ -89,6 +122,13 @@ export default async function PoliticianLobbyingPage({
           <button type="submit" className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white">
             Search
           </button>
+          <a
+            href={csvHref}
+            download
+            className="self-center text-sm text-slate-600 underline-offset-2 hover:text-accent hover:underline"
+          >
+            Download CSV
+          </a>
         </div>
         {data.subjects.length ? (
           <div className="mt-4 flex flex-wrap gap-2">
@@ -146,22 +186,21 @@ export default async function PoliticianLobbyingPage({
                     <AiChip />
                   </p>
                 ) : null}
-                {item.subjects ? <p className="mt-1 text-sm text-slate-500">{item.subjects}</p> : null}
-                <p className="mt-2 text-xs text-slate-500">
-                  {item.registrant_name && item.client_name ? <>Lobbyist: {item.registrant_name}</> : null}
-                  {item.registrant_name && item.client_name && (item.institution || item.dpoh_title) ? " · " : null}
-                  {item.institution}
-                  {item.institution && item.dpoh_title ? " · " : null}
-                  {item.dpoh_title}
-                  {item.registry_url ? (
-                    <>
-                      {item.registrant_name || item.institution || item.dpoh_title ? " · " : null}
-                      <a href={item.registry_url} target="_blank" rel="noreferrer" className="text-accent">
-                        official record ↗
-                      </a>
-                    </>
-                  ) : null}
-                </p>
+                {/* Who talked to whom — the lobbyist is NOT the MP. Institution
+                    and title are constant on a per-MP page, so they're dropped. */}
+                {item.registrant_name ? (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Lobbyist {item.registrant_name} → lobbied {data.full_name}
+                  </p>
+                ) : null}
+                <SubjectChips subjects={item.subjects} cap={SUBJECT_CHIP_CAP} />
+                {item.registry_url ? (
+                  <p className="mt-2 text-xs">
+                    <a href={item.registry_url} target="_blank" rel="noreferrer" className="text-accent">
+                      official record ↗
+                    </a>
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>

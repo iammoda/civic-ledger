@@ -7,7 +7,7 @@ const COLUMNS = [
       { href: "/bills", label: "Bills" },
       { href: "/votes", label: "Votes" },
       { href: "/graveyard", label: "The Graveyard" },
-      { href: "/politicians", label: "MPs" },
+      { href: "/politicians", label: "Representatives" },
       { href: "/expenses", label: "Follow the money" },
       { href: "/receipts", label: "The Receipts" },
       { href: "/petitions", label: "Petitions" }

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { BillJourney } from "@/components/bill-journey";
+import { CiteThis } from "@/components/cite-this";
 import { DataGap } from "@/components/data-gap";
 import { DeathBanner, outcomeBadge } from "@/components/death-banner";
 import { PageShell } from "@/components/page-shell";
@@ -351,6 +352,11 @@ export default async function BillDetailPage({
           </div>
         </div>
       </section>
+      <CiteThis
+        title={`Bill ${bill.number}: ${bill.short_title_en ?? bill.title_en} (${bill.session})`}
+        sourceUrl={bill.legisinfo_url}
+        sourceLabel="LEGISinfo"
+      />
     </PageShell>
   );
 }
