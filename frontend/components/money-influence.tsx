@@ -53,8 +53,8 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
       {money.flags.length ? (
         <div className="mt-5 space-y-3">
           {money.flags.map((flag) => (
-            <div key={flag.headline_en} className="rounded-3xl border border-amber-200 bg-amber-50/60 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-amber-700">
+            <div key={flag.headline_en} className="border-l-4 border-amber-400 pl-4">
+              <p className="kicker text-amber-700">
                 Flagged pattern · human-reviewed
               </p>
               <p className="mt-2 font-medium leading-6">{flag.headline_en}</p>
@@ -127,8 +127,8 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
       </div>
 
       {money.top_subjects?.length ? (
-        <div className="mt-5">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+        <div className="mt-6">
+          <h3 className="kicker">
             What they&apos;re lobbied about
           </h3>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -145,13 +145,13 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
       ) : null}
 
       {money.recent_communications.length ? (
-        <details className="mt-5 border-t border-black/5 pt-4">
+        <details className="mt-6 border-t border-border pt-4">
           <summary className="cursor-pointer text-sm font-medium text-accent">
             Recent lobbying communications ({money.recent_communications.length})
           </summary>
-          <div className="mt-3 space-y-2">
+          <div className="mt-2">
             {money.recent_communications.map((comm, index) => (
-              <div key={index} className="rounded-2xl border border-black/5 bg-white p-3 text-sm">
+              <div key={index} className="rule py-3 text-sm">
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="font-medium">{comm.client_name ?? comm.registrant_name ?? "Unknown client"}</span>
                   <span className="text-slate-500">{comm.comm_date ?? "date unknown"}</span>
@@ -181,10 +181,10 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
         </details>
       ) : null}
 
-      <div className="mt-5 border-t border-black/5 pt-4">
+      <div className="mt-6 border-t border-border pt-4">
         {money.lobbying_total > 0 ? (
           <p>
-            <Link href={`/politicians/${slug}/lobbying`} className="text-sm font-semibold text-accent">
+            <Link href={`/politicians/${slug}/lobbying`} className="link-editorial text-sm font-semibold text-ink">
               Search all {money.lobbying_total.toLocaleString()} lobbying contacts →
             </Link>
           </p>
@@ -196,6 +196,6 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
           </Link>
         </p>
       </div>
-    </div>
+    </section>
   );
 }

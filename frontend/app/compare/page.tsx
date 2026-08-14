@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
+import { SectionTabs, YOUR_REPS_TABS } from "@/components/section-tabs";
 import { comparePoliticians, listPoliticians, type ComparisonSide } from "@/lib/api";
 
 function MetricRow({
@@ -64,6 +65,7 @@ export default async function ComparePage({
       title="MPs, side by side"
       description="Same measures for everyone: attendance, party discipline, dissents, lobbying attention, and donations."
     >
+      <SectionTabs tabs={YOUR_REPS_TABS} ariaLabel="Your reps sections" />
       <form action="/compare" method="get" className="glass-card rounded-[2rem] p-6">
         <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr_auto]">
           <select

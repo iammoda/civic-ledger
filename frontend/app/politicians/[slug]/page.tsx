@@ -7,11 +7,11 @@ import { CiteThis } from "@/components/cite-this";
 import { ExpensesCard } from "@/components/expenses-card";
 import { MoneyInfluence } from "@/components/money-influence";
 import { MunicipalRecordCards } from "@/components/municipal-record";
-import { PageShell } from "@/components/page-shell";
 import { PartyBadge } from "@/components/party-badge";
 import { PartyLogo } from "@/components/party-logo";
-import { StatStrip } from "@/components/stat-strip";
 import { VotingRecord } from "@/components/voting-record";
+import { SectionHeading } from "@/components/viz/editorial";
+import { PercentileStrip } from "@/components/viz/percentile-strip";
 import {
   getMunicipalRecord,
   getPolitician,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/api";
 import type { VotesFilter } from "@/lib/api";
 import { SALARY_AS_OF, SALARY_SOURCE_URL, formatSalary, mpSalary } from "@/lib/salaries";
+import { partyColor } from "@/lib/parties";
 import { JsonLd, personJsonLd } from "@/lib/jsonld";
 
 export async function generateMetadata({
@@ -71,8 +72,7 @@ export default async function PoliticianDetailPage({
 
   // Deep accountability data by level: federal has everything; Ontario MPPs
   // have votes; municipal has meeting attendance/motions (eScribe) and full
-  // votes where the city publishes them (Toronto, Vancouver) or the minutes
-  // print them (Mississauga).
+  // votes where the city publishes them.
   const isFederal = (politician.level ?? "federal") === "federal";
   const isMunicipal = politician.level === "municipal";
   const [money, votingRecord, expenses, municipal] = await Promise.all([
@@ -89,19 +89,13 @@ export default async function PoliticianDetailPage({
   const place =
     politician.current_membership?.riding_name ?? politician.current_membership?.region_name ?? null;
   const memberWord = isFederal ? "MP" : politician.level === "provincial" ? "MPP" : "Representative";
-  // Clean subtitle (the old template printed the party + riding twice).
   const subtitle =
     politician.bio_en ??
     [party?.short_name, memberWord, place ? `for ${place}` : null].filter(Boolean).join(" ");
 
   const medianAttendance = politician.chamber_median_attendance_pct;
   const attendance = stats?.votes_attended_pct;
-  const attendanceTone: "good" | "bad" | "neutral" =
-    attendance != null && medianAttendance != null
-      ? attendance < medianAttendance - 10
-        ? "bad"
-        : "neutral"
-      : "neutral";
+  const lowAttendance = attendance != null && medianAttendance != null && attendance < medianAttendance - 10;
 
   // Length of term: earliest membership start.
   const startDates = politician.memberships
@@ -116,148 +110,191 @@ export default async function PoliticianDetailPage({
   // Published pay: base + dominant role top-up, never computed from thin air.
   const salary = isFederal ? mpSalary(politician.roles ?? []) : null;
 
+  const surname = politician.full_name.trim().split(/\s+/).slice(-1)[0] || politician.full_name;
+  const dissentCount = stats?.dissent_count;
+
   return (
-    <PageShell
-      eyebrow={politician.jurisdiction_name ?? politician.chamber?.toUpperCase() ?? "Profile"}
-      title={politician.full_name}
-      description={subtitle}
-    >
+    <main id="main" className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
       <JsonLd data={personJsonLd(politician)} />
-      <div className="mb-6 flex flex-wrap items-center gap-5">
-        {politician.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element -- external media host, avatar-sized
-          <img
-            src={politician.image_url}
-            alt={politician.full_name}
-            width={104}
-            height={104}
-            className="h-26 w-26 shrink-0 rounded-md border border-border object-cover"
-            style={{ width: 104, height: 104 }}
-          />
-        ) : (
-          <div aria-hidden className="flex h-26 w-26 shrink-0 items-center justify-center rounded-md bg-slate-100 text-3xl font-semibold text-slate-500" style={{ width: 104, height: 104 }}>
-            {politician.full_name.charAt(0)}
-          </div>
-        )}
-        <div className="min-w-0 space-y-2">
-          {(politician.roles ?? []).length ? (
-            <div className="flex flex-wrap gap-2">
+
+      {/* ---------------------------------------------------------------- */}
+      {/* Masthead: the person, at editorial scale.                         */}
+      {/* ---------------------------------------------------------------- */}
+      <section className="rule-heavy mb-10 pt-5">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-10">
+          {politician.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- external media host
+            <img
+              src={politician.image_url}
+              alt={politician.full_name}
+              width={168}
+              height={168}
+              className="h-42 w-42 shrink-0 rounded-lg object-cover"
+              style={{ width: 168, height: 168, borderBottom: `4px solid ${partyColor(party?.slug)}` }}
+            />
+          ) : (
+            <div
+              aria-hidden
+              className="flex h-42 w-42 shrink-0 items-center justify-center rounded-lg bg-slate-100 font-serif text-5xl font-semibold text-slate-400"
+              style={{ width: 168, height: 168, borderBottom: `4px solid ${partyColor(party?.slug)}` }}
+            >
+              {politician.full_name.charAt(0)}
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="kicker text-accent">{politician.jurisdiction_name ?? politician.chamber?.toUpperCase() ?? "Profile"}</p>
+            <h1 className="mt-1 font-serif text-[2.5rem] font-bold leading-[1.05] tracking-tight sm:text-[3.5rem]">
+              {politician.full_name}
+            </h1>
+            <p className="mt-2 max-w-2xl text-[17px] leading-7 text-slate-600">{subtitle}</p>
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
               {(politician.roles ?? []).map((roleTitle) => (
-                <span key={roleTitle} className="inline-flex rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">
+                <span key={roleTitle} className="inline-flex rounded-full bg-ink px-3 py-1 text-xs font-bold text-white">
                   {roleTitle}
                 </span>
               ))}
+              {party ? (
+                <span className="inline-flex items-center gap-2">
+                  <PartyLogo party={party.slug} size={22} />
+                  <PartyBadge party={party.slug} />
+                </span>
+              ) : null}
+              {place ? <span className="text-sm text-slate-500">{place}</span> : null}
             </div>
-          ) : null}
-          {party ? (
-            <div className="flex items-center gap-2">
-              <PartyLogo party={party.slug} size={28} />
-              <PartyBadge party={party.slug} />
-            </div>
-          ) : null}
-          {place ? <p className="truncate text-sm text-slate-500">{place}</p> : null}
+
+            {/* Facts, quietly. */}
+            <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-3 border-t border-border pt-4 text-sm">
+              {firstStart ? (
+                <div>
+                  <dt className="kicker">In office since</dt>
+                  <dd className="stat-figure mt-0.5 text-lg text-ink">
+                    {new Date(firstStart).getFullYear()}
+                    {yearsInOffice != null ? (
+                      <span className="ml-2 font-sans text-xs font-normal tracking-normal text-slate-500">
+                        {yearsInOffice} year{yearsInOffice === 1 ? "" : "s"}
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+              ) : null}
+              {salary ? (
+                <div>
+                  <dt className="kicker">Salary</dt>
+                  <dd className="stat-figure mt-0.5 text-lg text-ink">
+                    {formatSalary(salary.total)}
+                    <span className="ml-2 font-sans text-xs font-normal tracking-normal text-slate-500">
+                      set by law, not by the MP{" "}
+                      <a href={SALARY_SOURCE_URL} target="_blank" rel="noreferrer" className="text-accent">
+                        (source ↗)
+                      </a>{" "}
+                      · as of {SALARY_AS_OF}
+                    </span>
+                  </dd>
+                </div>
+              ) : null}
+              {isMunicipal && municipal ? (
+                <>
+                  <div>
+                    <dt className="kicker">Meeting attendance</dt>
+                    <dd className="stat-figure mt-0.5 text-lg text-ink">
+                      {municipal.attendance_pct != null ? `${municipal.attendance_pct}%` : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="kicker">Motions moved</dt>
+                    <dd className="stat-figure mt-0.5 text-lg text-ink">{municipal.motions_moved}</dd>
+                  </div>
+                </>
+              ) : null}
+            </dl>
+          </div>
         </div>
-      </div>
 
-      <StatStrip
-        stats={[
-          {
-            label: "Party",
-            value: party?.short_name ?? "Not yet synced",
-            context: party
-              ? party.name && party.name !== party.short_name
-                ? party.name
-                : undefined
-              : "Roster data syncs weekly — party and riding land then"
-          },
-          {
-            label: "Constituency",
-            value: place ?? "Not yet synced",
-            context: politician.current_membership?.province_code ?? undefined
-          },
-          ...(firstStart
-            ? [
-                {
-                  label: "In office since",
-                  value: new Date(firstStart).getFullYear().toString(),
-                  context: yearsInOffice != null ? `${yearsInOffice} year${yearsInOffice === 1 ? "" : "s"} in office` : undefined
-                }
-              ]
-            : []),
-          ...(salary
-            ? [
-                {
-                  label: "Salary",
-                  value: formatSalary(salary.total),
-                  context: `${salary.breakdown.join(" + ")} · as of ${SALARY_AS_OF}`
-                }
-              ]
-            : []),
-          ...(isMunicipal
-            ? [
-                {
-                  label: "Meeting attendance",
-                  value: municipal?.attendance_pct != null ? `${municipal.attendance_pct}%` : "—"
-                },
-                {
-                  label: "Motions moved",
-                  value: municipal ? String(municipal.motions_moved) : "—"
-                }
-              ]
-            : hasVotes
-              ? [
-                  {
-                    label: "Attendance",
-                    value: attendance != null ? `${attendance}%` : "—",
-                    context:
-                      stats?.votes_cast != null && stats?.votes_eligible != null
-                        ? `cast ${stats.votes_cast} of ${stats.votes_eligible} votes${medianAttendance != null ? ` · median ${medianAttendance}%` : ""}`
-                        : undefined,
-                    tone: attendanceTone
-                  },
-                  {
-                    label: "Votes with party",
-                    value: stats?.party_line_voting_pct != null ? `${stats.party_line_voting_pct}%` : "—",
-                    context:
-                      stats?.dissent_count != null
-                        ? `broke ranks ${stats.dissent_count} time${stats.dissent_count === 1 ? "" : "s"}`
-                        : undefined
-                  }
-                ]
-              : [{ label: "Role", value: politician.current_membership?.role_title ?? memberWord }])
-        ]}
-      />
-      {salary ? (
-        <p className="mt-1.5 text-xs text-slate-500">
-          Pay is set by law, not by the MP — figures from the official indemnities table{" "}
-          <a href={SALARY_SOURCE_URL} target="_blank" rel="noreferrer" className="text-accent">
-            (source ↗)
-          </a>
-          .
-        </p>
-      ) : null}
+        {/* The report card: plain sentences, with the distribution behind them. */}
+        {hasVotes && !isMunicipal && (attendance != null || stats?.party_line_voting_pct != null) ? (
+          <div className="mt-8 grid gap-x-16 gap-y-6 border-t border-border pt-6 lg:grid-cols-2">
+            {attendance != null ? (
+              <div>
+                <p className="text-[15px] leading-6 text-ink">
+                  <span className={`stat-figure text-2xl ${lowAttendance ? "text-signal" : "text-ink"}`}>
+                    {attendance}%
+                  </span>{" "}
+                  <span className="font-semibold">attendance</span>
+                  {stats?.votes_cast != null && stats?.votes_eligible != null ? (
+                    <span className="text-slate-500">
+                      {" "}
+                      — cast {stats.votes_cast} of {stats.votes_eligible} eligible votes
+                    </span>
+                  ) : null}
+                </p>
+                <PercentileStrip
+                  valuePct={attendance}
+                  benchmarkPct={medianAttendance}
+                  benchmarkLabel="chamber median"
+                  className="mt-2 max-w-md"
+                />
+                {medianAttendance != null ? (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Chamber median: {medianAttendance}% (teal mark).{" "}
+                    {lowAttendance ? `${surname} misses noticeably more votes than most.` : ""}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {stats?.party_line_voting_pct != null ? (
+              <div>
+                <p className="text-[15px] leading-6 text-ink">
+                  <span className="stat-figure text-2xl">{stats.party_line_voting_pct}%</span>{" "}
+                  <span className="font-semibold">votes with their party</span>
+                  {dissentCount != null ? (
+                    <span className="text-slate-500">
+                      {" "}
+                      — broke ranks {dissentCount} time{dissentCount === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                </p>
+                <PercentileStrip valuePct={stats.party_line_voting_pct} className="mt-2 max-w-md" />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Near-100% is normal in Canada&apos;s whipped party system — the dissents are the story.
+                  {dissentCount ? (
+                    <>
+                      {" "}
+                      <Link href={`/politicians/${politician.slug}?votes=dissent`} className="text-accent hover:underline">
+                        See {surname}&apos;s dissents →
+                      </Link>
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
-      <section className="mt-10 grid gap-6 lg:grid-cols-[minmax(300px,360px)_1fr]">
-        <div className="space-y-6">
-          <div className="glass-card rounded-md border border-border p-5">
-            <h2 className="text-xl font-semibold">Contact</h2>
-            <div className="mt-4 space-y-3 text-sm">
+      {/* ---------------------------------------------------------------- */}
+      {/* The record.                                                        */}
+      {/* ---------------------------------------------------------------- */}
+      <section className="grid gap-x-16 gap-y-12 lg:grid-cols-[minmax(280px,340px)_1fr]">
+        <div className="min-w-0 space-y-12">
+          <div>
+            <SectionHeading title="Contact" />
+            <div className="space-y-3 pt-4 text-sm">
               {politician.email ? (
                 <p>
-                  <a href={`mailto:${politician.email}`} className="font-medium text-accent">
+                  <a href={`mailto:${politician.email}`} className="link-editorial font-medium text-ink">
                     {politician.email}
                   </a>
                 </p>
               ) : null}
               {politician.website_url ? (
                 <p>
-                  <a href={politician.website_url} target="_blank" rel="noreferrer" className="text-accent">
+                  <a href={politician.website_url} target="_blank" rel="noreferrer" className="link-editorial text-ink">
                     Official page ↗
                   </a>
                 </p>
               ) : null}
               {(politician.offices ?? []).map((office, index) => (
-                <div key={index} className="rounded-md border border-border bg-white p-4">
+                <div key={index} className="rule pt-3">
                   <p className="font-medium capitalize">{office.type ?? "Office"}</p>
                   {office.tel ? <p className="mt-1 text-slate-600">{office.tel}</p> : null}
                   {office.postal ? (
@@ -275,9 +312,10 @@ export default async function PoliticianDetailPage({
               ) : null}
             </div>
           </div>
-          <div className="glass-card rounded-md border border-border p-5">
-            <h2 className="text-xl font-semibold">Membership history</h2>
-            <div className="mt-4 space-y-4">
+
+          <div>
+            <SectionHeading title="Membership history" />
+            <div className="pt-1">
               {politician.memberships.map((membership, index) => {
                 const startYear = membership.started_on ? new Date(membership.started_on).getFullYear() : null;
                 const endLabel = membership.is_current
@@ -289,9 +327,9 @@ export default async function PoliticianDetailPage({
                   startYear != null ? (endLabel ? `${startYear} – ${endLabel}` : String(startYear)) : null;
                 const placeLabel = membership.riding_name ?? membership.region_name ?? "—";
                 return (
-                  <div key={index} className="rounded-md border border-border bg-white p-4">
-                    <p className="font-medium">{membership.party?.name ?? "No party on record"}</p>
-                    <p className="mt-1 text-sm text-slate-600">
+                  <div key={index} className="rule py-3">
+                    <p className="text-sm font-semibold text-ink">{membership.party?.name ?? "No party on record"}</p>
+                    <p className="mt-0.5 text-sm text-slate-500">
                       {placeLabel}
                       {tenure ? ` · ${tenure}` : ""}
                     </p>
@@ -300,23 +338,26 @@ export default async function PoliticianDetailPage({
               })}
             </div>
           </div>
+
           {isFederal ? (
-            <div className="glass-card rounded-md border border-border p-5">
-              <h2 className="text-xl font-semibold">Committee work</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                Committees are where bills get studied line by line and witnesses get grilled — much of an
-                MP&apos;s real influence happens here, off the main stage.
+            <div>
+              <SectionHeading title="Committee work" />
+              <p className="pt-2 text-sm leading-6 text-slate-500">
+                Committees are where bills get studied line by line — much of an MP&apos;s real influence
+                happens here, off the main stage.
               </p>
-              <div className="mt-4 space-y-3">
+              <div className="pt-2">
                 {politician.committees.length ? (
                   politician.committees.map((committee) => (
                     <Link
                       key={committee.committee_slug}
                       href={`/committees/${committee.committee_slug}`}
-                      className="block rounded-md border border-border bg-white p-4 transition hover:border-accent"
+                      className="rule group block py-3"
                     >
-                      <p className="font-medium">{committee.committee_name}</p>
-                      <p className="mt-1 text-sm text-slate-600">
+                      <p className="text-sm font-semibold text-ink transition group-hover:text-accent">
+                        {committee.committee_name}
+                      </p>
+                      <p className="mt-0.5 text-sm text-slate-500">
                         {committee.role && committee.role.toLowerCase() !== "member"
                           ? `${committee.role} — helps run the committee`
                           : "Member — studies bills and questions witnesses"}
@@ -324,63 +365,64 @@ export default async function PoliticianDetailPage({
                     </Link>
                   ))
                 ) : (
-                  <DataGap
-                    title="No committee memberships"
-                    detail="Committee membership may be missing because chamber-specific committee ingestion has not run yet."
-                  />
+                  <div className="pt-2">
+                    <DataGap
+                      title="No committee memberships"
+                      detail="Committee membership may be missing because chamber-specific committee ingestion has not run yet."
+                    />
+                  </div>
                 )}
               </div>
             </div>
           ) : null}
+
           {!isMunicipal ? (
-            <div className="glass-card rounded-md border border-border p-5">
-              <h2 className="text-xl font-semibold">Sponsored bills</h2>
-            {(politician.sponsored_bills ?? []).length ? (
-              <div className="mt-4 space-y-2">
-                {(politician.sponsored_bills ?? []).map((bill) => (
-                  <Link
-                    key={`${bill.session}-${bill.number}`}
-                    href={`/bills/${bill.session}/${bill.number}`}
-                    className="block rounded-md border border-border bg-white p-3 transition hover:border-accent"
-                  >
-                    <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                        {bill.number}
-                      </span>
-                      <span className="min-w-0 flex-1">{bill.title}</span>
-                      {bill.is_law ? (
-                        <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Law</span>
+            <div>
+              <SectionHeading title="Sponsored bills" />
+              {(politician.sponsored_bills ?? []).length ? (
+                <div className="pt-1">
+                  {(politician.sponsored_bills ?? []).map((bill) => (
+                    <Link
+                      key={`${bill.session}-${bill.number}`}
+                      href={`/bills/${bill.session}/${bill.number}`}
+                      className="rule group block py-3"
+                    >
+                      <p className="text-sm font-semibold leading-6 text-ink transition group-hover:text-accent">
+                        <span className="mr-2 text-xs font-semibold text-slate-400">{bill.number}</span>
+                        {bill.title}
+                        {bill.is_law ? (
+                          <span className="ml-2 text-xs font-bold uppercase tracking-wide text-teal-700">Law</span>
+                        ) : null}
+                      </p>
+                      {bill.one_sentence ? (
+                        <p className="mt-1 text-sm leading-6 text-slate-500">{bill.one_sentence}</p>
                       ) : null}
-                    </p>
-                    {bill.one_sentence ? (
-                      <p className="mt-1 text-sm leading-6 text-slate-600">{bill.one_sentence}</p>
-                    ) : null}
+                    </Link>
+                  ))}
+                </div>
+              ) : politician.sponsored_bill_numbers.length ? (
+                <div className="flex flex-wrap gap-2 pt-4">
+                  {politician.sponsored_bill_numbers.map((billNumber) => (
+                    <span key={billNumber} className="rounded-full border border-border px-3 py-1 text-sm">
+                      {billNumber}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="pt-4 text-sm text-slate-600">No sponsored bill data has been attached yet.</p>
+              )}
+              {isFederal ? (
+                <p className="mt-4 border-t border-border pt-3 text-sm">
+                  <Link href={`/compare?a=${politician.slug}`} className="link-editorial text-ink">
+                    Compare this MP with another →
                   </Link>
-                ))}
-              </div>
-            ) : politician.sponsored_bill_numbers.length ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {politician.sponsored_bill_numbers.map((billNumber) => (
-                  <span key={billNumber} className="rounded-md border border-border bg-white px-4 py-2 text-sm">
-                    {billNumber}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-4 text-sm text-slate-600">No sponsored bill data has been attached yet.</p>
-            )}
-            {isFederal ? (
-              <p className="mt-4 border-t border-black/5 pt-3 text-xs text-slate-500">
-                <Link href={`/compare?a=${politician.slug}`} className="text-accent">
-                  Compare this MP with another →
-                </Link>
-              </p>
-            ) : null}
+                </p>
+              ) : null}
             </div>
           ) : null}
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-12">
           {municipal ? <MunicipalRecordCards record={municipal} /> : null}
           {votingRecord && (hasVotes || votingRecord.items?.length) ? (
             <VotingRecord record={votingRecord} slug={politician.slug} filter={filter} offset={offset} />
@@ -400,6 +442,6 @@ export default async function PoliticianDetailPage({
         </div>
       </section>
       <CiteThis title={`${politician.full_name} — voting record and disclosures`} />
-    </PageShell>
+    </main>
   );
 }

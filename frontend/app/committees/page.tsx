@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
+import { SectionTabs, YOUR_REPS_TABS } from "@/components/section-tabs";
 import { listCommittees } from "@/lib/api";
 
 export const metadata: Metadata = {
@@ -20,6 +21,7 @@ export default async function CommitteesPage() {
       title="Membership and basic activity"
       description="Committee work is one of the few places where legislative influence is less reducible to whipped floor votes, so V1 exposes membership and event visibility early."
     >
+      <SectionTabs tabs={YOUR_REPS_TABS} ariaLabel="Your reps sections" />
       {!committees?.items.length ? (
         <DataGap
           title="No committees loaded"

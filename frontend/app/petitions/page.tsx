@@ -3,6 +3,7 @@ import Link from "next/link";
 import { DataGap } from "@/components/data-gap";
 import { LevelBadge } from "@/components/level-badge";
 import { PageShell } from "@/components/page-shell";
+import { SectionTabs, WHAT_HAPPENED_TABS } from "@/components/section-tabs";
 import { Pagination } from "@/components/pagination";
 import { listPetitions } from "@/lib/api";
 import { formatDate } from "@/lib/humanize";
@@ -39,6 +40,7 @@ export default async function PetitionsPage({
       title="Petitions to the House of Commons"
       description="Official federal e-petitions, synced daily from ourcommons.ca. The government must respond to every petition an MP presents — signing takes two minutes."
     >
+      <SectionTabs tabs={WHAT_HAPPENED_TABS} ariaLabel="What happened sections" />
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <LevelBadge level="federal" />
         {[

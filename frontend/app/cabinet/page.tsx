@@ -2,30 +2,32 @@ import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
-import { PartyBadge } from "@/components/party-badge";
+import { SectionTabs, YOUR_REPS_TABS } from "@/components/section-tabs";
 import { getCabinet, type CabinetMinister } from "@/lib/api";
+import { partyColor, partyInfo } from "@/lib/parties";
 
 export const metadata = {
   title: "The Cabinet"
 };
 
 function MinisterPhoto({ minister, size }: { minister: CabinetMinister; size: number }) {
+  const border = `3px solid ${partyColor(minister.party_slug)}`;
   if (minister.image_url) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={minister.image_url}
         alt={minister.full_name}
-        className="shrink-0 rounded-full border border-border object-cover"
-        style={{ width: size, height: size }}
+        className="shrink-0 rounded-md object-cover"
+        style={{ width: size, height: size, borderBottom: border }}
       />
     );
   }
   return (
     <span
       aria-hidden
-      className="flex shrink-0 items-center justify-center rounded-full border border-border bg-slate-100 font-semibold text-slate-600"
-      style={{ width: size, height: size }}
+      className="flex shrink-0 items-center justify-center rounded-md bg-slate-100 font-serif font-semibold text-slate-400"
+      style={{ width: size, height: size, borderBottom: border, fontSize: size / 2.5 }}
     >
       {minister.full_name.charAt(0)}
     </span>
@@ -40,58 +42,63 @@ export default async function CabinetPage() {
 
   return (
     <PageShell
-      eyebrow="Who runs the government"
+      eyebrow="Your reps · Who runs the government"
       title="The Cabinet"
       description="The Prime Minister and ministers — the MPs who run federal departments. They answer for their portfolios in Question Period and get lobbied hardest because they hold the pen."
     >
+      <SectionTabs tabs={YOUR_REPS_TABS} ariaLabel="Your reps sections" />
+
       {ministers.length === 0 ? (
         <DataGap
           title="Cabinet roster unavailable"
           detail="We couldn't load the current ministry. The official roster lives on PM.gc.ca; check back shortly."
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <>
           {pm ? (
             <Link
               href={`/politicians/${pm.person_slug}`}
-              className="glass-card block rounded-md border border-border p-4 transition hover:border-accent sm:col-span-2"
+              className="rule-heavy group flex items-center gap-8 py-8"
             >
-              <div className="flex items-center gap-4">
-                <MinisterPhoto minister={pm} size={80} />
-                <div className="min-w-0">
-                  <p className="kicker text-accent">Head of government</p>
-                  <p className="mt-0.5 font-serif text-xl font-bold text-ink">{pm.full_name}</p>
-                  <p className="text-sm font-bold text-slate-800">{pm.title_en}</p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                    <PartyBadge party={pm.party_slug} size="xs" />
-                    {pm.riding ? <span className="text-xs text-slate-500">{pm.riding}</span> : null}
-                  </div>
-                </div>
+              <MinisterPhoto minister={pm} size={132} />
+              <div className="min-w-0">
+                <p className="kicker text-accent">Head of government</p>
+                <p className="mt-1 font-serif text-3xl font-bold tracking-tight text-ink transition group-hover:text-accent sm:text-4xl">
+                  {pm.full_name}
+                </p>
+                <p className="mt-1 text-[15px] font-semibold text-slate-700">{pm.title_en}</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  <span className="font-medium" style={{ color: partyColor(pm.party_slug) }}>
+                    {partyInfo(pm.party_slug).label}
+                  </span>
+                  {pm.riding ? ` · ${pm.riding}` : null}
+                </p>
               </div>
             </Link>
           ) : null}
-          {rest.map((minister) => (
-            <Link
-              key={`${minister.person_slug}-${minister.title_en}`}
-              href={`/politicians/${minister.person_slug}`}
-              className="glass-card block rounded-md border border-border p-4 transition hover:border-accent"
-            >
-              <div className="flex items-start gap-3">
-                <MinisterPhoto minister={minister} size={56} />
+          <div className="grid gap-x-10 sm:grid-cols-2 xl:grid-cols-3">
+            {rest.map((minister) => (
+              <Link
+                key={`${minister.person_slug}-${minister.title_en}`}
+                href={`/politicians/${minister.person_slug}`}
+                className="rule group flex items-center gap-4 py-4"
+              >
+                <MinisterPhoto minister={minister} size={64} />
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink">{minister.full_name}</p>
-                  <p className="mt-0.5 text-sm font-bold text-slate-800">{minister.title_en}</p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                    <PartyBadge party={minister.party_slug} size="xs" />
-                    {minister.riding ? (
-                      <span className="text-xs text-slate-500">{minister.riding}</span>
-                    ) : null}
-                  </div>
+                  <p className="truncate font-serif text-[17px] font-bold tracking-tight text-ink transition group-hover:text-accent">
+                    {minister.full_name}
+                  </p>
+                  <p className="mt-0.5 line-clamp-2 text-[13px] font-medium leading-5 text-slate-600">
+                    {minister.title_en}
+                  </p>
+                  {minister.riding ? (
+                    <p className="mt-0.5 truncate text-xs text-slate-400">{minister.riding}</p>
+                  ) : null}
                 </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+              </Link>
+            ))}
+          </div>
+        </>
       )}
     </PageShell>
   );

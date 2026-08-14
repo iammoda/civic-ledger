@@ -21,18 +21,20 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
   const runningHot = budget ? budget.utilization_pct > evenPacePct + 15 : false;
 
   return (
-    <div className="glass-card rounded-[2rem] p-6">
-      <h2 className="text-xl font-semibold">Spending</h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Their office budget is taxpayer money — staff, travel, hospitality, contracts. From the official
-        quarterly disclosures.
-      </p>
+    <section>
+      <div className="rule-heavy pt-3">
+        <h2 className="font-serif text-2xl font-bold tracking-tight text-ink sm:text-3xl">Spending</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Their office budget is taxpayer money — staff, travel, hospitality, contracts. From the official
+          quarterly disclosures.
+        </p>
+      </div>
 
       {expenses.flags.length ? (
-        <div className="mt-4 space-y-3">
+        <div className="mt-5 space-y-3">
           {expenses.flags.map((flag) => (
-            <div key={flag.headline_en} className="rounded-3xl border border-amber-200 bg-amber-50/60 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-amber-700">
+            <div key={flag.headline_en} className="border-l-4 border-amber-400 pl-4">
+              <p className="kicker text-amber-700">
                 Flagged pattern · human-reviewed
               </p>
               <p className="mt-2 font-medium leading-6">{flag.headline_en}</p>
@@ -43,16 +45,16 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
       ) : null}
 
       {latest ? (
-        <div className="mt-5">
+        <div className="mt-6">
           <div className="flex flex-wrap items-baseline gap-3">
-            <span className="text-2xl font-semibold">{money(latest.total)}</span>
+            <span className="stat-figure font-sans text-4xl text-ink">{money(latest.total)}</span>
             <span className="text-sm text-slate-500">
               in Q{latest.quarter} {latest.fiscal_year}
             </span>
             {medianDeltaPct != null ? (
               <span
-                className={`rounded-full px-3 py-1 text-xs font-medium ${
-                  medianDeltaPct > 50 ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"
+                className={`text-sm font-medium ${
+                  medianDeltaPct > 50 ? "text-amber-700" : "text-slate-500"
                 }`}
               >
                 {Math.abs(medianDeltaPct) <= 5
@@ -64,15 +66,15 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
             ) : null}
             {expenses.spend_percentile != null ? (
               <span
-                className={`rounded-full px-3 py-1 text-xs font-medium ${
-                  expenses.spend_percentile >= 90 ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"
+                className={`text-sm font-medium ${
+                  expenses.spend_percentile >= 90 ? "text-amber-700" : "text-slate-500"
                 }`}
               >
                 spends more than {Math.round(expenses.spend_percentile)}% of MPs
               </span>
             ) : null}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-3 border-t border-border pt-4 text-sm sm:grid-cols-4">
             {(
               [
                 ["Staff", latest.salaries],
@@ -81,9 +83,9 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
                 ["Contracts", latest.contracts]
               ] as const
             ).map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-black/5 bg-white p-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">{label}</p>
-                <p className="mt-1 font-semibold">{money(value)}</p>
+              <div key={label}>
+                <p className="kicker">{label}</p>
+                <p className="stat-figure mt-1 text-lg font-semibold">{money(value)}</p>
                 {latest.total > 0 ? (
                   <p className="text-xs text-slate-500">
                     {Math.round((value / latest.total) * 100)}% of quarter
@@ -122,13 +124,13 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
       ) : null}
 
       {expenses.top_items.length ? (
-        <details className="mt-5 border-t border-black/5 pt-4">
+        <details className="mt-6 border-t border-border pt-4">
           <summary className="cursor-pointer text-sm font-medium text-accent">
             Biggest items ({expenses.top_items.length})
           </summary>
-          <div className="mt-3 space-y-2">
+          <div className="mt-2">
             {expenses.top_items.map((item) => (
-              <div key={item.id} className="flex items-start justify-between gap-3 rounded-2xl border border-black/5 bg-white p-3 text-sm">
+              <div key={item.id} className="rule flex items-start justify-between gap-3 py-3 text-sm">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{item.supplier ?? item.description ?? item.purpose ?? "—"}</p>
                   <p className="text-xs text-slate-500">
@@ -136,19 +138,19 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
                     {item.occurred_on ? ` · ${item.occurred_on}` : ""}
                   </p>
                 </div>
-                <span className="shrink-0 font-semibold">{money(item.amount)}</span>
+                <span className="stat-figure shrink-0 font-semibold">{money(item.amount)}</span>
               </div>
             ))}
           </div>
         </details>
       ) : null}
 
-      <p className="mt-5 border-t border-black/5 pt-4 text-xs leading-5 text-slate-500">
+      <p className="mt-6 border-t border-border pt-4 text-xs leading-5 text-slate-500">
         {expenses.sources_note}{" "}
         <Link href={`/expenses?q=${encodeURIComponent(expenses.full_name)}`} className="text-accent">
           Search all their expenses →
         </Link>
       </p>
-    </div>
+    </section>
   );
 }
