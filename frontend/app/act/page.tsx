@@ -1,9 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
 import { getPolitician } from "@/lib/api";
 import { draftLetter, lookupPostal } from "@/lib/lookup";
+
+export const metadata: Metadata = {
+  title: "Contact your MP",
+  description:
+    "Draft a letter to your MP that cites their actual votes — anonymous, free, ready to send in one tap."
+};
 
 export default async function ActPage({
   searchParams
@@ -109,16 +117,6 @@ export default async function ActPage({
     );
   }
 
-  const letter =
-    trimmedConcern.length >= 10
-      ? await draftLetter({
-          mp_slug: mp,
-          concern: trimmedConcern,
-          bill_session: billSession || undefined,
-          bill_number: billNumber || undefined
-        })
-      : null;
-
   return (
     <PageShell
       eyebrow="Take action"
@@ -153,13 +151,63 @@ export default async function ActPage({
         </div>
       </form>
 
-      {trimmedConcern && !letter ? (
-        <div className="mt-6">
-          <DataGap title="Couldn't draft the letter" detail="The API may be briefly unavailable — try again." />
-        </div>
+      {trimmedConcern.length >= 10 ? (
+        // Streamed: the drafted letter (optionally an LLM polish pass) fills
+        // in below while the form stays interactive.
+        <Suspense key={`${mp}|${trimmedConcern}|${bill ?? ""}`} fallback={<LetterPending />}>
+          <DraftedLetter
+            mp={mp}
+            concern={trimmedConcern}
+            billSession={billSession || undefined}
+            billNumber={billNumber || undefined}
+          />
+        </Suspense>
       ) : null}
+    </PageShell>
+  );
+}
 
-      {letter ? (
+function LetterPending() {
+  return (
+    <div role="status" aria-live="polite" className="glass-card mt-6 rounded-[2rem] p-8">
+      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Drafting</p>
+      <p className="mt-3 text-lg font-medium">Writing your letter and pulling their voting record…</p>
+      <div aria-hidden className="mt-6 space-y-3">
+        <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200" />
+        <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+        <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+      </div>
+    </div>
+  );
+}
+
+async function DraftedLetter({
+  mp,
+  concern,
+  billSession,
+  billNumber
+}: {
+  mp: string;
+  concern: string;
+  billSession?: string;
+  billNumber?: string;
+}) {
+  const letter = await draftLetter({
+    mp_slug: mp,
+    concern,
+    bill_session: billSession,
+    bill_number: billNumber
+  });
+
+  if (!letter) {
+    return (
+      <div className="mt-6">
+        <DataGap title="Couldn't draft the letter" detail="The API may be briefly unavailable — try again." />
+      </div>
+    );
+  }
+
+  return (
         <div className="glass-card mt-6 rounded-[2rem] p-8">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-xl font-semibold">Your letter</h2>
@@ -188,7 +236,5 @@ export default async function ActPage({
             your letter.
           </p>
         </div>
-      ) : null}
-    </PageShell>
   );
 }

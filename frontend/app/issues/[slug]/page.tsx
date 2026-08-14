@@ -11,8 +11,20 @@ import { partyInfo } from "@/lib/parties";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const issue = await getIssue(slug);
-  return { title: issue ? `${issue.name_en} — how they voted` : "Issue" };
+  const issue = await getIssue(slug).catch(() => null);
+  if (!issue) {
+    return { title: "Issue" };
+  }
+  const title = `${issue.name_en} — how they voted`;
+  const description =
+    issue.description_en ??
+    `Every federal bill and vote on ${issue.name_en.toLowerCase()}, with each party's actual voting record.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/issues/${issue.slug}` },
+    openGraph: { title, description }
+  };
 }
 
 export default async function IssueDetailPage({

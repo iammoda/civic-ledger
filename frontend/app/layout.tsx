@@ -12,13 +12,24 @@ const displaySerif = Source_Serif_4({
   weight: ["400", "600", "700"]
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Civic Ledger — who represents you, and what have they done?",
     template: "%s · Civic Ledger"
   },
   description:
-    "Non-partisan accountability for Canada: every federal vote in plain language, every dead bill with a cause of death, MP expenses and lobbying — plus who represents you provincially and municipally."
+    "Non-partisan accountability for Canada: every federal vote in plain language, every dead bill with a cause of death, MP expenses and lobbying — plus who represents you provincially and municipally.",
+  openGraph: {
+    siteName: "Civic Ledger",
+    type: "website",
+    locale: "en_CA"
+  },
+  twitter: {
+    card: "summary_large_image"
+  }
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageShell } from "@/components/page-shell";
@@ -32,6 +33,12 @@ const sections = [
     body: "We don't judge campaign promises ourselves. For kept/broken promise tracking, we point to Polimètre (Université Laval), an academic project that does this rigorously."
   }
 ];
+
+export const metadata: Metadata = {
+  title: "About the data",
+  description:
+    "Where every number comes from: primary sources only — Parliament, Elections Canada and official registries — with update schedules and known gaps."
+};
 
 export default function AboutDataPage() {
   return (

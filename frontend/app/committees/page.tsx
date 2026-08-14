@@ -1,8 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
 import { listCommittees } from "@/lib/api";
+
+export const metadata: Metadata = {
+  title: "Committees",
+  description:
+    "Parliamentary committees: who sits on them and what they are studying."
+};
 
 export default async function CommitteesPage() {
   const committees = await listCommittees();

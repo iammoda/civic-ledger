@@ -1,8 +1,25 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
 import { getCommittee } from "@/lib/api";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const committee = await getCommittee(slug).catch(() => null);
+  if (!committee) {
+    return { title: "Committee" };
+  }
+  const title = committee.name_en;
+  const description = `Who sits on the ${committee.name_en} committee, and its recent meetings and studies.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/committees/${committee.slug}` },
+    openGraph: { title, description }
+  };
+}
 
 export default async function CommitteeDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

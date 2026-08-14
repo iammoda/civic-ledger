@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { BallotList } from "@/components/ballot-list";
@@ -8,6 +9,30 @@ import { PageShell } from "@/components/page-shell";
 import { VoteTypeBadge } from "@/components/vote-type-badge";
 import { YourMpVote } from "@/components/your-mp-vote";
 import { getVote } from "@/lib/api";
+
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ chamber: string; session: string; number: string }>;
+}): Promise<Metadata> {
+  const { chamber, session, number } = await params;
+  const vote = await getVote(chamber, session, number).catch(() => null);
+  if (!vote) {
+    return { title: `Vote ${number} (${session})` };
+  }
+  const chamberName = vote.chamber === "senate" ? "the Senate" : "the House";
+  const title = vote.bill_number
+    ? `How ${chamberName === "the Senate" ? "senators" : "MPs"} voted on ${vote.bill_number} — Vote ${vote.number} (${vote.session})`
+    : `Vote ${vote.number} in ${chamberName} (${vote.session})`;
+  const description = vote.plain_meaning_en ?? vote.description_en;
+  const canonical = `/votes/${vote.chamber}/${vote.session}/${vote.number}`;
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, type: "article", url: canonical }
+  };
+}
 
 const STAGE_LABELS: Record<string, string> = {
   first_reading: "First reading — the bill is introduced",

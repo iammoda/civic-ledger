@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { PageShell } from "@/components/page-shell";
@@ -26,6 +27,12 @@ async function submitCorrection(formData: FormData) {
   }
   redirect(ok ? "/corrections?submitted=1" : "/corrections?error=1");
 }
+
+export const metadata: Metadata = {
+  title: "Corrections & disputes",
+  description:
+    "Spotted an error? Every fact on this site links to a primary source — tell us what's wrong and we'll review it publicly."
+};
 
 export default async function CorrectionsPage({
   searchParams

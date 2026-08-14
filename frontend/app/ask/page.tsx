@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
@@ -12,6 +14,12 @@ const JURISDICTION_LABELS: Record<string, { label: string; className: string }> 
   unknown: { label: "Responsibility unclear", className: "bg-slate-100 text-slate-600" }
 };
 
+export const metadata: Metadata = {
+  title: "Ask — who is responsible?",
+  description:
+    "Type a problem in plain words and see which level of government owns it, the responsible minister, related bills and how your MP voted."
+};
+
 export default async function AskPage({
   searchParams
 }: {
@@ -19,11 +27,6 @@ export default async function AskPage({
 }) {
   const { q, mp } = await searchParams;
   const question = (q ?? "").trim();
-  const response = question.length >= 8 ? await askQuestion(question, mp) : null;
-  const jurisdiction = response
-    ? JURISDICTION_LABELS[response.jurisdiction_level] ?? JURISDICTION_LABELS.unknown
-    : null;
-  const citedSet = new Set(response?.cited_indexes ?? []);
 
   return (
     <PageShell
@@ -60,16 +63,53 @@ export default async function AskPage({
             detail="Questions need at least 8 characters — try describing the problem in a short sentence."
           />
         </div>
-      ) : question && !response ? (
-        <div className="mt-8">
-          <DataGap
-            title="We couldn't answer right now"
-            detail="The answer service may be busy or offline. Your question wasn't lost — try again in a moment, or browse bills and votes directly."
-          />
-        </div>
+      ) : question ? (
+        // Streamed: the form renders instantly; the answer (an LLM call that
+        // can take several seconds) fills in below with a live status card.
+        <Suspense key={`${question}|${mp ?? ""}`} fallback={<AskPending question={question} />}>
+          <AskResults question={question} mp={mp} />
+        </Suspense>
       ) : null}
+    </PageShell>
+  );
+}
 
-      {response ? (
+function AskPending({ question }: { question: string }) {
+  return (
+    <div role="status" aria-live="polite" className="mt-8 glass-card rounded-[2rem] border-l-4 border-accent p-8">
+      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Working on it</p>
+      <p className="mt-3 text-lg font-medium leading-8">
+        Reading the parliamentary record for “{question}”…
+      </p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">
+        We’re finding related bills and votes, then writing a plain-language answer with citations. This
+        usually takes 5–15 seconds.
+      </p>
+      <div aria-hidden className="mt-6 space-y-3">
+        <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200" />
+        <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+        <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+      </div>
+    </div>
+  );
+}
+
+async function AskResults({ question, mp }: { question: string; mp?: string }) {
+  const response = await askQuestion(question, mp);
+  if (!response) {
+    return (
+      <div className="mt-8">
+        <DataGap
+          title="We couldn't answer right now"
+          detail="The answer service may be busy or offline. Your question wasn't lost — try again in a moment, or browse bills and votes directly."
+        />
+      </div>
+    );
+  }
+  const jurisdiction = JURISDICTION_LABELS[response.jurisdiction_level] ?? JURISDICTION_LABELS.unknown;
+  const citedSet = new Set(response.cited_indexes ?? []);
+
+  return (
         <div className="mt-8 space-y-6">
           <div className="glass-card rounded-[2rem] border-l-4 border-accent p-8">
             {jurisdiction ? (
@@ -212,7 +252,5 @@ export default async function AskPage({
             </div>
           </div>
         </div>
-      ) : null}
-    </PageShell>
   );
 }

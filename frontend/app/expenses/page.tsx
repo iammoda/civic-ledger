@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
@@ -17,6 +18,12 @@ const CATEGORY_STYLES: Record<string, string> = {
   contract: "bg-sky-50 text-sky-700",
   travel: "bg-violet-50 text-violet-700",
   hospitality: "bg-emerald-50 text-emerald-700"
+};
+
+export const metadata: Metadata = {
+  title: "MP expenses explorer",
+  description:
+    "Search every MP expense line item — travel, hospitality and contracts — with caucus comparisons and outlier flags."
 };
 
 export default async function ExpensesPage({

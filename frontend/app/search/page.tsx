@@ -1,8 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
 import { searchContent } from "@/lib/api";
+
+export const metadata: Metadata = {
+  title: "Search",
+  description:
+    "Search bills, votes, petitions and council motions in plain language."
+};
 
 export default async function SearchPage({
   searchParams

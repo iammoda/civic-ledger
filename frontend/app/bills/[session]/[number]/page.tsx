@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -11,6 +12,29 @@ import { PlainSummaryCard } from "@/components/plain-summary-card";
 import { SectorImpactList } from "@/components/sector-impact-list";
 import { getBill } from "@/lib/api";
 import { billTypeLabel, formatDate } from "@/lib/humanize";
+import { billLegislationJsonLd, JsonLd } from "@/lib/jsonld";
+
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ session: string; number: string }>;
+}): Promise<Metadata> {
+  const { session, number } = await params;
+  const bill = await getBill(session, number).catch(() => null);
+  if (!bill) {
+    return { title: `Bill ${number} (${session})` };
+  }
+  const title = `${bill.number}: ${bill.short_title_en ?? bill.title_en}`;
+  const description =
+    bill.one_sentence ?? bill.status_en ?? `Bill ${bill.number} in the ${bill.session} session of Parliament.`;
+  const canonical = `/bills/${bill.session}/${bill.number}`;
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, type: "article", url: canonical }
+  };
+}
 
 function ballotLabel(ballot: string): string {
   if (ballot === "yea") return "Yes";
@@ -69,6 +93,7 @@ export default async function BillDetailPage({
       title={`${bill.number} · ${bill.short_title_en ?? bill.title_en}`}
       description={bill.status_en ?? "Status pending"}
     >
+      <JsonLd data={billLegislationJsonLd(bill)} />
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <span className={`rounded-full px-4 py-2 text-sm font-medium ${badge.className}`}>{badge.label}</span>
         {bill.is_omnibus ? (

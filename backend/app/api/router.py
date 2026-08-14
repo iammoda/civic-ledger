@@ -16,6 +16,7 @@ from app.api import (
     petitions,
     politicians,
     search,
+    sitemap,
     transparency,
     votes,
 )
@@ -39,3 +40,4 @@ api_router.include_router(bills.router)
 api_router.include_router(committees.router)
 api_router.include_router(debates.router)
 api_router.include_router(transparency.router)
+api_router.include_router(sitemap.router)

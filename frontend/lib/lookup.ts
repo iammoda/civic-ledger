@@ -11,7 +11,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T |
         "Content-Type": "application/json",
         ...init?.headers
       },
-      cache: "no-store"
+      cache: "no-store",
+      // Ask/letter calls hit an LLM and can be slow — generous but bounded.
+      signal: AbortSignal.timeout(30_000)
     });
     if (!response.ok) {
       return null;

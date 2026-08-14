@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { DataGap } from "@/components/data-gap";
@@ -8,6 +9,22 @@ import { Pagination } from "@/components/pagination";
 import { getPoliticianLobbying } from "@/lib/api";
 
 const PAGE_SIZE = 25;
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const data = await getPoliticianLobbying(slug, { limit: 1 }).catch(() => null);
+  if (!data) {
+    return { title: "Lobbying" };
+  }
+  const title = `Who lobbies ${data.full_name}?`;
+  const description = `${data.total.toLocaleString("en-CA")} registered lobbying communications with ${data.full_name}, from the federal Registry of Lobbyists — searchable by organization and subject.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/politicians/${slug}/lobbying` },
+    openGraph: { title, description }
+  };
+}
 
 export default async function PoliticianLobbyingPage({
   params,

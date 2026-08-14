@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
@@ -37,6 +38,12 @@ function SideHeader({ side }: { side: ComparisonSide }) {
     </div>
   );
 }
+
+export const metadata: Metadata = {
+  title: "Compare two MPs",
+  description:
+    "Side-by-side voting records, attendance and party discipline for any two MPs."
+};
 
 export default async function ComparePage({
   searchParams

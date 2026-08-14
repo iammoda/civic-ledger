@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
@@ -11,6 +12,12 @@ const LEVELS: Array<{ key: string; label: string }> = [
   { key: "provincial", label: "Provincial" },
   { key: "municipal", label: "Municipal" }
 ];
+
+export const metadata: Metadata = {
+  title: "Find your representatives",
+  description:
+    "Every MP with party, riding and photo — filter by party, province or name, or look up who represents your postal code."
+};
 
 export default async function PoliticiansPage({
   searchParams

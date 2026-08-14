@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageShell } from "@/components/page-shell";
@@ -19,6 +20,12 @@ const DETECTORS = [
     source: "Registry of Lobbyists + LEGISinfo bill statuses."
   }
 ];
+
+export const metadata: Metadata = {
+  title: "Methodology",
+  description:
+    "How the platform stays neutral: identical detectors and prompts for every party, human review before publishing, citations to primary sources."
+};
 
 export default function MethodologyPage() {
   return (

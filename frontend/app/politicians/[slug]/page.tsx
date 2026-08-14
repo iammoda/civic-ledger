@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { DataGap } from "@/components/data-gap";
@@ -18,6 +19,36 @@ import {
   getPoliticianVotes
 } from "@/lib/api";
 import type { VotesFilter } from "@/lib/api";
+import { JsonLd, personJsonLd } from "@/lib/jsonld";
+
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const politician = await getPolitician(slug).catch(() => null);
+  if (!politician) {
+    return { title: "Representative" };
+  }
+  const membership = politician.current_membership;
+  const level = politician.level ?? "federal";
+  const memberWord = level === "federal" ? "MP" : level === "provincial" ? "MPP" : "Councillor";
+  const place = membership?.riding_name ?? membership?.region_name ?? null;
+  const who = [membership?.party?.short_name, memberWord, place ? `for ${place}` : null].filter(Boolean).join(" ");
+  const title = who ? `${politician.full_name} — ${who}` : politician.full_name;
+  const description =
+    level === "federal"
+      ? `${politician.full_name}'s full record: every vote, dissents from the party line, expenses, donations and who lobbies them — cited to primary sources.`
+      : `${politician.full_name}'s record: votes, attendance and contact details — cited to primary sources.`;
+  const canonical = `/politicians/${politician.slug}`;
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, type: "profile", url: canonical }
+  };
+}
 
 export default async function PoliticianDetailPage({
   params,
@@ -76,6 +107,7 @@ export default async function PoliticianDetailPage({
       title={politician.full_name}
       description={subtitle}
     >
+      <JsonLd data={personJsonLd(politician)} />
       <div className="mb-6 flex flex-wrap items-center gap-5">
         {politician.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element -- external media host, avatar-sized

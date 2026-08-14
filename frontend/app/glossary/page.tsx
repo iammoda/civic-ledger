@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PageShell } from "@/components/page-shell";
 import { DataGap } from "@/components/data-gap";
 
@@ -14,6 +15,12 @@ async function getGlossary(): Promise<GlossaryItem[] | null> {
     return null;
   }
 }
+
+export const metadata: Metadata = {
+  title: "Plain-language glossary",
+  description:
+    "Parliamentary jargon translated into plain English: prorogation, omnibus, hoist amendments and more."
+};
 
 export default async function GlossaryPage() {
   const terms = await getGlossary();

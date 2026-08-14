@@ -208,16 +208,45 @@ export type DebateDetail = {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/v1";
 
-async function fetchApi<T>(path: string): Promise<T | null> {
+/** A non-404 API failure (backend down, 5xx, timeout) on a must-have fetch. */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    path: string
+  ) {
+    super(`API request failed (${status}) for ${path}`);
+    this.name = "ApiError";
+  }
+}
+
+type FetchApiOptions = {
+  /**
+   * strict: only a true 404 returns null (page renders notFound()); any other
+   * failure throws to the nearest error boundary. Without it, all failures
+   * return null — for optional page sections that degrade to a Data Gap.
+   * Never let a backend blip render a detail page as a 404: crawlers deindex
+   * soft-404s.
+   */
+  strict?: boolean;
+};
+
+async function fetchApi<T>(path: string, options?: FetchApiOptions): Promise<T | null> {
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
-      next: { revalidate: 120 }
+      next: { revalidate: 120 },
+      signal: AbortSignal.timeout(10_000)
     });
-    if (!response.ok) {
+    if (response.status === 404) {
       return null;
     }
+    if (!response.ok) {
+      throw new ApiError(response.status, path);
+    }
     return (await response.json()) as T;
-  } catch {
+  } catch (error) {
+    if (options?.strict) {
+      throw error instanceof ApiError ? error : new ApiError(0, path);
+    }
     return null;
   }
 }
@@ -239,7 +268,7 @@ export function listPoliticians(params?: {
 }
 
 export function getPolitician(slug: string) {
-  return fetchApi<PoliticianDetail>(`/politicians/${slug}`);
+  return fetchApi<PoliticianDetail>(`/politicians/${slug}`, { strict: true });
 }
 
 export function listVotes(params?: { offset?: string }) {
@@ -248,7 +277,7 @@ export function listVotes(params?: { offset?: string }) {
 }
 
 export function getVote(chamber: string, session: string, number: string) {
-  return fetchApi<VoteDetail>(`/votes/${chamber}/${session}/${number}`);
+  return fetchApi<VoteDetail>(`/votes/${chamber}/${session}/${number}`, { strict: true });
 }
 
 export function listBills(params?: { outcomeGroup?: string; topic?: string; offset?: string }) {
@@ -261,7 +290,7 @@ export function listBills(params?: { outcomeGroup?: string; topic?: string; offs
 }
 
 export function getBill(session: string, number: string) {
-  return fetchApi<BillDetail>(`/bills/${session}/${number}`);
+  return fetchApi<BillDetail>(`/bills/${session}/${number}`, { strict: true });
 }
 
 export type CabinetMinister = {
@@ -282,7 +311,7 @@ export function listCommittees() {
 }
 
 export function getCommittee(slug: string) {
-  return fetchApi<CommitteeDetail>(`/committees/${slug}`);
+  return fetchApi<CommitteeDetail>(`/committees/${slug}`, { strict: true });
 }
 
 export function getDebate(chamber: string, debateDate: string) {
@@ -473,7 +502,9 @@ export function getPoliticianLobbying(
   if (params?.limit != null) searchParams.set("limit", String(params.limit));
   if (params?.offset) searchParams.set("offset", String(params.offset));
   const qs = searchParams.toString();
-  return fetchApi<PoliticianLobbyingResponse>(`/politicians/${slug}/lobbying${qs ? `?${qs}` : ""}`);
+  return fetchApi<PoliticianLobbyingResponse>(`/politicians/${slug}/lobbying${qs ? `?${qs}` : ""}`, {
+    strict: true
+  });
 }
 
 export type BallotRecord = {
@@ -729,5 +760,5 @@ export function listIssues() {
 }
 
 export function getIssue(slug: string) {
-  return fetchApi<IssueDetail>(`/issues/${encodeURIComponent(slug)}`);
+  return fetchApi<IssueDetail>(`/issues/${encodeURIComponent(slug)}`, { strict: true });
 }
