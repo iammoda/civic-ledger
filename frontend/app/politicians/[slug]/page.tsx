@@ -12,7 +12,6 @@ import { MunicipalRecordCards } from "@/components/municipal-record";
 import { PartyBadge } from "@/components/party-badge";
 import { PartyLogo } from "@/components/party-logo";
 import { VotingRecord } from "@/components/voting-record";
-import { SectionHeading } from "@/components/viz/editorial";
 import { provinceShort } from "@/lib/humanize";
 import { PercentileStrip } from "@/components/viz/percentile-strip";
 import {
@@ -138,30 +137,34 @@ export default async function PoliticianDetailPage({
   const surname = politician.full_name.trim().split(/\s+/).slice(-1)[0] || politician.full_name;
   const dissentCount = stats?.dissent_count;
 
+  const accent = partyColor(party?.slug);
+
   return (
-    <main id="main" className="mx-auto max-w-[1600px] px-5 sm:px-10 py-8 sm:py-10">
+    <main id="main">
       <JsonLd data={personJsonLd(politician)} />
 
       {/* ---------------------------------------------------------------- */}
-      {/* Masthead: the person, at editorial scale.                         */}
+      {/* Masthead: the person, at editorial scale, on a whisper of their   */}
+      {/* party's colour — identity only, never judgment.                   */}
       {/* ---------------------------------------------------------------- */}
-      <section className="rule-heavy mb-10 pt-5">
+      <section style={{ backgroundColor: `${accent}0f`, borderTop: `3px solid ${accent}` }}>
+        <div className="mx-auto max-w-[1600px] px-5 pb-10 pt-8 sm:px-10 sm:pt-10">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-10">
           {politician.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element -- external media host
             <img
               src={politician.image_url}
               alt={politician.full_name}
-              width={168}
-              height={168}
-              className="h-42 w-42 shrink-0 rounded-lg object-cover"
-              style={{ width: 168, height: 168, borderBottom: `4px solid ${partyColor(party?.slug)}` }}
+              width={220}
+              height={220}
+              className="shrink-0 rounded-lg object-cover"
+              style={{ width: 220, height: 220, borderBottom: `4px solid ${accent}` }}
             />
           ) : (
             <div
               aria-hidden
-              className="flex h-42 w-42 shrink-0 items-center justify-center rounded-lg bg-stone-100 font-serif text-5xl font-semibold text-stone-400"
-              style={{ width: 168, height: 168, borderBottom: `4px solid ${partyColor(party?.slug)}` }}
+              className="flex shrink-0 items-center justify-center rounded-lg bg-stone-100 font-serif text-6xl font-semibold text-stone-400"
+              style={{ width: 220, height: 220, borderBottom: `4px solid ${accent}` }}
             >
               {politician.full_name.charAt(0)}
             </div>
@@ -188,7 +191,7 @@ export default async function PoliticianDetailPage({
             </div>
 
             {/* Facts, quietly. */}
-            <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-3 border-t border-border pt-4 text-sm">
+            <dl className="mt-7 flex flex-wrap gap-x-10 gap-y-3 text-sm">
               {firstStart ? (
                 <div>
                   <dt className="kicker">In office since</dt>
@@ -234,21 +237,23 @@ export default async function PoliticianDetailPage({
             </dl>
           </div>
         </div>
+        </div>
+      </section>
 
-        {/* The report card: plain sentences, with the distribution behind them. */}
-        {hasVotes && !isMunicipal && (attendance != null || stats?.party_line_voting_pct != null) ? (
-          <div className="mt-8 grid gap-x-16 gap-y-6 border-t border-border pt-6 lg:grid-cols-2">
+      {/* The report card: verdict first, distribution behind it. */}
+      {hasVotes && !isMunicipal && (attendance != null || stats?.party_line_voting_pct != null) ? (
+        <section className="mx-auto max-w-[1600px] px-5 sm:px-10">
+          <div className="grid gap-x-16 gap-y-8 pt-9 lg:grid-cols-2">
             {attendance != null ? (
               <div>
-                <p className="text-[15px] leading-6 text-ink">
-                  <span className={`stat-figure text-2xl ${lowAttendance ? "text-signal" : "text-ink"}`}>
+                <p className="flex flex-wrap items-baseline gap-x-3">
+                  <span className={`stat-figure text-4xl sm:text-5xl ${lowAttendance ? "text-signal" : "text-ink"}`}>
                     {attendance}%
-                  </span>{" "}
-                  <span className="font-semibold">attendance</span>
+                  </span>
+                  <span className="font-semibold text-ink">attendance</span>
                   {stats?.votes_cast != null && stats?.votes_eligible != null ? (
-                    <span className="text-stone-500">
-                      {" "}
-                      — cast {stats.votes_cast} of {stats.votes_eligible} eligible votes
+                    <span className="font-mono text-xs text-stone-500">
+                      {stats.votes_cast} of {stats.votes_eligible} eligible votes
                     </span>
                   ) : null}
                 </p>
@@ -256,35 +261,37 @@ export default async function PoliticianDetailPage({
                   valuePct={attendance}
                   benchmarkPct={medianAttendance}
                   benchmarkLabel="chamber median"
-                  className="mt-2 max-w-md"
+                  className="mt-3 max-w-md"
                 />
                 {medianAttendance != null ? (
-                  <p className="mt-1.5 text-xs text-stone-500">
-                    Chamber median: {medianAttendance}% (teal mark).{" "}
-                    {lowAttendance ? `${surname} misses noticeably more votes than most.` : ""}
+                  <p className="mt-2 font-serif text-[15px] italic leading-6 text-stone-600">
+                    {lowAttendance
+                      ? `${surname} misses noticeably more votes than most — the chamber median is ${medianAttendance}%.`
+                      : attendance >= medianAttendance
+                        ? `Shows up more often than the typical member (median ${medianAttendance}%).`
+                        : `Close to the chamber median of ${medianAttendance}%.`}
                   </p>
                 ) : null}
               </div>
             ) : null}
             {stats?.party_line_voting_pct != null ? (
               <div>
-                <p className="text-[15px] leading-6 text-ink">
-                  <span className="stat-figure text-2xl">{stats.party_line_voting_pct}%</span>{" "}
-                  <span className="font-semibold">votes with their party</span>
+                <p className="flex flex-wrap items-baseline gap-x-3">
+                  <span className="stat-figure text-4xl text-ink sm:text-5xl">{stats.party_line_voting_pct}%</span>
+                  <span className="font-semibold text-ink">votes with their party</span>
                   {dissentCount != null ? (
-                    <span className="text-stone-500">
-                      {" "}
-                      — broke ranks {dissentCount} time{dissentCount === 1 ? "" : "s"}
+                    <span className="font-mono text-xs text-stone-500">
+                      broke ranks {dissentCount} time{dissentCount === 1 ? "" : "s"}
                     </span>
                   ) : null}
                 </p>
-                <PercentileStrip valuePct={stats.party_line_voting_pct} className="mt-2 max-w-md" />
-                <p className="mt-1.5 text-xs text-stone-500">
+                <PercentileStrip valuePct={stats.party_line_voting_pct} className="mt-3 max-w-md" />
+                <p className="mt-2 font-serif text-[15px] italic leading-6 text-stone-600">
                   Near-100% is normal in Canada&apos;s whipped party system — the dissents are the story.
                   {dissentCount ? (
                     <>
                       {" "}
-                      <Link href={`/politicians/${politician.slug}?votes=dissent`} className="text-accent hover:underline">
+                      <Link href={`/politicians/${politician.slug}?votes=dissent`} className="not-italic font-sans text-sm text-accent hover:underline">
                         See {surname}&apos;s dissents →
                       </Link>
                     </>
@@ -293,17 +300,17 @@ export default async function PoliticianDetailPage({
               </div>
             ) : null}
           </div>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
 
       {/* ---------------------------------------------------------------- */}
       {/* The record.                                                        */}
       {/* ---------------------------------------------------------------- */}
-      <section className="grid gap-x-16 gap-y-12 lg:grid-cols-[minmax(280px,340px)_1fr]">
-        <div className="min-w-0 space-y-12">
+      <section className="mx-auto grid max-w-[1600px] gap-x-16 gap-y-12 px-5 pt-12 sm:px-10 lg:grid-cols-[minmax(280px,340px)_1fr]">
+        <div className="min-w-0 space-y-10">
           <div>
-            <SectionHeading title="Contact" />
-            <div className="space-y-3 pt-4 text-sm">
+            <p className="kicker border-t-2 border-ink/60 pt-2">Contact</p>
+            <div className="space-y-3 pt-3 text-sm">
               {politician.email ? (
                 <p>
                   <a href={`mailto:${politician.email}`} className="link-editorial font-medium text-ink">
@@ -319,7 +326,7 @@ export default async function PoliticianDetailPage({
                 </p>
               ) : null}
               {(politician.offices ?? []).map((office, index) => (
-                <div key={index} className="rule pt-3">
+                <div key={index} className="pt-2">
                   <p className="font-medium capitalize">{office.type ?? "Office"}</p>
                   {office.tel ? <p className="mt-1 text-stone-600">{office.tel}</p> : null}
                   {office.postal ? (
@@ -339,7 +346,7 @@ export default async function PoliticianDetailPage({
           </div>
 
           <div>
-            <SectionHeading title="Membership history" />
+            <p className="kicker border-t-2 border-ink/60 pt-2">Served</p>
             <div className="pt-1">
               {politician.memberships.map((membership, index) => {
                 const startYear = membership.started_on ? new Date(membership.started_on).getFullYear() : null;
@@ -352,7 +359,7 @@ export default async function PoliticianDetailPage({
                   startYear != null ? (endLabel ? `${startYear} – ${endLabel}` : String(startYear)) : null;
                 const placeLabel = membership.riding_name ?? membership.region_name ?? "—";
                 return (
-                  <div key={index} className="rule py-3">
+                  <div key={index} className="py-2">
                     <p className="text-sm font-semibold text-ink">{membership.party?.name ?? "No party on record"}</p>
                     <p className="mt-0.5 text-sm text-stone-500">
                       {placeLabel}
@@ -366,7 +373,7 @@ export default async function PoliticianDetailPage({
 
           {isFederal ? (
             <div>
-              <SectionHeading title="Committee work" />
+              <p className="kicker border-t-2 border-ink/60 pt-2">Committees</p>
               <p className="pt-2 text-sm leading-6 text-stone-500">
                 Committees are where bills get studied line by line — much of an MP&apos;s real influence
                 happens here, off the main stage.
@@ -377,7 +384,7 @@ export default async function PoliticianDetailPage({
                     <Link
                       key={committee.committee_slug}
                       href={`/committees/${committee.committee_slug}`}
-                      className="rule group block py-3"
+                      className="group block py-2.5"
                     >
                       <p className="text-sm font-semibold text-ink transition group-hover:text-accent">
                         {committee.committee_name}
@@ -403,14 +410,14 @@ export default async function PoliticianDetailPage({
 
           {!isMunicipal ? (
             <div>
-              <SectionHeading title="Sponsored bills" />
+              <p className="kicker border-t-2 border-ink/60 pt-2">Their bills</p>
               {(politician.sponsored_bills ?? []).length ? (
                 <div className="pt-1">
                   {(politician.sponsored_bills ?? []).map((bill) => (
                     <Link
                       key={`${bill.session}-${bill.number}`}
                       href={`/bills/${bill.session}/${bill.number}`}
-                      className="rule group block py-3"
+                      className="group block py-2.5"
                     >
                       <p className="text-sm font-semibold leading-6 text-ink transition group-hover:text-accent">
                         <span className="mr-2 text-xs font-semibold text-stone-400">{bill.number}</span>
@@ -436,13 +443,6 @@ export default async function PoliticianDetailPage({
               ) : (
                 <p className="pt-4 text-sm text-stone-600">No sponsored bill data has been attached yet.</p>
               )}
-              {isFederal ? (
-                <p className="mt-4 border-t border-border pt-3 text-sm">
-                  <Link href={`/compare?a=${politician.slug}`} className="link-editorial text-ink">
-                    Compare this MP with another →
-                  </Link>
-                </p>
-              ) : null}
             </div>
           ) : null}
         </div>
@@ -472,7 +472,9 @@ export default async function PoliticianDetailPage({
           ) : null}
         </div>
       </section>
-      <CiteThis title={`${politician.full_name} — voting record and disclosures`} />
+      <div className="mx-auto max-w-[1600px] px-5 pb-10 sm:px-10">
+        <CiteThis title={`${politician.full_name} — voting record and disclosures`} />
+      </div>
     </main>
   );
 }

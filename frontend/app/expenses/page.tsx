@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataGap } from "@/components/data-gap";
+import { Pagination } from "@/components/pagination";
 import { PageShell } from "@/components/page-shell";
 import { PartyBadge } from "@/components/party-badge";
 import { MONEY_TABS, SectionTabs } from "@/components/section-tabs";
 import { searchExpenses } from "@/lib/api";
 import { MP_BASE_SALARY, ROLE_TOP_UPS, SALARY_AS_OF, SALARY_SOURCE_URL, formatSalary } from "@/lib/salaries";
+import { formatDateShort } from "@/lib/humanize";
 
 const CATEGORY_CHIPS = [
   { label: "All", value: "" },
@@ -50,16 +52,19 @@ export default async function ExpensesPage({
     min_amount?: string;
     sort?: string;
     scope?: string;
+    person?: string;
+    offset?: string;
   }>;
 }) {
   const params = await searchParams;
   const isOntario = params.scope === "on-mpp";
   const results = await searchExpenses(params);
+  const personName = params.person ? (results?.items[0]?.mp_name ?? params.person) : null;
   const categoryChips = isOntario ? ONTARIO_CATEGORY_CHIPS : CATEGORY_CHIPS;
 
   // CSV export of the current filters (served by the API; capped at 10k rows).
   const csvParams = new URLSearchParams();
-  for (const key of ["q", "category", "fiscal_year", "min_amount", "scope"] as const) {
+  for (const key of ["q", "category", "fiscal_year", "min_amount", "scope", "person"] as const) {
     if (params[key]) csvParams.set(key, params[key]!);
   }
   const csvHref = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/v1"}/expenses/search.csv${
@@ -67,7 +72,7 @@ export default async function ExpensesPage({
   }`;
 
   const buildHref = (next: Record<string, string | undefined>) => {
-    const merged = { ...params, ...next };
+    const merged = { ...params, offset: undefined, ...next };
     const searchParamsOut = new URLSearchParams();
     for (const [key, value] of Object.entries(merged)) {
       if (value) searchParamsOut.set(key, value);
@@ -137,6 +142,8 @@ export default async function ExpensesPage({
             className="w-full rounded-none border-0 border-b-2 border-ink bg-transparent px-1 py-2 text-lg outline-none placeholder:text-stone-300 focus:border-accent sm:w-28"
           />
           {params.category ? <input type="hidden" name="category" value={params.category} /> : null}
+          {params.person ? <input type="hidden" name="person" value={params.person} /> : null}
+          {params.scope ? <input type="hidden" name="scope" value={params.scope} /> : null}
           {params.fiscal_year ? <input type="hidden" name="fiscal_year" value={params.fiscal_year} /> : null}
           {params.sort ? <input type="hidden" name="sort" value={params.sort} /> : null}
           <button type="submit" className="shrink-0 rounded-full bg-ink px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700">
@@ -167,6 +174,15 @@ export default async function ExpensesPage({
               </Link>
             );
           })}
+          {personName ? (
+            <Link
+              href={buildHref({ person: undefined, offset: undefined })}
+              scroll={false}
+              className="rounded-full border border-ink/20 px-3 py-1 text-xs font-semibold text-ink transition hover:border-signal hover:text-signal"
+            >
+              Only {personName} ✕
+            </Link>
+          ) : null}
           {isOntario ? (
             <span className="text-xs font-normal text-stone-500">
               travel, accommodation, meals &amp; hospitality only — Ontario doesn&apos;t disclose office budgets per MPP
@@ -248,12 +264,12 @@ export default async function ExpensesPage({
                         width={24}
                         height={24}
                         loading="lazy"
-                        className="h-6 w-6 shrink-0 rounded-full object-cover"
+                        className="h-6 w-6 shrink-0 rounded-md object-cover"
                       />
                     ) : (
                       <span
                         aria-hidden
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 text-[10px] font-semibold text-stone-500"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-stone-100 text-[10px] font-semibold text-stone-500"
                       >
                         {(item.mp_name ?? "?").charAt(0)}
                       </span>
@@ -268,7 +284,7 @@ export default async function ExpensesPage({
                     {item.mp_party ? <PartyBadge party={item.mp_party} size="xs" /> : null}
                     <span>
                       Q{item.quarter} {item.fiscal_year}
-                      {item.occurred_on ? ` · ${item.occurred_on}` : ""}
+                      {item.occurred_on ? ` · ${formatDateShort(item.occurred_on)}` : ""}
                       {item.city ? ` · ${item.city}` : ""}
                       {" · "}
                       <a href={item.source_url} target="_blank" rel="noreferrer" className="text-accent">
@@ -283,11 +299,36 @@ export default async function ExpensesPage({
               </div>
             ))}
           </div>
+          <Pagination
+            total={results.meta.total}
+            limit={results.meta.limit}
+            offset={results.meta.offset}
+            basePath="/expenses"
+            params={{
+              q: params.q,
+              category: params.category,
+              fiscal_year: params.fiscal_year,
+              min_amount: params.min_amount,
+              sort: params.sort,
+              scope: params.scope,
+              person: params.person
+            }}
+          />
         </>
       )}
 
-      <p className="mt-8 max-w-3xl text-xs leading-6 text-stone-500">
-        Source: House of Commons Members&apos; Expenditures (Proactive Disclosure). Large amounts are often
+      {results?.data_current_to ? (
+        <p className="mt-8 text-xs text-stone-500">
+          Disclosures current to {formatDateShort(results.data_current_to)} — legislatures publish quarterly,
+          with a lag. A few line items carry future dates (prepaid rent, booked events); that&apos;s how they
+          appear in the source.
+        </p>
+      ) : null}
+      <p className="mt-2 max-w-3xl text-xs leading-6 text-stone-500">
+        Source: {isOntario
+          ? "Legislative Assembly of Ontario members' expense disclosures."
+          : "House of Commons Members' Expenditures (Proactive Disclosure)."}{" "}
+        Large amounts are often
         routine — office leases, printing, northern-riding travel. Patterns worth a second look go through a
         human review queue before being flagged.{" "}
         <Link href="/methodology" className="text-accent">

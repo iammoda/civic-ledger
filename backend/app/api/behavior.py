@@ -1,4 +1,4 @@
-"""Behavior endpoints: MP voting records with party context, comparison."""
+"""Behavior endpoints: MP voting records with party context."""
 from __future__ import annotations
 
 from datetime import date
@@ -12,13 +12,8 @@ from app.api.votes import _bill_display_title, _bill_one_sentences
 from app.db.session import get_db
 from app.models import (
     Ballot,
-    Contribution,
-    LegislatureSession,
-    LobbyCommunication,
     Party,
     Person,
-    PersonMembership,
-    PersonStats,
     Vote,
 )
 
@@ -224,74 +219,3 @@ def politician_votes(
         total_filtered=total_filtered,
         items=items,
     )
-
-
-class ComparisonSide(BaseModel):
-    slug: str
-    full_name: str
-    party: str | None = None
-    riding: str | None = None
-    attendance_pct: float | None = None
-    party_line_pct: float | None = None
-    dissent_count: int | None = None
-    votes_cast: int | None = None
-    lobbying_last_12mo: int
-    donations_total: float
-
-
-class CompareResponse(BaseModel):
-    a: ComparisonSide
-    b: ComparisonSide
-
-
-def _comparison_side(db: Session, slug: str) -> ComparisonSide:
-    person = db.scalar(
-        select(Person)
-        .where(Person.slug == slug)
-        .options(selectinload(Person.memberships).selectinload(PersonMembership.party))
-    )
-    if person is None:
-        raise HTTPException(status_code=404, detail=f"Politician not found: {slug}")
-
-    current = next((m for m in person.memberships if m.is_current), None)
-    stats = db.scalar(
-        select(PersonStats)
-        .join(LegislatureSession, PersonStats.session_id == LegislatureSession.id)
-        .where(PersonStats.person_id == person.id)
-        .order_by(
-            LegislatureSession.parliament_number.desc(),
-            LegislatureSession.session_number.desc(),
-        )
-        .limit(1)
-    )
-    from datetime import timedelta
-
-    year_ago = date.today() - timedelta(days=365)
-    lobbying = db.scalar(
-        select(func.count())
-        .select_from(LobbyCommunication)
-        .where(LobbyCommunication.dpoh_person_id == person.id, LobbyCommunication.comm_date >= year_ago)
-    ) or 0
-    donations = db.scalar(
-        select(func.coalesce(func.sum(Contribution.amount), 0.0)).where(
-            Contribution.recipient_person_id == person.id
-        )
-    ) or 0.0
-
-    return ComparisonSide(
-        slug=person.slug,
-        full_name=person.full_name,
-        party=current.party.short_name if current and current.party else None,
-        riding=current.riding_name if current else None,
-        attendance_pct=stats.attendance_pct if stats else None,
-        party_line_pct=stats.party_line_pct if stats else None,
-        dissent_count=stats.dissent_count if stats else None,
-        votes_cast=stats.votes_cast if stats else None,
-        lobbying_last_12mo=lobbying,
-        donations_total=float(donations),
-    )
-
-
-@router.get("/compare", response_model=CompareResponse)
-def compare(a: str = Query(), b: str = Query(), db: Session = Depends(get_db)) -> CompareResponse:
-    return CompareResponse(a=_comparison_side(db, a), b=_comparison_side(db, b))

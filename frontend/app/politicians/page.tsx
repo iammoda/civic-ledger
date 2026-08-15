@@ -5,7 +5,6 @@ import { DataGap } from "@/components/data-gap";
 import { LevelBadge } from "@/components/level-badge";
 import { PageShell } from "@/components/page-shell";
 import { SectionTabs, YOUR_REPS_TABS } from "@/components/section-tabs";
-import { WhoDoesWhatStrip } from "@/components/who-does-what";
 import { listPoliticians } from "@/lib/api";
 import { partyColor, partyInfo } from "@/lib/parties";
 
@@ -65,46 +64,47 @@ export default async function PoliticiansPage({
     >
       <SectionTabs tabs={YOUR_REPS_TABS} ariaLabel="Your reps sections" />
 
-      <WhoDoesWhatStrip className="mb-8" />
-
-      {/* Level first: the primary way into the directory. */}
-      <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium">
-        <span className="kicker">Level</span>
-        {LEVELS.map((entry) => (
-          <Link
-            key={entry.key}
-            href={buildHref({ level: entry.key, party: "", province: "" })}
-            scroll={false}
-            aria-current={level === entry.key ? "page" : undefined}
-            className={`border-b-2 pb-0.5 transition ${
-              level === entry.key
-                ? "border-ink font-semibold text-ink"
-                : "border-transparent text-stone-500 hover:text-ink"
-            }`}
-          >
-            {entry.label}
-          </Link>
-        ))}
-      </div>
-
-      <form action="/politicians" method="get" className="mb-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <input
-            name="q"
-            aria-label="Search representatives by name"
-            defaultValue={q ?? ""}
-            placeholder="Search by name…"
-            className="w-full rounded-none border-0 border-b-2 border-ink bg-transparent px-1 py-2 text-lg outline-none placeholder:text-stone-300 focus:border-accent sm:max-w-sm"
-          />
-          {party ? <input type="hidden" name="party" value={party} /> : null}
-          {province ? <input type="hidden" name="province" value={province} /> : null}
-          {level !== "federal" ? <input type="hidden" name="level" value={level} /> : null}
-          <button type="submit" className="shrink-0 rounded-full bg-ink px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700">
-            Search
-          </button>
-        </div>
+      {/* One toolbar: search, level, then the quiet party/province line. */}
+      <div className="mb-8">
+        <form action="/politicians" method="get" className="flex flex-wrap items-end gap-x-8 gap-y-4">
+          <div className="flex w-full max-w-sm items-end gap-3">
+            <input
+              name="q"
+              aria-label="Search representatives by name"
+              defaultValue={q ?? ""}
+              placeholder="Search by name…"
+              className="w-full rounded-none border-0 border-b-2 border-ink bg-transparent px-1 py-1.5 text-lg outline-none placeholder:text-stone-300 focus:border-accent"
+            />
+            {party ? <input type="hidden" name="party" value={party} /> : null}
+            {province ? <input type="hidden" name="province" value={province} /> : null}
+            {level !== "federal" ? <input type="hidden" name="level" value={level} /> : null}
+            <button
+              type="submit"
+              className="shrink-0 rounded-full bg-ink px-5 py-2 text-sm font-semibold text-white transition hover:bg-stone-700"
+            >
+              Search
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pb-1.5 text-sm font-medium">
+            {LEVELS.map((entry) => (
+              <Link
+                key={entry.key}
+                href={buildHref({ level: entry.key, party: "", province: "" })}
+                scroll={false}
+                aria-current={level === entry.key ? "page" : undefined}
+                className={`border-b-2 pb-0.5 transition ${
+                  level === entry.key
+                    ? "border-ink font-semibold text-ink"
+                    : "border-transparent text-stone-500 hover:text-ink"
+                }`}
+              >
+                {entry.label}
+              </Link>
+            ))}
+          </div>
+        </form>
         {partySlugs.size || party || province ? (
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium">
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium">
             {party ? (
               <Link href={buildHref({ party: "" })} className="rounded-full border border-signal/40 px-3 py-1 text-signal">
                 Party: {partyInfo(party).label} ✕
@@ -145,7 +145,7 @@ export default async function PoliticiansPage({
             )}
           </div>
         ) : null}
-      </form>
+      </div>
 
       {!politicians?.items.length ? (
         <DataGap
@@ -161,31 +161,31 @@ export default async function PoliticiansPage({
           <p className="rule-heavy mb-2 pt-3 text-sm text-stone-500">
             <span className="stat-figure text-lg text-ink">{politicians.meta.total}</span> representatives
           </p>
-          <div className="grid gap-x-10 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-x-10 gap-y-2 pt-2 sm:grid-cols-2 xl:grid-cols-3">
             {politicians.items.map((politician) => {
               const partyEntry = politician.current_membership?.party;
               return (
                 <Link
                   key={politician.slug}
                   href={`/politicians/${politician.slug}`}
-                  className="rule group flex items-center gap-5 py-5"
+                  className="group flex items-center gap-5 py-4"
                 >
                   {politician.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element -- external media host, avatar-sized
                     <img
                       src={politician.image_url.replace(/^http:\/\//, "https://")}
                       alt=""
-                      width={72}
-                      height={72}
+                      width={96}
+                      height={96}
                       loading="lazy"
-                      className="h-18 w-18 shrink-0 rounded-md object-cover"
-                      style={{ width: 72, height: 72, borderBottom: `3px solid ${partyColor(partyEntry?.slug)}` }}
+                      className="shrink-0 rounded-md object-cover"
+                      style={{ width: 96, height: 96, borderBottom: `3px solid ${partyColor(partyEntry?.slug)}` }}
                     />
                   ) : (
                     <div
                       aria-hidden
-                      className="flex h-18 w-18 shrink-0 items-center justify-center rounded-md bg-stone-100 font-serif text-2xl font-semibold text-stone-400"
-                      style={{ width: 72, height: 72, borderBottom: `3px solid ${partyColor(partyEntry?.slug)}` }}
+                      className="flex shrink-0 items-center justify-center rounded-md bg-stone-100 font-serif text-3xl font-semibold text-stone-400"
+                      style={{ width: 96, height: 96, borderBottom: `3px solid ${partyColor(partyEntry?.slug)}` }}
                     >
                       {politician.full_name.charAt(0)}
                     </div>

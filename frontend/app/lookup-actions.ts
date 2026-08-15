@@ -6,7 +6,7 @@ export type PostalLookupState =
   | { status: "idle" }
   | { status: "invalid" }
   | { status: "error" }
-  | { status: "ok"; result: PostalLookupResponse };
+  | { status: "ok"; result: PostalLookupResponse; postal: string };
 
 const POSTAL_RE = /^[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d$/;
 
@@ -27,5 +27,7 @@ export async function postalLookupAction(
   if (result === null) {
     return { status: "error" };
   }
-  return { status: "ok", result };
+  // The postal code is echoed back so the browser can keep it on-device
+  // (header chip). It is not persisted server-side.
+  return { status: "ok", result, postal: postal.toUpperCase() };
 }

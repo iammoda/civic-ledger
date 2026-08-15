@@ -249,6 +249,7 @@ def _expense_search_query(
     min_amount: float | None,
     traveller_type: str | None,
     scope: str = "federal",
+    person: str | None = None,
 ):
     """Shared filter set for the JSON explorer and the CSV export.
 
@@ -258,6 +259,9 @@ def _expense_search_query(
     fields) — word order stops mattering.
     """
     query = select(ExpenseItem).where(ExpenseItem.scope == scope)
+    if person:
+        # Profile pages link here as "search all N line items" for one member.
+        query = query.join(Person, Person.id == ExpenseItem.person_id).where(Person.slug == person)
     if q:
         for token in q.strip().lower().split()[:8]:
             query = query.where(
@@ -295,6 +299,7 @@ def search_expenses_csv(
     min_amount: float | None = Query(default=None, ge=0),
     traveller_type: str | None = Query(default=None, max_length=64),
     scope: str = Query(default="federal", pattern="^(federal|on-mpp)$"),
+    person: str | None = Query(default=None, max_length=128),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
     """The current expense search, as a CSV — for journalists and spreadsheets.
@@ -306,7 +311,7 @@ def search_expenses_csv(
     import csv
     import io
 
-    query = _expense_search_query(q, category, fiscal_year, min_amount, traveller_type, scope)
+    query = _expense_search_query(q, category, fiscal_year, min_amount, traveller_type, scope, person)
     items = db.scalars(query.order_by(ExpenseItem.amount.desc()).limit(CSV_EXPORT_CAP)).all()
 
     def rows():
@@ -343,13 +348,14 @@ def search_expenses(
     min_amount: float | None = Query(default=None, ge=0),
     traveller_type: str | None = Query(default=None, max_length=64),
     scope: str = Query(default="federal", pattern="^(federal|on-mpp)$"),
+    person: str | None = Query(default=None, max_length=128),
     sort: str = Query(default="amount", pattern="^(amount|date)$"),
     limit: int = Query(default=25, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict:
     """Cross-MP searchable expense explorer. Biggest-first by default."""
-    query = _expense_search_query(q, category, fiscal_year, min_amount, traveller_type, scope)
+    query = _expense_search_query(q, category, fiscal_year, min_amount, traveller_type, scope, person)
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     order = ExpenseItem.amount.desc() if sort == "amount" else ExpenseItem.occurred_on.desc().nullslast()
@@ -396,9 +402,19 @@ def search_expenses(
         model.mp_party = parties.get(item.person_id or 0)
         return model
 
+    # Recency: disclosures lag by a quarter or more, and some rows are
+    # legitimately future-dated (prepaid rent, booked events) — so "current
+    # to" means the newest non-future incurred date for this scope.
+    data_current_to = db.scalar(
+        select(func.max(ExpenseItem.occurred_on)).where(
+            ExpenseItem.scope == scope, ExpenseItem.occurred_on <= date.today()
+        )
+    )
+
     return {
         "items": [_search_model(item).model_dump() for item in items],
         "meta": PageMeta(total=total, limit=limit, offset=offset).model_dump(),
+        "data_current_to": data_current_to.isoformat() if data_current_to else None,
     }
 
 class MppExpenseTotals(BaseModel):
@@ -410,6 +426,10 @@ class MppExpensesResponse(BaseModel):
     slug: str
     full_name: str
     total: float
+    # Current calendar year so recent activity is visible at a glance.
+    year_total: float
+    year: int
+    latest_date: date | None = None
     by_category: list[MppExpenseTotals]
     items: list[ExpenseItemModel]
     source_note: str
@@ -438,10 +458,28 @@ def mpp_expenses(
         .order_by(func.sum(ExpenseItem.amount).desc())
     ).all()
     items = db.scalars(base.order_by(ExpenseItem.amount.desc()).limit(limit)).all()
+    today = date.today()
+    year_total = db.scalar(
+        select(func.coalesce(func.sum(ExpenseItem.amount), 0.0)).where(
+            ExpenseItem.person_id == person.id,
+            ExpenseItem.scope == "on-mpp",
+            ExpenseItem.occurred_on >= date(today.year, 1, 1),
+        )
+    ) or 0.0
+    latest_date = db.scalar(
+        select(func.max(ExpenseItem.occurred_on)).where(
+            ExpenseItem.person_id == person.id,
+            ExpenseItem.scope == "on-mpp",
+            ExpenseItem.occurred_on <= today,
+        )
+    )
     return MppExpensesResponse(
         slug=person.slug,
         full_name=person.full_name,
         total=float(sum(total for _, total in totals)),
+        year_total=float(year_total),
+        year=today.year,
+        latest_date=latest_date,
         by_category=[MppExpenseTotals(category=c, total=float(t)) for c, t in totals],
         items=[_item_model(item) for item in items],
         source_note=(

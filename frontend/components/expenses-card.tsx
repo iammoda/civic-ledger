@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type { MpExpensesResponse } from "@/lib/api";
+import { formatDateShort } from "@/lib/humanize";
 
 function money(value: number): string {
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -130,12 +131,12 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
           </summary>
           <div className="mt-2">
             {expenses.top_items.map((item) => (
-              <div key={item.id} className="rule flex items-start justify-between gap-3 py-3 text-sm">
+              <div key={item.id} className="flex items-start justify-between gap-3 py-2 text-sm">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{item.supplier ?? item.description ?? item.purpose ?? "—"}</p>
                   <p className="text-xs text-stone-500">
                     {item.category} · Q{item.quarter} {item.fiscal_year}
-                    {item.occurred_on ? ` · ${item.occurred_on}` : ""}
+                    {item.occurred_on ? ` · ${formatDateShort(item.occurred_on)}` : ""}
                   </p>
                 </div>
                 <span className="stat-figure shrink-0 font-semibold">{money(item.amount)}</span>
@@ -147,8 +148,8 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
 
       <p className="mt-6 border-t border-border pt-4 text-xs leading-5 text-stone-500">
         {expenses.sources_note}{" "}
-        <Link href={`/expenses?q=${encodeURIComponent(expenses.full_name)}`} className="text-accent">
-          Search all their expenses →
+        <Link href={`/expenses?person=${encodeURIComponent(expenses.slug)}`} className="text-accent">
+          Search every line item they filed →
         </Link>
       </p>
     </section>

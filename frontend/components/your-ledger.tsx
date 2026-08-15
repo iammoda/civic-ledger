@@ -46,28 +46,32 @@ const BALLOT_LABEL: Record<string, { text: string; className: string }> = {
 export function PostalOrLedger() {
   const reps = useMyReps();
   const mp = reps.find((rep) => rep.level === "federal") ?? null;
-  // Keyed by slug: a record for a previous MP is simply ignored, so there is
-  // no synchronous state reset in the effect and no stale-data flash.
-  const [record, setRecord] = useState<{ slug: string; data: VotesResponse } | null>(null);
+  const mpp = reps.find((rep) => rep.level === "provincial") ?? null;
+  // Keyed by slug: records for stale reps are simply ignored — no synchronous
+  // state resets in effects, no stale-data flash.
+  const [records, setRecords] = useState<Record<string, VotesResponse>>({});
 
+  const wantedSlugs = [mp?.slug, mpp?.slug].filter(Boolean).join(",");
   useEffect(() => {
-    if (!mp) return;
+    if (!wantedSlugs) return;
     let cancelled = false;
-    const slug = mp.slug;
-    fetch(`/api/your-mp?slug=${encodeURIComponent(slug)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: VotesResponse | null) => {
-        if (!cancelled && data) setRecord({ slug, data });
-      })
-      .catch(() => {
-        /* the ledger degrades to links; no error state needed */
-      });
+    for (const slug of wantedSlugs.split(",")) {
+      fetch(`/api/your-mp?slug=${encodeURIComponent(slug)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: VotesResponse | null) => {
+          if (!cancelled && data) setRecords((prev) => ({ ...prev, [slug]: data }));
+        })
+        .catch(() => {
+          /* the ledger degrades to links; no error state needed */
+        });
+    }
     return () => {
       cancelled = true;
     };
-  }, [mp?.slug]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wantedSlugs]);
 
-  const mpRecord = mp && record?.slug === mp.slug ? record.data : null;
+  const mpRecord = mp ? (records[mp.slug] ?? null) : null;
+  const mppRecord = mpp ? (records[mpp.slug] ?? null) : null;
 
   if (!reps.length) {
     return (
@@ -118,48 +122,83 @@ export function PostalOrLedger() {
 
       {/* How your MP voted lately — the payoff. */}
       {mp && mpRecord?.items?.length ? (
-        <div className="mt-6">
-          <p className="kicker">How {mp.name.split(/\s+/).slice(-1)[0]} voted recently</p>
-          <ul className="mt-1">
-            {mpRecord.items.map((ballot) => {
-              const label = BALLOT_LABEL[ballot.ballot] ?? { text: ballot.ballot, className: "text-stone-600" };
-              const headline =
-                ballot.bill_one_sentence ?? ballot.plain_meaning_en ?? ballot.bill_title ?? ballot.description_en;
-              return (
-                <li key={`${ballot.session}-${ballot.vote_number}`} className="rule py-3 first:border-t-0">
-                  <Link
-                    href={`/votes/${ballot.chamber}/${ballot.session}/${ballot.vote_number}`}
-                    className="group block"
-                  >
-                    <p className="text-[15px] leading-6 text-ink group-hover:text-accent">
-                      <span className={`font-bold ${label.className}`}>{label.text}</span>
-                      {ballot.bill_number ? (
-                        <span className="ml-2 text-[13px] font-semibold text-stone-500">{ballot.bill_number}</span>
-                      ) : null}
-                      <span className="ml-2 text-stone-400">·</span>{" "}
-                      <span className="text-stone-600">{headline}</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-stone-400">
-                      {formatDateShort(ballot.occurred_on)}
-                      {ballot.broke_party_line ? (
-                        <span className="ml-2 font-semibold text-amber-700">broke party ranks</span>
-                      ) : null}
-                    </p>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
-            <Link href={`/politicians/${mp.slug}`} className="link-editorial text-ink">
-              {mp.name}’s full record →
-            </Link>
-            <Link href="/act" className="link-editorial text-ink">
-              Write to them →
-            </Link>
-          </div>
-        </div>
+        <RecentVotes
+          heading={`How ${mp.name.split(/\s+/).slice(-1)[0]} voted in Ottawa`}
+          record={mpRecord}
+          fullRecordHref={`/politicians/${mp.slug}`}
+          fullRecordLabel={`${mp.name}\u2019s full record \u2192`}
+          actHref="/act"
+        />
+      ) : null}
+
+      {mpp && mppRecord?.items?.length ? (
+        <RecentVotes
+          heading={`How ${mpp.name.split(/\s+/).slice(-1)[0]} voted at Queen\u2019s Park`}
+          record={mppRecord}
+          fullRecordHref={`/politicians/${mpp.slug}`}
+          fullRecordLabel={`${mpp.name}\u2019s full record \u2192`}
+        />
       ) : null}
     </section>
+  );
+}
+
+function RecentVotes({
+  heading,
+  record,
+  fullRecordHref,
+  fullRecordLabel,
+  actHref
+}: {
+  heading: string;
+  record: VotesResponse;
+  fullRecordHref: string;
+  fullRecordLabel: string;
+  actHref?: string;
+}) {
+  return (
+    <div className="mt-6">
+      <p className="kicker">{heading}</p>
+      <ul className="mt-1">
+        {record.items.map((ballot) => {
+          const label = BALLOT_LABEL[ballot.ballot] ?? { text: ballot.ballot, className: "text-stone-600" };
+          const headline =
+            ballot.bill_one_sentence ?? ballot.plain_meaning_en ?? ballot.bill_title ?? ballot.description_en;
+          return (
+            <li key={`${ballot.chamber}-${ballot.session}-${ballot.vote_number}`} className="rule py-3 first:border-t-0">
+              <Link
+                href={`/votes/${ballot.chamber}/${ballot.session}/${ballot.vote_number}`}
+                className="group block"
+              >
+                <p className="text-[15px] leading-6 text-ink group-hover:text-accent">
+                  <span className={`font-bold ${label.className}`}>{label.text}</span>
+                  {ballot.bill_number ? (
+                    <span className="ml-2 text-[13px] font-semibold text-stone-500">{ballot.bill_number}</span>
+                  ) : null}
+                  <span className="ml-2 text-stone-400">·</span>{" "}
+                  <span className="text-stone-600">{headline}</span>
+                </p>
+                <p className="mt-0.5 text-xs text-stone-400">
+                  {formatDateShort(ballot.occurred_on)}
+                  {ballot.broke_party_line ? (
+                    <span className="ml-2 font-semibold text-amber-700">broke party ranks</span>
+                  ) : null}
+                </p>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
+        <Link href={fullRecordHref} className="link-editorial text-ink">
+          {fullRecordLabel}
+        </Link>
+        {actHref ? (
+          <Link href={actHref} className="link-editorial text-ink">
+            Write to them →
+          </Link>
+        ) : null}
+      </div>
+    </div>
   );
 }

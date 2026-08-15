@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { SectionHeading } from "@/components/viz/editorial";
 import type { MppExpensesApiResponse } from "@/lib/api";
 import { formatDateShort } from "@/lib/humanize";
@@ -23,9 +25,13 @@ export function MppExpensesCard({ expenses }: { expenses: MppExpensesApiResponse
     <div>
       <SectionHeading title="What they billed" />
       <p className="pt-2 text-sm leading-6 text-stone-500">
-        {money(expenses.total)} in disclosed expenses — travel, accommodation, meals and hospitality billed
-        to the Assembly. Northern and distant ridings legitimately cost more; judge the purpose, not just
-        the size.
+        <span className="font-semibold text-ink">{money(expenses.year_total)}</span> billed so far in{" "}
+        {expenses.year} · {money(expenses.total)} across all disclosed periods — travel, accommodation,
+        meals and hospitality billed to the Assembly. Northern and distant ridings legitimately cost more;
+        judge the purpose, not just the size.
+        {expenses.latest_date ? (
+          <span className="text-stone-400"> Disclosures current to {formatDateShort(expenses.latest_date)}.</span>
+        ) : null}
       </p>
 
       <dl className="grid gap-x-10 gap-y-3 pt-4 sm:grid-cols-4">
@@ -42,7 +48,7 @@ export function MppExpensesCard({ expenses }: { expenses: MppExpensesApiResponse
           <p className="kicker">Biggest line items</p>
           <div className="pt-1">
             {expenses.items.map((item) => (
-              <div key={item.id} className="rule flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2.5">
+              <div key={item.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2">
                 <span className="stat-figure w-24 shrink-0 text-sm font-bold text-ink">{money(item.amount)}</span>
                 <span className="min-w-0 flex-1 truncate text-sm text-stone-600">
                   {item.description ?? item.purpose ?? CATEGORY_LABELS[item.category] ?? item.category}
@@ -57,7 +63,15 @@ export function MppExpensesCard({ expenses }: { expenses: MppExpensesApiResponse
         </div>
       ) : null}
 
-      <p className="mt-3 text-xs leading-5 text-stone-500">{expenses.source_note}</p>
+      <p className="mt-3 text-xs leading-5 text-stone-500">
+        {expenses.source_note}{" "}
+        <Link
+          href={`/expenses?scope=on-mpp&person=${encodeURIComponent(expenses.slug)}`}
+          className="text-accent"
+        >
+          Search every line item they filed →
+        </Link>
+      </p>
     </div>
   );
 }

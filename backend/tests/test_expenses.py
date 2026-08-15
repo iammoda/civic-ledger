@@ -284,6 +284,25 @@ def test_expense_search_filters_and_sort(db, client) -> None:
     assert by_mp_name["meta"]["total"] == 2
 
 
+def test_expense_search_person_filter(db, client) -> None:
+    """Profile pages link to the explorer scoped to one member by slug."""
+    jane = _mp(db)
+    bob = _mp(db, slug="bob-roe", name="Bob Roe", family="Roe")
+    _item(db, jane, amount=5000, supplier="Big Print Co", category="contract")
+    _item(db, bob, amount=9000, supplier="Fancy Banquets", category="hospitality")
+    db.commit()
+
+    scoped = client.get("/v1/expenses/search", params={"person": jane.slug}).json()
+    assert scoped["meta"]["total"] == 1
+    assert scoped["items"][0]["mp_slug"] == jane.slug
+
+    # Composes with other filters; unknown slug is empty, not an error.
+    none = client.get("/v1/expenses/search", params={"person": jane.slug, "category": "hospitality"}).json()
+    assert none["meta"]["total"] == 0
+    ghost = client.get("/v1/expenses/search", params={"person": "ghost"}).json()
+    assert ghost["meta"]["total"] == 0
+
+
 def test_expense_csv_export(db, client) -> None:
     jane = _mp(db)
     _item(db, jane, category="contract", amount=30000.0, supplier="Acme Consulting")

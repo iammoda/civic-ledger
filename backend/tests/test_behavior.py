@@ -1,17 +1,16 @@
-"""Phase 7 tests: voting record endpoint, party context, comparison."""
+"""Phase 7 tests: voting record endpoint and party context."""
 from __future__ import annotations
 
 from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 
 from app.api.behavior import _ballot_effect
 from app.db.session import get_db
 from app.ingestion.sync import SyncContext
 from app.main import app
-from app.models import AnalysisResult, Ballot, Bill, Person, PersonMembership, PersonStats, Vote
+from app.models import AnalysisResult, Ballot, Bill, Person, PersonMembership, Vote
 
 
 @pytest.fixture()
@@ -201,25 +200,3 @@ def test_voting_record_filter_rejects_unknown(db, client) -> None:
 
 def test_voting_record_404(client) -> None:
     assert client.get("/v1/politicians/nobody/votes").status_code == 404
-
-
-def test_compare_endpoint(db, client) -> None:
-    jane = _setup_vote_with_party(db)
-    session_id = db.scalar(select(Vote.session_id).limit(1))
-    db.add(
-        PersonStats(
-            person_id=jane.id, session_id=session_id,
-            votes_eligible=2, votes_cast=2, attendance_pct=100.0, party_line_pct=50.0, dissent_count=1,
-        )
-    )
-    db.commit()
-
-    response = client.get("/v1/compare", params={"a": "jane-doe", "b": "mp-1"}).json()
-    assert response["a"]["full_name"] == "Jane Doe"
-    assert response["a"]["attendance_pct"] == 100.0
-    assert response["a"]["dissent_count"] == 1
-    assert response["a"]["party"] == "Liberal"
-    assert response["b"]["attendance_pct"] is None  # No stats row yet.
-
-    missing = client.get("/v1/compare", params={"a": "jane-doe", "b": "ghost"})
-    assert missing.status_code == 404

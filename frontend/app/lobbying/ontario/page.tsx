@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
 import { Pagination } from "@/components/pagination";
+import { RegistrationRow } from "@/components/registration-row";
 import { SectionTabs, MONEY_TABS } from "@/components/section-tabs";
 import { getOntarioRegistrations } from "@/lib/api";
 import { formatDateShort } from "@/lib/humanize";
@@ -87,40 +88,7 @@ export default async function OntarioLobbyingPage({
             {data.total.toLocaleString("en-CA")} active registration{data.total === 1 ? "" : "s"}
           </p>
           {data.items.map((item) => (
-            <article key={item.registration_number} className="rule py-5">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h2 className="font-serif text-lg font-bold tracking-tight text-ink">
-                  {item.client_name ?? item.firm_name ?? item.lobbyist_name ?? "Unnamed registrant"}
-                </h2>
-                <span className="text-xs uppercase tracking-wide text-stone-400">
-                  {item.lobbyist_type === "consultant" ? "via consultant" : "in-house"}
-                  {item.firm_name && item.client_name ? ` · ${item.firm_name}` : ""}
-                </span>
-                {item.last_amendment_date ? (
-                  <span className="ml-auto text-xs text-stone-500">
-                    updated {formatDateShort(item.last_amendment_date)}
-                  </span>
-                ) : null}
-              </div>
-              {item.goals ? <p className="mt-1.5 max-w-3xl text-sm leading-6 text-stone-600">{item.goals}</p> : null}
-              {item.subject_matters ? (
-                <p className="mt-1 text-xs text-stone-500">Subjects: {item.subject_matters}</p>
-              ) : null}
-              {item.target_ministries.length ? (
-                <p className="mt-1 text-xs text-stone-500">
-                  Targets: {item.target_ministries.slice(0, 4).join(" · ")}
-                  {item.target_ministries.length > 4 ? ` · +${item.target_ministries.length - 4} more` : ""}
-                </p>
-              ) : null}
-              {item.target_mpp_offices.length ? (
-                <p className="mt-1 text-xs font-medium text-amber-700">
-                  Names {item.target_mpp_offices.length} MPP office
-                  {item.target_mpp_offices.length === 1 ? "" : "s"}:{" "}
-                  {item.target_mpp_offices.slice(0, 3).map((office) => office.replace("Office of the Member for ", "")).join(", ")}
-                  {item.target_mpp_offices.length > 3 ? "…" : ""}
-                </p>
-              ) : null}
-            </article>
+            <RegistrationRow key={item.registration_number} item={item} />
           ))}
           <Pagination
             total={data.total}

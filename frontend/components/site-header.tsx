@@ -13,7 +13,7 @@ const NAV_SECTIONS = [
   {
     href: "/politicians",
     label: "Your reps",
-    matchPrefixes: ["/politicians", "/cabinet", "/compare", "/committees"]
+    matchPrefixes: ["/politicians", "/cabinet", "/committees"]
   },
   {
     href: "/votes",

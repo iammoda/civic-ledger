@@ -140,22 +140,3 @@ export function getPoliticianVotes(
   const qs = searchParams.toString();
   return fetchApi<VotingRecordResponse>(`/politicians/${slug}/votes${qs ? `?${qs}` : ""}`);
 }
-
-export type ComparisonSide = {
-  slug: string;
-  full_name: string;
-  party?: string | null;
-  riding?: string | null;
-  attendance_pct?: number | null;
-  party_line_pct?: number | null;
-  dissent_count?: number | null;
-  votes_cast?: number | null;
-  lobbying_last_12mo: number;
-  donations_total: number;
-};
-
-export function comparePoliticians(a: string, b: string) {
-  return fetchApi<{ a: ComparisonSide; b: ComparisonSide }>(
-    `/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`
-  );
-}

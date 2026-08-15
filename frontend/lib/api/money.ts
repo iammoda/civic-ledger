@@ -121,13 +121,16 @@ export function searchExpenses(params: {
   min_amount?: string;
   sort?: string;
   scope?: string;
+  person?: string;
   offset?: string;
 }) {
   const searchParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value) searchParams.set(key, value);
   }
-  return fetchApi<PaginatedResponse<ExpenseItemModel>>(`/expenses/search?${searchParams.toString()}`);
+  return fetchApi<PaginatedResponse<ExpenseItemModel> & { data_current_to?: string | null }>(
+    `/expenses/search?${searchParams.toString()}`
+  );
 }
 
 // --- Municipal record (attendance, motions, declarations) -------------------
@@ -147,6 +150,7 @@ export type OntarioRegistration = {
   target_mpp_offices: string[];
   initial_filing_date?: string | null;
   last_amendment_date?: string | null;
+  techniques?: string | null;
 };
 
 export type OntarioRegistrationsResponse = {
@@ -193,6 +197,9 @@ export type MppExpensesApiResponse = {
   slug: string;
   full_name: string;
   total: number;
+  year_total: number;
+  year: number;
+  latest_date?: string | null;
   by_category: MppExpenseTotals[];
   items: ExpenseItemModel[];
   source_note: string;

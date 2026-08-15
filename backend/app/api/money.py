@@ -387,6 +387,7 @@ class OntarioRegistrationItem(BaseModel):
     target_mpp_offices: list[str] = []
     initial_filing_date: date | None = None
     last_amendment_date: date | None = None
+    techniques: str | None = None
     registry_note: str
 
 
@@ -411,6 +412,7 @@ def _registration_item(reg: LobbyRegistration) -> OntarioRegistrationItem:
         target_mpp_offices=(reg.target_mpp_offices or "").split("\n") if reg.target_mpp_offices else [],
         initial_filing_date=reg.initial_filing_date,
         last_amendment_date=reg.last_amendment_date,
+        techniques=reg.techniques,
         registry_note=ONTARIO_REGISTRY_NOTE,
     )
 

@@ -151,7 +151,7 @@ export function MoneyInfluence({ money, slug }: { money: MoneyResponse; slug: st
           </summary>
           <div className="mt-2">
             {money.recent_communications.map((comm, index) => (
-              <div key={index} className="rule py-3 text-sm">
+              <div key={index} className="py-2 text-sm">
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="font-medium">{comm.client_name ?? comm.registrant_name ?? "Unknown client"}</span>
                   <span className="text-stone-500">{comm.comm_date ?? "date unknown"}</span>

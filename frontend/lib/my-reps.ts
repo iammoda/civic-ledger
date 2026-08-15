@@ -99,6 +99,7 @@ export function clearMyReps(): void {
   try {
     window.localStorage.removeItem(KEY);
     window.localStorage.removeItem(LEGACY_KEY);
+    window.localStorage.removeItem("civic-ledger:postal");
     dispatchChanged();
   } catch {
     // ignore
@@ -158,4 +159,57 @@ function getMyRepsSnapshot(): MyRep[] {
 /** The saved reps, live: re-renders on save/remove/clear (and other tabs). */
 export function useMyReps(): MyRep[] {
   return useSyncExternalStore(subscribeToMyReps, getMyRepsSnapshot, () => EMPTY_REPS);
+}
+
+// --- Saved postal code (device only) -----------------------------------------
+// The postal code someone typed into the lookup, kept in localStorage so the
+// header chip can show it. NEVER sent anywhere after the lookup itself — same
+// device-only rules as the reps list.
+
+const POSTAL_KEY = "civic-ledger:postal";
+
+export function savePostal(postal: string): void {
+  try {
+    const cleaned = postal.trim().toUpperCase();
+    if (cleaned) {
+      window.localStorage.setItem(POSTAL_KEY, cleaned);
+      dispatchChanged();
+    }
+  } catch {
+    // Storage unavailable (private browsing) — feature degrades silently.
+  }
+}
+
+export function getPostal(): string | null {
+  try {
+    return window.localStorage.getItem(POSTAL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearPostal(): void {
+  try {
+    window.localStorage.removeItem(POSTAL_KEY);
+    dispatchChanged();
+  } catch {
+    // ignore
+  }
+}
+
+let postalSnapshot: string | null = null;
+let postalSnapshotRead = false;
+
+function getPostalSnapshot(): string | null {
+  const raw = getPostal();
+  if (!postalSnapshotRead || raw !== postalSnapshot) {
+    postalSnapshot = raw;
+    postalSnapshotRead = true;
+  }
+  return postalSnapshot;
+}
+
+/** The saved postal code, live (device only; null until a lookup is saved). */
+export function usePostal(): string | null {
+  return useSyncExternalStore(subscribeToMyReps, getPostalSnapshot, () => null);
 }

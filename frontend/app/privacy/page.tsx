@@ -29,8 +29,10 @@ const SECTIONS: Array<{ title: string; body: React.ReactNode }> = [
           Represent API
         </a>{" "}
         (Open North) to find your riding, and the result is returned to you. We do not store your postal code
-        in any database. Like all web traffic, requests may appear transiently in routine server logs, which
-        rotate and are not mined.
+        in any database. If you save your representatives, the postal code you typed is kept in your
+        browser&apos;s localStorage on your device (so the header can show it) — it never touches our servers
+        again. Like all web traffic, requests may appear transiently in routine server logs, which rotate and
+        are not mined.
       </>
     )
   },

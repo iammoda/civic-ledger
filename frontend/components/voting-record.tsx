@@ -1,11 +1,7 @@
 import Link from "next/link";
 
 import type { VotesFilter, VotingRecordResponse } from "@/lib/api";
-
-const EFFECT_STYLES: Record<string, string> = {
-  advanced: "bg-emerald-50 text-emerald-700",
-  blocked: "bg-rose-50 text-rose-700"
-};
+import { formatDateShort } from "@/lib/humanize";
 
 const PARTICIPATED = new Set(["yea", "nay", "paired"]);
 
@@ -17,6 +13,11 @@ const EMPTY_COPY: Record<VotesFilter, string> = {
   missed: "No missed votes on record — they showed up for every recorded vote."
 };
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
 function pageHref(slug: string, filter: VotesFilter, offset: number) {
   const params = new URLSearchParams();
   if (filter !== "all") params.set("votes", filter);
@@ -25,6 +26,18 @@ function pageHref(slug: string, filter: VotesFilter, offset: number) {
   return `/politicians/${slug}${qs ? `?${qs}` : ""}`;
 }
 
+/** "June 2026" from an ISO date — the group header that replaces per-row rules. */
+function monthLabel(iso?: string | null): string {
+  const match = (iso ?? "").match(/^(\d{4})-(\d{2})/);
+  if (!match) return "Undated";
+  return `${MONTH_NAMES[Number(match[2]) - 1]} ${match[1]}`;
+}
+
+/**
+ * One member's ballots as a ledger, not a status board: mono verdict rail on
+ * the left (the record's voice), serif titles, months as the only grouping —
+ * no per-row rules, no pills. Dissent is the story, so it gets the brass.
+ */
 export function VotingRecord({
   record,
   slug,
@@ -51,11 +64,20 @@ export function VotingRecord({
     record.recent_missed_count >= 3 &&
     recentMissRate >= 2 * overallMissRate;
 
-  const pills: Array<{ label: string; href: string; value: VotesFilter }> = [
+  const tabs: Array<{ label: string; href: string; value: VotesFilter }> = [
     { label: "All votes", href: `/politicians/${slug}`, value: "all" },
     { label: "Dissents only", href: `/politicians/${slug}?votes=dissent`, value: "dissent" },
     { label: "Missed votes", href: `/politicians/${slug}?votes=missed`, value: "missed" }
   ];
+
+  // Group by month: rhythm from headers and whitespace instead of hairlines.
+  const groups: Array<{ label: string; items: typeof record.items }> = [];
+  for (const item of record.items) {
+    const label = monthLabel(item.occurred_on);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(item);
+    else groups.push({ label, items: [item] });
+  }
 
   return (
     <section>
@@ -65,81 +87,87 @@ export function VotingRecord({
           <p className="mt-1 text-sm text-stone-500">{statSegments.join(" · ")}</p>
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 pb-1 text-sm font-medium">
-          {pills.map((pill) => (
+          {tabs.map((tab) => (
             <Link
-              key={pill.value}
-              href={pill.href}
+              key={tab.value}
+              href={tab.href}
               scroll={false}
               className={`border-b-2 pb-0.5 transition ${
-                filter === pill.value
+                filter === tab.value
                   ? "border-ink font-semibold text-ink"
                   : "border-transparent text-stone-500 hover:text-ink"
               }`}
             >
-              {pill.label}
+              {tab.label}
             </Link>
           ))}
         </div>
       </div>
 
       {showTrendCallout ? (
-        <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700">
+        <p className="mt-4 border-l-2 border-amber-400 pl-3 text-sm font-medium text-amber-700">
           Missing more votes lately — {record.recent_missed_count} of their last {record.recent_total}
         </p>
       ) : null}
 
-      <div className="mt-2">
-        {record.items.length ? (
-          record.items.map((item) => {
-            const missed = !PARTICIPATED.has(item.ballot);
-            const title = item.bill_title ?? item.plain_meaning_en ?? item.description_en;
-            const subline = item.bill_one_sentence ?? item.plain_meaning_en;
-            return (
-              <Link
-                key={`${item.session}-${item.vote_number}`}
-                href={`/votes/${item.chamber}/${item.session}/${item.vote_number}`}
-                className="rule group block py-3"
-              >
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  {missed ? (
-                    <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-600">
-                      Didn&apos;t vote
-                    </span>
-                  ) : item.ballot_effect ? (
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${EFFECT_STYLES[item.ballot_effect] ?? "bg-stone-100 text-stone-600"}`}
+      {record.items.length ? (
+        <div>
+          {groups.map((group) => (
+            <div key={group.label}>
+              <p className="mt-8 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-400">
+                {group.label}
+              </p>
+              <div className="mt-1 space-y-5 pt-2">
+                {group.items.map((item) => {
+                  const missed = !PARTICIPATED.has(item.ballot);
+                  const title = item.bill_title ?? item.plain_meaning_en ?? item.description_en;
+                  const subline = item.bill_one_sentence ?? item.plain_meaning_en;
+                  const verdict = missed
+                    ? { word: "ABSENT", tone: "text-stone-400" }
+                    : item.ballot_effect === "advanced"
+                      ? { word: "ADVANCE", tone: "text-teal-700" }
+                      : item.ballot_effect === "blocked"
+                        ? { word: "BLOCK", tone: "text-signal" }
+                        : { word: item.ballot.toUpperCase(), tone: "text-stone-500" };
+                  return (
+                    <Link
+                      key={`${item.session}-${item.vote_number}`}
+                      href={`/votes/${item.chamber}/${item.session}/${item.vote_number}`}
+                      className="group grid gap-x-6 gap-y-1 sm:grid-cols-[7.5rem_1fr]"
                     >
-                      Voted to {item.ballot_effect === "advanced" ? "advance" : "block"}
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs uppercase tracking-[0.14em] text-stone-600">
-                      {item.ballot}
-                    </span>
-                  )}
-                  {item.broke_party_line ? (
-                    <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-                      Broke party ranks
-                    </span>
-                  ) : null}
-                  <span className="rounded-full border border-black/10 px-2 py-0.5 text-xs text-stone-500">
-                    {item.bill_number ?? "Motion"}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-6 transition group-hover:text-accent">{title}</span>
-                  <span className="ml-auto shrink-0 text-xs text-stone-500">{item.occurred_on}</span>
-                </div>
-                {subline && subline !== title ? (
-                  <p className="mt-0.5 line-clamp-1 text-xs text-stone-500">{subline}</p>
-                ) : null}
-              </Link>
-            );
-          })
-        ) : (
-          <p className="text-sm text-stone-500">{EMPTY_COPY[filter]}</p>
-        )}
-      </div>
+                      {/* The record's voice: verdict + citation, mono. */}
+                      <div className="font-mono text-xs leading-5">
+                        <p className={`font-semibold ${verdict.tone}`}>{verdict.word}</p>
+                        <p className="text-stone-400">
+                          {item.bill_number ?? "Motion"} · {formatDateShort(item.occurred_on)}
+                        </p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-serif text-[17px] font-semibold leading-snug text-ink transition group-hover:text-accent">
+                          {title}
+                          {item.broke_party_line ? (
+                            <span className="ml-2 whitespace-nowrap font-mono text-[11px] font-semibold uppercase tracking-wider text-brass">
+                              ✕ broke party ranks
+                            </span>
+                          ) : null}
+                        </p>
+                        {subline && subline !== title ? (
+                          <p className="mt-0.5 line-clamp-2 text-sm leading-6 text-stone-500">{subline}</p>
+                        ) : null}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-6 text-sm text-stone-500">{EMPTY_COPY[filter]}</p>
+      )}
 
       {record.total_filtered > PAGE_SIZE ? (
-        <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-sm">
+        <div className="mt-8 flex items-center justify-between border-t border-border pt-4 text-sm">
           {offset > 0 ? (
             <Link href={pageHref(slug, filter, Math.max(0, offset - PAGE_SIZE))} scroll={false} className="font-medium text-accent">
               ← Newer

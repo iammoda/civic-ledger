@@ -44,7 +44,7 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
             {record.attendance.map((body) => {
               const recorded = body.present + body.absent + body.regrets;
               return (
-                <div key={body.body_name} className="rule py-3">
+                <div key={body.body_name} className="py-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-medium">{body.body_name}</p>
                     <p className="text-sm text-stone-600">
@@ -79,7 +79,7 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
         {hasMotions ? (
           <div className="mt-4 space-y-3">
             {record.recent_motions.map((motion, index) => (
-              <div key={`${motion.resolution_number}-${index}`} className="rule py-3">
+              <div key={`${motion.resolution_number}-${index}`} className="py-2.5">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
                   <span className="rounded-full bg-stone-100 px-2.5 py-0.5 font-medium text-stone-600 capitalize">
                     {motion.role}
@@ -123,7 +123,7 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
         {record.declarations.length ? (
           <div className="mt-4 space-y-3">
             {record.declarations.map((declaration, index) => (
-              <div key={index} className="rule py-3 text-sm">
+              <div key={index} className="py-2.5 text-sm">
                 <p className="text-xs text-stone-500">
                   {declaration.meeting_date} · {declaration.body_name}
                 </p>

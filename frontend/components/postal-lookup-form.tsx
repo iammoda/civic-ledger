@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 
 import { postalLookupAction, type PostalLookupState } from "@/app/lookup-actions";
 import { LevelBadge } from "@/components/level-badge";
 import { SaveMyRep } from "@/components/save-my-rep";
+import { savePostal } from "@/lib/my-reps";
 
 const IDLE: PostalLookupState = { status: "idle" };
 
@@ -27,6 +28,13 @@ export function PostalLookupForm({
   actConcern?: string;
 }) {
   const [state, formAction, pending] = useActionState(postalLookupAction, IDLE);
+
+  // Keep the typed postal code on THIS device so the header chip can show it.
+  useEffect(() => {
+    if (state.status === "ok" && state.postal) {
+      savePostal(state.postal);
+    }
+  }, [state]);
 
   const inputClass =
     mode === "act"

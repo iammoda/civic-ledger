@@ -18,7 +18,6 @@ const STATIC_PATHS = [
   "/receipts",
   "/cabinet",
   "/committees",
-  "/compare",
   "/search",
   "/glossary",
   "/methodology",

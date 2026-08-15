@@ -17,8 +17,7 @@ export const WHAT_HAPPENED_TABS: SectionTab[] = [
 export const YOUR_REPS_TABS: SectionTab[] = [
   { href: "/politicians", label: "All representatives" },
   { href: "/cabinet", label: "The Cabinet" },
-  { href: "/committees", label: "Committees" },
-  { href: "/compare", label: "Compare two MPs" }
+  { href: "/committees", label: "Committees" }
 ];
 
 export const MONEY_TABS: SectionTab[] = [
