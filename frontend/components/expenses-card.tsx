@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type { MpExpensesResponse } from "@/lib/api";
+import { NOT_DISCLOSED, UNIFIED_CATEGORIES } from "@/lib/expense-categories";
 import { formatDateShort } from "@/lib/humanize";
 
 function money(value: number): string {
@@ -75,15 +76,25 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
               </span>
             ) : null}
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-3 border-t border-border pt-4 text-sm sm:grid-cols-4">
-            {(
-              [
-                ["Staff", latest.salaries],
-                ["Travel", latest.travel],
-                ["Hospitality", latest.hospitality],
-                ["Contracts", latest.contracts]
-              ] as const
-            ).map(([label, value]) => (
+          <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-3 border-t border-border pt-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
+            {UNIFIED_CATEGORIES.map(({ key, label, scopes }) => {
+              if (!scopes.includes("federal")) {
+                return (
+                  <div key={label}>
+                    <p className="kicker text-stone-300">{label}</p>
+                    <p className="mt-1 text-xs leading-5 text-stone-400">{NOT_DISCLOSED.federal}</p>
+                  </div>
+                );
+              }
+              const value =
+                key === "salaries"
+                  ? latest.salaries
+                  : key === "travel"
+                    ? latest.travel
+                    : key === "hospitality"
+                      ? latest.hospitality
+                      : latest.contracts;
+              return (
               <div key={label}>
                 <p className="kicker">{label}</p>
                 <p className="stat-figure mt-1 text-lg font-semibold">{money(value)}</p>
@@ -93,7 +104,8 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
                   </p>
                 ) : null}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : null}

@@ -2,13 +2,14 @@ import Link from "next/link";
 
 import { SectionHeading } from "@/components/viz/editorial";
 import type { MppExpensesApiResponse } from "@/lib/api";
+import { NOT_DISCLOSED, UNIFIED_CATEGORIES } from "@/lib/expense-categories";
 import { formatDateShort } from "@/lib/humanize";
 
 const CATEGORY_LABELS: Record<string, string> = {
   travel: "Travel",
-  accommodation: "Toronto accommodation",
+  accommodation: "Accommodation",
   meals: "Meals",
-  hospitality: "Hospitality & events"
+  hospitality: "Hospitality"
 };
 
 function money(amount: number): string {
@@ -34,13 +35,24 @@ export function MppExpensesCard({ expenses }: { expenses: MppExpensesApiResponse
         ) : null}
       </p>
 
-      <dl className="grid gap-x-10 gap-y-3 pt-4 sm:grid-cols-4">
-        {expenses.by_category.map((row) => (
-          <div key={row.category}>
-            <dt className="kicker">{CATEGORY_LABELS[row.category] ?? row.category}</dt>
-            <dd className="stat-figure mt-0.5 text-lg text-ink">{money(row.total)}</dd>
-          </div>
-        ))}
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-3 pt-4 sm:grid-cols-3 lg:grid-cols-6">
+        {UNIFIED_CATEGORIES.map(({ key, label, scopes }) => {
+          if (!scopes.includes("on-mpp")) {
+            return (
+              <div key={label}>
+                <dt className="kicker text-stone-300">{label}</dt>
+                <dd className="mt-0.5 text-xs leading-5 text-stone-400">{NOT_DISCLOSED["on-mpp"]}</dd>
+              </div>
+            );
+          }
+          const total = expenses.by_category.find((row) => row.category === key)?.total ?? 0;
+          return (
+            <div key={label}>
+              <dt className="kicker">{CATEGORY_LABELS[key] ?? label}</dt>
+              <dd className="stat-figure mt-0.5 text-lg text-ink">{money(total)}</dd>
+            </div>
+          );
+        })}
       </dl>
 
       {expenses.items.length ? (

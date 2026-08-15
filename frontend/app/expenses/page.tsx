@@ -10,20 +10,24 @@ import { searchExpenses } from "@/lib/api";
 import { MP_BASE_SALARY, ROLE_TOP_UPS, SALARY_AS_OF, SALARY_SOURCE_URL, formatSalary } from "@/lib/salaries";
 import { formatDateShort } from "@/lib/humanize";
 
-const CATEGORY_CHIPS = [
-  { label: "All", value: "" },
-  { label: "Contracts", value: "contract" },
-  { label: "Travel", value: "travel" },
-  { label: "Hospitality", value: "hospitality" }
+/**
+ * One category vocabulary for every legislature. Chips a jurisdiction
+ * doesn't publish stay visible but disabled, with the reason printed —
+ * the gap is the data's, not ours.
+ */
+const CATEGORY_CHIPS: Array<{ label: string; value: string; scopes: string[] }> = [
+  { label: "All", value: "", scopes: ["", "on-mpp"] },
+  { label: "Travel", value: "travel", scopes: ["", "on-mpp"] },
+  { label: "Accommodation", value: "accommodation", scopes: ["on-mpp"] },
+  { label: "Meals", value: "meals", scopes: ["on-mpp"] },
+  { label: "Hospitality", value: "hospitality", scopes: ["", "on-mpp"] },
+  { label: "Contracts", value: "contract", scopes: [""] }
 ];
 
-const ONTARIO_CATEGORY_CHIPS = [
-  { label: "All", value: "" },
-  { label: "Travel", value: "travel" },
-  { label: "Accommodation", value: "accommodation" },
-  { label: "Meals", value: "meals" },
-  { label: "Hospitality", value: "hospitality" }
-];
+const CATEGORY_GAP_NOTE: Record<string, string> = {
+  "": "Ottawa reports accommodation & meals inside travel claims",
+  "on-mpp": "Ontario doesn't disclose contracts or office spending per MPP"
+};
 
 const SCOPE_CHIPS = [
   { label: "Federal MPs", value: "" },
@@ -58,9 +62,9 @@ export default async function ExpensesPage({
 }) {
   const params = await searchParams;
   const isOntario = params.scope === "on-mpp";
+  const scopeValue = isOntario ? "on-mpp" : "";
   const results = await searchExpenses(params);
   const personName = params.person ? (results?.items[0]?.mp_name ?? params.person) : null;
-  const categoryChips = isOntario ? ONTARIO_CATEGORY_CHIPS : CATEGORY_CHIPS;
 
   // CSV export of the current filters (served by the API; capped at 10k rows).
   const csvParams = new URLSearchParams();
@@ -183,16 +187,26 @@ export default async function ExpensesPage({
               Only {personName} ✕
             </Link>
           ) : null}
-          {isOntario ? (
-            <span className="text-xs font-normal text-stone-500">
-              travel, accommodation, meals &amp; hospitality only — Ontario doesn&apos;t disclose office budgets per MPP
-            </span>
-          ) : null}
+
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium">
           <span className="kicker">Show</span>
-          {categoryChips.map((chip) => {
+          {CATEGORY_CHIPS.map((chip) => {
+            const available = chip.scopes.includes(scopeValue);
             const active = (params.category ?? "") === chip.value;
+            if (!available) {
+              return (
+                <span
+                  key={chip.label}
+                  aria-disabled="true"
+                  title={CATEGORY_GAP_NOTE[scopeValue]}
+                  className="cursor-not-allowed border-b-2 border-transparent pb-0.5 text-stone-300"
+                >
+                  {chip.label}
+                  <span className="sr-only"> — {CATEGORY_GAP_NOTE[scopeValue]}</span>
+                </span>
+              );
+            }
             return (
               <Link
                 key={chip.label}
@@ -206,6 +220,7 @@ export default async function ExpensesPage({
               </Link>
             );
           })}
+          <span className="text-xs font-normal text-stone-400">{CATEGORY_GAP_NOTE[scopeValue]}</span>
           <span className="ml-auto flex gap-2">
             <Link
               href={buildHref({ sort: undefined })}
