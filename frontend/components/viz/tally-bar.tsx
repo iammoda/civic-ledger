@@ -1,24 +1,29 @@
+import { CountUp } from "@/components/motion/count-up";
+
 /**
  * Proportional yea/nay bar — the outcome of a vote as a graphic, not a
  * footnote. Server-rendered, pure divs. Color is semantic: teal = yes,
  * red = no. A center tick marks the majority threshold.
+ * animate: bar draws to its value inside a <Reveal> ancestor.
  */
 export function TallyBar({
   yea,
   nay,
   className = "",
-  height = "h-1.5"
+  height = "h-1.5",
+  animate = false
 }: {
   yea: number;
   nay: number;
   className?: string;
   height?: string;
+  animate?: boolean;
 }) {
   const total = yea + nay;
   const yeaPct = total > 0 ? (yea / total) * 100 : 50;
   return (
     <div className={`relative ${className}`} aria-hidden>
-      <div className={`flex ${height} w-full overflow-hidden rounded-full bg-slate-200`}>
+      <div className={`flex ${height} w-full overflow-hidden rounded-full bg-stone-200 ${animate ? "reveal-bar" : ""}`}>
         <div className="bg-teal-600" style={{ width: `${yeaPct}%` }} />
         <div className="bg-signal/80" style={{ width: `${100 - yeaPct}%` }} />
       </div>
@@ -31,17 +36,21 @@ export function TallyBar({
 /**
  * A vote outcome as display type: "Passed 166–159" with the tally bar
  * underneath. size="hero" for detail pages, "row" for lists.
+ * animate (hero only): the tallies count up — watching 166 beat 159
+ * teaches the margin.
  */
 export function VoteOutcome({
   result,
   yea,
   nay,
-  size = "row"
+  size = "row",
+  animate = false
 }: {
   result?: string | null;
   yea: number;
   nay: number;
   size?: "row" | "hero";
+  animate?: boolean;
 }) {
   const passed = result === "Passed" || result === "Agreed to" || result === "Adopted";
   const label = passed ? "Passed" : result === "Negatived" ? "Failed" : (result ?? "—");
@@ -54,10 +63,12 @@ export function VoteOutcome({
             {label}
           </span>
           <span className="stat-figure font-sans text-4xl text-ink sm:text-6xl">
-            {yea}<span className="mx-1 text-slate-400">–</span>{nay}
+            {animate ? <CountUp value={yea} /> : yea}
+            <span className="mx-1 text-stone-400">–</span>
+            {animate ? <CountUp value={nay} /> : nay}
           </span>
         </p>
-        <TallyBar yea={yea} nay={nay} className="mt-4 max-w-xl" height="h-2.5" />
+        <TallyBar yea={yea} nay={nay} className="mt-4 max-w-xl" height="h-2.5" animate={animate} />
       </div>
     );
   }
@@ -68,7 +79,7 @@ export function VoteOutcome({
         {label}
       </p>
       <p className="stat-figure mt-0.5 text-xl leading-none text-ink sm:text-2xl">
-        {yea}<span className="mx-0.5 text-slate-400">–</span>{nay}
+        {yea}<span className="mx-0.5 text-stone-400">–</span>{nay}
       </p>
       <TallyBar yea={yea} nay={nay} className="mt-1.5" height="h-1" />
     </div>

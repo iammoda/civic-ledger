@@ -47,7 +47,7 @@ export function SaveMyRep({
       className={`rounded-md border px-3 py-2 text-sm font-semibold transition ${
         saved
           ? "border-accent bg-accent text-white"
-          : "border-border bg-white text-slate-700 hover:border-accent hover:text-accent"
+          : "border-border bg-white text-stone-700 hover:border-accent hover:text-accent"
       }`}
       title="Saved on your device only — we never store who you are."
     >

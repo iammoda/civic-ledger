@@ -43,10 +43,11 @@ export default async function BillsPage({
             <Link
               key={filter.label}
               href={href}
+              scroll={false}
               className={`border-b-2 pb-0.5 transition ${
                 active
                   ? "border-ink font-semibold text-ink"
-                  : "border-transparent text-slate-500 hover:text-ink"
+                  : "border-transparent text-stone-500 hover:text-ink"
               }`}
             >
               {filter.label}
@@ -76,8 +77,8 @@ export default async function BillsPage({
                 href={`/bills/${bill.session}/${bill.number}`}
                 className="rule group grid gap-x-8 gap-y-2 py-6 md:grid-cols-[8.5rem_1fr_auto]"
               >
-                <div className="text-[13px] leading-5 text-slate-400">
-                  <p className="font-semibold text-slate-500">{bill.number}</p>
+                <div className="font-mono text-xs leading-5 text-stone-400">
+                  <p className="font-semibold text-stone-500">{bill.number}</p>
                   <p>{billTypeLabel(bill.bill_type)}</p>
                   {bill.introduced_on ? <p>{formatDateShort(bill.introduced_on)}</p> : null}
                   {bill.is_omnibus ? <p className="mt-1 font-semibold text-amber-700">Omnibus</p> : null}
@@ -87,19 +88,19 @@ export default async function BillsPage({
                     {title.headline}
                   </h2>
                   {bill.one_sentence ? (
-                    <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">{bill.one_sentence}</p>
+                    <p className="mt-1.5 max-w-2xl text-sm leading-6 text-stone-500">{bill.one_sentence}</p>
                   ) : title.legal ? (
-                    <p className="mt-1 max-w-2xl truncate text-xs text-slate-400">{title.legal}</p>
+                    <p className="mt-1 max-w-2xl truncate text-xs text-stone-400">{title.legal}</p>
                   ) : null}
                   {bill.sponsor_name ? (
-                    <p className="mt-1.5 text-[13px] text-slate-500">Sponsored by {bill.sponsor_name}</p>
+                    <p className="mt-1.5 text-[13px] text-stone-500">Sponsored by {bill.sponsor_name}</p>
                   ) : null}
                 </div>
                 <div className="w-40 shrink-0 md:text-right">
                   <StageGlyph statusEn={bill.status_en} isLaw={bill.is_law} dead={dead} />
                   <p
                     className={`mt-1.5 text-[13px] font-semibold leading-5 ${
-                      bill.is_law ? "text-teal-700" : dead ? "text-signal" : "text-slate-600"
+                      bill.is_law ? "text-teal-700" : dead ? "text-signal" : "text-stone-600"
                     }`}
                     title={status.raw}
                   >

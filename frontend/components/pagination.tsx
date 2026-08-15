@@ -28,20 +28,20 @@ export function Pagination({ total, limit, offset, basePath, params = {} }: Pagi
       {offset > 0 ? (
         <Link
           href={href(Math.max(0, offset - limit))}
-          className="rounded-lg border border-border bg-white px-4 py-2 font-semibold text-slate-700 transition hover:border-accent hover:text-accent"
+          className="rounded-lg border border-border bg-white px-4 py-2 font-semibold text-stone-700 transition hover:border-accent hover:text-accent"
         >
           ← Previous
         </Link>
       ) : (
         <span />
       )}
-      <span className="text-slate-500">
+      <span className="text-stone-500">
         Page {page} of {pages} · {total.toLocaleString()} total
       </span>
       {offset + limit < total ? (
         <Link
           href={href(offset + limit)}
-          className="rounded-lg border border-border bg-white px-4 py-2 font-semibold text-slate-700 transition hover:border-accent hover:text-accent"
+          className="rounded-lg border border-border bg-white px-4 py-2 font-semibold text-stone-700 transition hover:border-accent hover:text-accent"
         >
           Next →
         </Link>

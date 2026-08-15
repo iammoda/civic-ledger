@@ -60,6 +60,22 @@ class IssuePartyPosition(BaseModel):
     nay: int
 
 
+class IssueVote(BaseModel):
+    """One of the recorded votes behind the party-position numbers — so
+    "where the parties stood" is verifiable, not vibes."""
+
+    chamber: str
+    session: str
+    number: str
+    occurred_on: str
+    description_en: str
+    plain_meaning_en: str | None = None
+    result: str | None = None
+    yea_total: int
+    nay_total: int
+    bill_number: str | None = None
+
+
 class IssueDetail(BaseModel):
     slug: str
     name_en: str
@@ -67,6 +83,7 @@ class IssueDetail(BaseModel):
     bills: list[IssueBill]
     party_positions: list[IssuePartyPosition]
     vote_count: int
+    votes: list[IssueVote]
     positions_note: str
 
 
@@ -187,6 +204,20 @@ def get_issue(slug: str, db: Session = Depends(get_db)) -> IssueDetail:
         db.scalar(select(func.count(Vote.id)).where(Vote.bill_id.in_(tagged_bill_ids))) or 0
     )
 
+    # The receipts for the party-position bars: every recorded vote counted,
+    # newest first (capped — the point is verifiability, not pagination).
+    counted_votes = db.scalars(
+        select(Vote)
+        .where(Vote.bill_id.in_(tagged_bill_ids))
+        .options(
+            selectinload(Vote.session),
+            selectinload(Vote.chamber),
+            selectinload(Vote.bill),
+        )
+        .order_by(Vote.occurred_on.desc(), Vote.number.desc())
+        .limit(50)
+    ).all()
+
     return IssueDetail(
         slug=topic.slug,
         name_en=topic.name_en,
@@ -206,6 +237,21 @@ def get_issue(slug: str, db: Session = Depends(get_db)) -> IssueDetail:
         ],
         party_positions=party_positions,
         vote_count=vote_count,
+        votes=[
+            IssueVote(
+                chamber=vote.chamber.slug,
+                session=vote.session.label,
+                number=vote.number,
+                occurred_on=vote.occurred_on.isoformat(),
+                description_en=vote.description_en,
+                plain_meaning_en=vote.plain_meaning_en,
+                result=vote.result,
+                yea_total=vote.yea_total,
+                nay_total=vote.nay_total,
+                bill_number=vote.bill.number if vote.bill else None,
+            )
+            for vote in counted_votes
+        ],
         positions_note=(
             f"Counts every recorded ballot on the {vote_count} votes tied to these bills — "
             "second readings, amendments, final passage. Procedural votes can invert meaning, "

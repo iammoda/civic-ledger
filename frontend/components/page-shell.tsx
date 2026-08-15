@@ -20,7 +20,7 @@ type PageShellProps = {
  */
 export function PageShell({ eyebrow, title, titleAccent, description, masthead, wide, children }: PageShellProps) {
   return (
-    <main id="main" className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+    <main id="main" className="mx-auto max-w-[1600px] px-5 sm:px-10 py-8 sm:py-10">
       <section className="mb-10">
         <div className="rule-heavy pt-4">
           {eyebrow ? <p className="kicker text-accent">{eyebrow}</p> : null}
@@ -35,7 +35,7 @@ export function PageShell({ eyebrow, title, titleAccent, description, masthead, 
               ) : null}
             </h1>
             {description ? (
-              <p className="mt-4 max-w-2xl text-[17px] leading-7 text-slate-600">{description}</p>
+              <p className="mt-4 max-w-2xl text-[17px] leading-7 text-stone-600">{description}</p>
             ) : null}
           </div>
           {masthead ? <div className="mt-6">{masthead}</div> : null}

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { BallotList } from "@/components/ballot-list";
+import { Reveal } from "@/components/motion/reveal";
 import { CiteThis } from "@/components/cite-this";
 import { DataGap } from "@/components/data-gap";
 import { PageShell } from "@/components/page-shell";
@@ -92,9 +93,9 @@ export default async function VoteDetailPage({
       title={vote.bill_title ? `The ${vote.bill_number} vote` : `Vote ${vote.number}`}
       wide
       masthead={
-        /* Layer 1+2: the verdict, at full scale. */
-        <div>
-          <VoteOutcome size="hero" result={vote.result} yea={vote.yea_total} nay={vote.nay_total} />
+        /* Layer 1+2: the verdict, at full scale — and it demonstrates itself. */
+        <Reveal>
+          <VoteOutcome size="hero" animate result={vote.result} yea={vote.yea_total} nay={vote.nay_total} />
           <p className="mt-6 max-w-3xl font-serif text-xl leading-relaxed text-ink sm:text-2xl">
             {vote.plain_meaning_en ?? vote.description_en}
           </p>
@@ -107,13 +108,13 @@ export default async function VoteDetailPage({
             ) : null}
           </div>
           {meanings ? (
-            <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-600">
+            <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">
               <span className="font-bold text-teal-700">A Yes</span> meant: {meanings.yes}.{" "}
               <span className="ml-2 font-bold text-signal">A No</span> meant: {meanings.no}.
             </p>
           ) : null}
           {vote.chamber !== "senate" ? <YourMpVote ballots={vote.ballots} /> : null}
-        </div>
+        </Reveal>
       }
     >
       {/* Who broke ranks — the actual news in a whipped parliament. */}
@@ -135,7 +136,7 @@ export default async function VoteDetailPage({
                   <span className="font-serif text-lg font-bold tracking-tight text-ink transition group-hover:text-accent">
                     {ballot.full_name}
                   </span>
-                  <span className="text-sm text-slate-500">{party.label}</span>
+                  <span className="text-sm text-stone-500">{party.label}</span>
                   <span
                     className={`ml-auto text-sm font-bold ${ballot.ballot === "yea" ? "text-teal-700" : "text-signal"}`}
                   >
@@ -147,7 +148,7 @@ export default async function VoteDetailPage({
           </div>
         </section>
       ) : vote.ballots.length ? (
-        <p className="mb-12 border-l-2 border-border pl-4 text-sm leading-6 text-slate-500">
+        <p className="mb-12 border-l-2 border-border pl-4 text-sm leading-6 text-stone-500">
           No {memberNoun} broke party ranks on this vote — every recorded ballot followed the party line.
         </p>
       ) : null}
@@ -158,7 +159,9 @@ export default async function VoteDetailPage({
           <SectionHeading title={`How the ${vote.chamber === "senate" ? "Senate" : "House"} voted`} />
           <div className="pt-6">
             {vote.ballots.length ? (
-              <DotGrid ballots={vote.ballots} />
+              <Reveal>
+                <DotGrid ballots={vote.ballots} />
+              </Reveal>
             ) : null}
             {/* Accessible per-party summary. */}
             <table className="mt-6 w-full text-sm">
@@ -186,7 +189,7 @@ export default async function VoteDetailPage({
                       </td>
                       <td className="stat-figure py-2 text-right">{row.yea}</td>
                       <td className="stat-figure py-2 text-right">{row.nay}</td>
-                      <td className="stat-figure py-2 text-right text-slate-400">{row.absent + row.paired}</td>
+                      <td className="stat-figure py-2 text-right text-stone-400">{row.absent + row.paired}</td>
                     </tr>
                   );
                 })}
@@ -208,10 +211,10 @@ export default async function VoteDetailPage({
                   </Link>
                 </p>
                 {vote.bill_summary ? (
-                  <p className="mt-3 text-[15px] leading-7 text-slate-600">
+                  <p className="mt-3 text-[15px] leading-7 text-stone-600">
                     {vote.bill_summary}
                     {vote.bill_summary_source === "ai" ? (
-                      <span className="ml-1 text-xs text-slate-400">(AI summary)</span>
+                      <span className="ml-1 text-xs text-stone-400">(AI summary)</span>
                     ) : null}
                   </p>
                 ) : null}
@@ -219,26 +222,26 @@ export default async function VoteDetailPage({
                   {vote.stage && STAGE_LABELS[vote.stage] ? (
                     <div className="flex gap-2">
                       <dt className="shrink-0 font-semibold text-ink">This vote:</dt>
-                      <dd className="text-slate-600">{STAGE_LABELS[vote.stage]}</dd>
+                      <dd className="text-stone-600">{STAGE_LABELS[vote.stage]}</dd>
                     </div>
                   ) : null}
                   {vote.bill_status ? (
                     <div className="flex gap-2">
                       <dt className="shrink-0 font-semibold text-ink">Where the bill is now:</dt>
-                      <dd className="text-slate-600">{vote.bill_status}</dd>
+                      <dd className="text-stone-600">{vote.bill_status}</dd>
                     </div>
                   ) : null}
                 </dl>
                 <div className="mt-6 flex flex-wrap gap-3 text-sm">
                   <Link
                     href={`/bills/${vote.session}/${vote.bill_number}`}
-                    className="rounded-full bg-ink px-5 py-2.5 font-semibold text-white transition hover:bg-slate-700"
+                    className="rounded-full bg-ink px-5 py-2.5 font-semibold text-white transition hover:bg-stone-700"
                   >
                     Full bill record →
                   </Link>
                   <Link
                     href={`/act?bill=${encodeURIComponent(`${vote.session}/${vote.bill_number}`)}`}
-                    className="rounded-full border border-border px-5 py-2.5 font-semibold text-slate-700 transition hover:border-accent hover:text-accent"
+                    className="rounded-full border border-border px-5 py-2.5 font-semibold text-stone-700 transition hover:border-accent hover:text-accent"
                   >
                     Contact your MP about this
                   </Link>
@@ -246,12 +249,12 @@ export default async function VoteDetailPage({
               </>
             ) : (
               <>
-                <p className="text-[15px] leading-7 text-slate-600">
+                <p className="text-[15px] leading-7 text-stone-600">
                   This was a motion, not a bill — Parliament also votes to state positions, manage its schedule,
                   and control debate. Motions don&apos;t change the law by themselves, but they show where each{" "}
                   {memberNoun} stands.
                 </p>
-                <p className="mt-4 border-l-2 border-border pl-4 text-sm leading-6 text-slate-500">
+                <p className="mt-4 border-l-2 border-border pl-4 text-sm leading-6 text-stone-500">
                   {vote.description_en}
                 </p>
               </>
@@ -276,7 +279,7 @@ export default async function VoteDetailPage({
               How every {memberNoun} voted
             </span>
             {vote.ballots.length ? (
-              <span className="text-sm text-slate-500">{vote.ballots.length} ballots — search inside</span>
+              <span className="text-sm text-stone-500">{vote.ballots.length} ballots — search inside</span>
             ) : null}
           </summary>
           <div className="mt-6">

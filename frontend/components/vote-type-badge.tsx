@@ -5,7 +5,7 @@ const VOTE_TYPES: Record<string, { label: string; term: string; detail: string; 
     label: "Whipped vote",
     term: "whipped vote",
     detail: "MPs were expected to follow their party's line — watch the dissenters, not the party totals.",
-    tone: "bg-slate-900 text-white"
+    tone: "bg-ink text-white"
   },
   free: {
     label: "Free vote",
@@ -23,7 +23,7 @@ const VOTE_TYPES: Record<string, { label: string; term: string; detail: string; 
     label: "Voice vote",
     term: "voice vote",
     detail: "No individual ballots were recorded — we can't tell you how each MP voted.",
-    tone: "bg-slate-200 text-slate-900"
+    tone: "bg-stone-200 text-ink"
   }
 };
 
@@ -40,7 +40,7 @@ export function VoteTypeBadge({ voteType }: { voteType: string }) {
           <span className={content.tone.includes("text-white") ? "text-white" : undefined}>{content.label}</span>
         </Jargon>
       </span>
-      <span className="text-xs text-slate-500">{content.detail}</span>
+      <span className="text-xs text-stone-500">{content.detail}</span>
     </span>
   );
 }

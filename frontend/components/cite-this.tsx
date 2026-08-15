@@ -38,18 +38,18 @@ export function CiteThis({
 
   return (
     <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-border pt-4 text-sm">
-      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cite this</span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">Cite this</span>
       <button
         type="button"
         onClick={() => copy("link")}
-        className="rounded-full border border-black/10 bg-white px-4 py-1.5 text-slate-700 transition hover:border-accent hover:text-accent"
+        className="rounded-full border border-black/10 bg-white px-4 py-1.5 text-stone-700 transition hover:border-accent hover:text-accent"
       >
         Copy permalink
       </button>
       <button
         type="button"
         onClick={() => copy("citation")}
-        className="rounded-full border border-black/10 bg-white px-4 py-1.5 text-slate-700 transition hover:border-accent hover:text-accent"
+        className="rounded-full border border-black/10 bg-white px-4 py-1.5 text-stone-700 transition hover:border-accent hover:text-accent"
       >
         Copy citation
       </button>

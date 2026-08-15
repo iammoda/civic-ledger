@@ -114,7 +114,7 @@ export default async function PoliticianDetailPage({
   const dissentCount = stats?.dissent_count;
 
   return (
-    <main id="main" className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+    <main id="main" className="mx-auto max-w-[1600px] px-5 sm:px-10 py-8 sm:py-10">
       <JsonLd data={personJsonLd(politician)} />
 
       {/* ---------------------------------------------------------------- */}
@@ -135,7 +135,7 @@ export default async function PoliticianDetailPage({
           ) : (
             <div
               aria-hidden
-              className="flex h-42 w-42 shrink-0 items-center justify-center rounded-lg bg-slate-100 font-serif text-5xl font-semibold text-slate-400"
+              className="flex h-42 w-42 shrink-0 items-center justify-center rounded-lg bg-stone-100 font-serif text-5xl font-semibold text-stone-400"
               style={{ width: 168, height: 168, borderBottom: `4px solid ${partyColor(party?.slug)}` }}
             >
               {politician.full_name.charAt(0)}
@@ -146,7 +146,7 @@ export default async function PoliticianDetailPage({
             <h1 className="mt-1 font-serif text-[2.5rem] font-bold leading-[1.05] tracking-tight sm:text-[3.5rem]">
               {politician.full_name}
             </h1>
-            <p className="mt-2 max-w-2xl text-[17px] leading-7 text-slate-600">{subtitle}</p>
+            <p className="mt-2 max-w-2xl text-[17px] leading-7 text-stone-600">{subtitle}</p>
             <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
               {(politician.roles ?? []).map((roleTitle) => (
                 <span key={roleTitle} className="inline-flex rounded-full bg-ink px-3 py-1 text-xs font-bold text-white">
@@ -159,7 +159,7 @@ export default async function PoliticianDetailPage({
                   <PartyBadge party={party.slug} />
                 </span>
               ) : null}
-              {place ? <span className="text-sm text-slate-500">{place}</span> : null}
+              {place ? <span className="text-sm text-stone-500">{place}</span> : null}
             </div>
 
             {/* Facts, quietly. */}
@@ -170,7 +170,7 @@ export default async function PoliticianDetailPage({
                   <dd className="stat-figure mt-0.5 text-lg text-ink">
                     {new Date(firstStart).getFullYear()}
                     {yearsInOffice != null ? (
-                      <span className="ml-2 font-sans text-xs font-normal tracking-normal text-slate-500">
+                      <span className="ml-2 font-sans text-xs font-normal tracking-normal text-stone-500">
                         {yearsInOffice} year{yearsInOffice === 1 ? "" : "s"}
                       </span>
                     ) : null}
@@ -182,7 +182,7 @@ export default async function PoliticianDetailPage({
                   <dt className="kicker">Salary</dt>
                   <dd className="stat-figure mt-0.5 text-lg text-ink">
                     {formatSalary(salary.total)}
-                    <span className="ml-2 font-sans text-xs font-normal tracking-normal text-slate-500">
+                    <span className="ml-2 font-sans text-xs font-normal tracking-normal text-stone-500">
                       set by law, not by the MP{" "}
                       <a href={SALARY_SOURCE_URL} target="_blank" rel="noreferrer" className="text-accent">
                         (source ↗)
@@ -221,7 +221,7 @@ export default async function PoliticianDetailPage({
                   </span>{" "}
                   <span className="font-semibold">attendance</span>
                   {stats?.votes_cast != null && stats?.votes_eligible != null ? (
-                    <span className="text-slate-500">
+                    <span className="text-stone-500">
                       {" "}
                       — cast {stats.votes_cast} of {stats.votes_eligible} eligible votes
                     </span>
@@ -234,7 +234,7 @@ export default async function PoliticianDetailPage({
                   className="mt-2 max-w-md"
                 />
                 {medianAttendance != null ? (
-                  <p className="mt-1.5 text-xs text-slate-500">
+                  <p className="mt-1.5 text-xs text-stone-500">
                     Chamber median: {medianAttendance}% (teal mark).{" "}
                     {lowAttendance ? `${surname} misses noticeably more votes than most.` : ""}
                   </p>
@@ -247,14 +247,14 @@ export default async function PoliticianDetailPage({
                   <span className="stat-figure text-2xl">{stats.party_line_voting_pct}%</span>{" "}
                   <span className="font-semibold">votes with their party</span>
                   {dissentCount != null ? (
-                    <span className="text-slate-500">
+                    <span className="text-stone-500">
                       {" "}
                       — broke ranks {dissentCount} time{dissentCount === 1 ? "" : "s"}
                     </span>
                   ) : null}
                 </p>
                 <PercentileStrip valuePct={stats.party_line_voting_pct} className="mt-2 max-w-md" />
-                <p className="mt-1.5 text-xs text-slate-500">
+                <p className="mt-1.5 text-xs text-stone-500">
                   Near-100% is normal in Canada&apos;s whipped party system — the dissents are the story.
                   {dissentCount ? (
                     <>
@@ -296,17 +296,17 @@ export default async function PoliticianDetailPage({
               {(politician.offices ?? []).map((office, index) => (
                 <div key={index} className="rule pt-3">
                   <p className="font-medium capitalize">{office.type ?? "Office"}</p>
-                  {office.tel ? <p className="mt-1 text-slate-600">{office.tel}</p> : null}
+                  {office.tel ? <p className="mt-1 text-stone-600">{office.tel}</p> : null}
                   {office.postal ? (
-                    <p className="mt-1 whitespace-pre-line text-slate-600">{office.postal}</p>
+                    <p className="mt-1 whitespace-pre-line text-stone-600">{office.postal}</p>
                   ) : null}
                 </div>
               ))}
               {!politician.email && !politician.website_url && !(politician.offices ?? []).length ? (
-                <p className="text-slate-600">
+                <p className="text-stone-600">
                   No contact details on record.
                   {politician.level === "provincial" || politician.level === "municipal"
-                    ? " Contact info syncs weekly from official rosters."
+                    ? " Contact details appear as official rosters publish them."
                     : ""}
                 </p>
               ) : null}
@@ -329,7 +329,7 @@ export default async function PoliticianDetailPage({
                 return (
                   <div key={index} className="rule py-3">
                     <p className="text-sm font-semibold text-ink">{membership.party?.name ?? "No party on record"}</p>
-                    <p className="mt-0.5 text-sm text-slate-500">
+                    <p className="mt-0.5 text-sm text-stone-500">
                       {placeLabel}
                       {tenure ? ` · ${tenure}` : ""}
                     </p>
@@ -342,7 +342,7 @@ export default async function PoliticianDetailPage({
           {isFederal ? (
             <div>
               <SectionHeading title="Committee work" />
-              <p className="pt-2 text-sm leading-6 text-slate-500">
+              <p className="pt-2 text-sm leading-6 text-stone-500">
                 Committees are where bills get studied line by line — much of an MP&apos;s real influence
                 happens here, off the main stage.
               </p>
@@ -357,7 +357,7 @@ export default async function PoliticianDetailPage({
                       <p className="text-sm font-semibold text-ink transition group-hover:text-accent">
                         {committee.committee_name}
                       </p>
-                      <p className="mt-0.5 text-sm text-slate-500">
+                      <p className="mt-0.5 text-sm text-stone-500">
                         {committee.role && committee.role.toLowerCase() !== "member"
                           ? `${committee.role} — helps run the committee`
                           : "Member — studies bills and questions witnesses"}
@@ -368,7 +368,7 @@ export default async function PoliticianDetailPage({
                   <div className="pt-2">
                     <DataGap
                       title="No committee memberships"
-                      detail="Committee membership may be missing because chamber-specific committee ingestion has not run yet."
+                      detail="No committee memberships are on record for them in the current session."
                     />
                   </div>
                 )}
@@ -388,14 +388,14 @@ export default async function PoliticianDetailPage({
                       className="rule group block py-3"
                     >
                       <p className="text-sm font-semibold leading-6 text-ink transition group-hover:text-accent">
-                        <span className="mr-2 text-xs font-semibold text-slate-400">{bill.number}</span>
+                        <span className="mr-2 text-xs font-semibold text-stone-400">{bill.number}</span>
                         {bill.title}
                         {bill.is_law ? (
                           <span className="ml-2 text-xs font-bold uppercase tracking-wide text-teal-700">Law</span>
                         ) : null}
                       </p>
                       {bill.one_sentence ? (
-                        <p className="mt-1 text-sm leading-6 text-slate-500">{bill.one_sentence}</p>
+                        <p className="mt-1 text-sm leading-6 text-stone-500">{bill.one_sentence}</p>
                       ) : null}
                     </Link>
                   ))}
@@ -409,7 +409,7 @@ export default async function PoliticianDetailPage({
                   ))}
                 </div>
               ) : (
-                <p className="pt-4 text-sm text-slate-600">No sponsored bill data has been attached yet.</p>
+                <p className="pt-4 text-sm text-stone-600">No sponsored bill data has been attached yet.</p>
               )}
               {isFederal ? (
                 <p className="mt-4 border-t border-border pt-3 text-sm">
@@ -434,8 +434,8 @@ export default async function PoliticianDetailPage({
               title={politician.level === "provincial" ? "More provincial records coming" : "Municipal money records"}
               detail={
                 politician.level === "provincial"
-                  ? "Money and expense records for provincial politicians are being added as their governments publish machine-readable data. Profiles sync weekly; Ontario bills and votes sync nightly."
-                  : "Councillor pay and expense statements (Municipal Act s.284) are published as PDFs and not yet ingested. Meeting attendance, motions, and votes above come from the official minutes and open data — every entry links to its source. See the transparency page for what each city publishes."
+                  ? "Money and expense records for provincial politicians are added as their governments publish usable data. Ontario bills and votes update nightly."
+                  : "Councillor pay and expense statements (Municipal Act s.284) are only published as PDFs, so they aren't searchable here yet. Meeting attendance, motions, and votes above come from the official minutes and open data — every entry links to its source."
               }
             />
           ) : null}

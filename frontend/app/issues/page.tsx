@@ -6,13 +6,6 @@ import { listIssues } from "@/lib/api";
 
 export const metadata = { title: "Issues — who supports what, with receipts" };
 
-function countsLine(bills: number, laws: number, dead: number): string {
-  const parts = [`${bills} bill${bills === 1 ? "" : "s"}`];
-  if (laws > 0) parts.push(`${laws} became law`);
-  if (dead > 0) parts.push(`${dead} died`);
-  return parts.join(" · ");
-}
-
 export default async function IssuesPage() {
   const issues = await listIssues();
 
@@ -28,19 +21,24 @@ export default async function IssuesPage() {
           detail="The data service isn't responding right now — try again in a minute."
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        /* A typographic index, not a wall of boxes: the issue names ARE the page. */
+        <div className="grid gap-x-14 sm:grid-cols-2 lg:grid-cols-3">
           {issues.items.map((issue) => (
-            <Link
-              key={issue.slug}
-              href={`/issues/${issue.slug}`}
-              className="rounded-md border border-border bg-white p-4 transition hover:border-accent"
-            >
-              <h2 className="font-serif text-lg font-bold leading-6">{issue.name_en}</h2>
-              {issue.description_en ? (
-                <p className="mt-1 text-sm leading-6 text-slate-600">{issue.description_en}</p>
-              ) : null}
-              <p className="mt-2 text-xs tabular-nums text-slate-500">
-                {countsLine(issue.bill_count, issue.law_count, issue.dead_count)}
+            <Link key={issue.slug} href={`/issues/${issue.slug}`} className="rule group py-4">
+              <h2 className="font-serif text-xl font-bold leading-snug tracking-tight text-ink transition group-hover:text-accent sm:text-2xl">
+                {issue.name_en}
+                <sup className="stat-figure ml-1.5 font-sans text-sm font-semibold text-stone-400">
+                  {issue.bill_count}
+                </sup>
+              </h2>
+              <p className="mt-1 text-[13px] tabular-nums text-stone-500">
+                {issue.bill_count} bill{issue.bill_count === 1 ? "" : "s"}
+                {issue.law_count > 0 ? (
+                  <span className="text-teal-700"> · {issue.law_count} became law</span>
+                ) : null}
+                {issue.dead_count > 0 ? (
+                  <span className="text-signal"> · {issue.dead_count} died</span>
+                ) : null}
               </p>
             </Link>
           ))}

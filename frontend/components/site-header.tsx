@@ -31,11 +31,11 @@ const NAV_SECTIONS = [
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3.5 sm:px-6">
+      <div className="mx-auto flex max-w-[1600px] items-center gap-4 px-5 py-3.5 sm:px-10">
         <Link href="/" className="shrink-0 font-serif text-[1.35rem] font-bold leading-none tracking-tight">
-          Civic Ledger<span className="text-accent">.</span>
+          Civic Ledger<span className="text-brass">.</span>
         </Link>
-        <nav aria-label="Main" className="hidden items-center gap-1 text-[15px] font-medium text-slate-600 sm:flex">
+        <nav aria-label="Main" className="hidden items-center gap-1 text-[15px] font-medium text-stone-600 sm:flex">
           {NAV_SECTIONS.map((item) => (
             <NavLink
               key={item.href}
@@ -55,7 +55,7 @@ export function SiteHeader() {
       {/* Mobile nav: horizontal scroll strip under the wordmark. */}
       <nav
         aria-label="Main mobile"
-        className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 text-sm font-medium text-slate-600 sm:hidden"
+        className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 text-sm font-medium text-stone-600 sm:hidden"
       >
         {[{ href: "/", label: "Home", matchPrefixes: ["/"] }, ...NAV_SECTIONS].map((item) => (
           <NavLink
@@ -63,7 +63,7 @@ export function SiteHeader() {
             href={item.href}
             label={item.label}
             matchPrefixes={item.matchPrefixes}
-            className="shrink-0 rounded-full px-3 py-1.5 transition hover:bg-slate-100"
+            className="shrink-0 rounded-full px-3 py-1.5 transition hover:bg-stone-100"
             activeClassName="bg-ink font-semibold text-white"
           />
         ))}

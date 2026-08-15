@@ -25,7 +25,7 @@ const SECTIONS: Array<{ title: string; body: React.ReactNode }> = [
     body: (
       <>
         We work hard to reproduce official records faithfully and cite every claim to its primary source. But
-        records upstream change, ingestion can lag, and software has bugs. The information here is provided
+        records upstream change, updates can lag, and software has bugs. The information here is provided
         &ldquo;as is,&rdquo; without warranty of any kind. It is not legal, financial, or professional advice.
         For authoritative versions, follow the source links on each page to the official record. When we learn
         of an error we fix it and note the change — see{" "}
@@ -103,13 +103,13 @@ export default function TermsPage() {
     >
       <div className="space-y-4">
         {SECTIONS.map((section) => (
-          <section key={section.title} className="glass-card rounded-[2rem] p-6">
+          <section key={section.title} className="rule-heavy pt-5">
             <h2 className="text-lg font-bold">{section.title}</h2>
-            <p className="mt-2 text-sm leading-7 text-slate-600">{section.body}</p>
+            <p className="mt-2 text-sm leading-7 text-stone-600">{section.body}</p>
           </section>
         ))}
       </div>
-      <p className="mt-8 text-sm text-slate-500">
+      <p className="mt-8 text-sm text-stone-500">
         See also:{" "}
         <Link href="/privacy" className="text-accent hover:underline">
           privacy

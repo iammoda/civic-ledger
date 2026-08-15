@@ -12,7 +12,7 @@ const PARTICIPATED = new Set(["yea", "nay", "paired"]);
 const PAGE_SIZE = 10;
 
 const EMPTY_COPY: Record<VotesFilter, string> = {
-  all: "No recorded votes yet — ballots appear after the first data sync.",
+  all: "No recorded votes yet — ballots appear here as soon as Parliament publishes them.",
   dissent: "No recorded dissents — every vote so far followed their party's position.",
   missed: "No missed votes on record — they showed up for every recorded vote."
 };
@@ -62,17 +62,18 @@ export function VotingRecord({
       <div className="rule-heavy flex flex-wrap items-end justify-between gap-3 pt-3">
         <div>
           <h2 className="font-serif text-2xl font-bold tracking-tight text-ink sm:text-3xl">Voting record</h2>
-          <p className="mt-1 text-sm text-slate-500">{statSegments.join(" · ")}</p>
+          <p className="mt-1 text-sm text-stone-500">{statSegments.join(" · ")}</p>
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 pb-1 text-sm font-medium">
           {pills.map((pill) => (
             <Link
               key={pill.value}
               href={pill.href}
+              scroll={false}
               className={`border-b-2 pb-0.5 transition ${
                 filter === pill.value
                   ? "border-ink font-semibold text-ink"
-                  : "border-transparent text-slate-500 hover:text-ink"
+                  : "border-transparent text-stone-500 hover:text-ink"
               }`}
             >
               {pill.label}
@@ -101,17 +102,17 @@ export function VotingRecord({
               >
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   {missed ? (
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                    <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-600">
                       Didn&apos;t vote
                     </span>
                   ) : item.ballot_effect ? (
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${EFFECT_STYLES[item.ballot_effect] ?? "bg-slate-100 text-slate-600"}`}
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${EFFECT_STYLES[item.ballot_effect] ?? "bg-stone-100 text-stone-600"}`}
                     >
                       Voted to {item.ballot_effect === "advanced" ? "advance" : "block"}
                     </span>
                   ) : (
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs uppercase tracking-[0.14em] text-slate-600">
+                    <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs uppercase tracking-[0.14em] text-stone-600">
                       {item.ballot}
                     </span>
                   )}
@@ -120,43 +121,43 @@ export function VotingRecord({
                       Broke party ranks
                     </span>
                   ) : null}
-                  <span className="rounded-full border border-black/10 px-2 py-0.5 text-xs text-slate-500">
+                  <span className="rounded-full border border-black/10 px-2 py-0.5 text-xs text-stone-500">
                     {item.bill_number ?? "Motion"}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-6 transition group-hover:text-accent">{title}</span>
-                  <span className="ml-auto shrink-0 text-xs text-slate-500">{item.occurred_on}</span>
+                  <span className="ml-auto shrink-0 text-xs text-stone-500">{item.occurred_on}</span>
                 </div>
                 {subline && subline !== title ? (
-                  <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{subline}</p>
+                  <p className="mt-0.5 line-clamp-1 text-xs text-stone-500">{subline}</p>
                 ) : null}
               </Link>
             );
           })
         ) : (
-          <p className="text-sm text-slate-500">{EMPTY_COPY[filter]}</p>
+          <p className="text-sm text-stone-500">{EMPTY_COPY[filter]}</p>
         )}
       </div>
 
       {record.total_filtered > PAGE_SIZE ? (
         <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-sm">
           {offset > 0 ? (
-            <Link href={pageHref(slug, filter, Math.max(0, offset - PAGE_SIZE))} className="font-medium text-accent">
+            <Link href={pageHref(slug, filter, Math.max(0, offset - PAGE_SIZE))} scroll={false} className="font-medium text-accent">
               ← Newer
             </Link>
           ) : (
-            <span aria-disabled="true" className="text-slate-400">
+            <span aria-disabled="true" className="text-stone-400">
               ← Newer<span className="sr-only"> (you are on the first page)</span>
             </span>
           )}
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-stone-500">
             Page {Math.floor(offset / PAGE_SIZE) + 1} of {Math.max(1, Math.ceil(record.total_filtered / PAGE_SIZE))}
           </span>
           {offset + PAGE_SIZE < record.total_filtered ? (
-            <Link href={pageHref(slug, filter, offset + PAGE_SIZE)} className="font-medium text-accent">
+            <Link href={pageHref(slug, filter, offset + PAGE_SIZE)} scroll={false} className="font-medium text-accent">
               Older →
             </Link>
           ) : (
-            <span aria-disabled="true" className="text-slate-400">
+            <span aria-disabled="true" className="text-stone-400">
               Older →<span className="sr-only"> (you are on the last page)</span>
             </span>
           )}

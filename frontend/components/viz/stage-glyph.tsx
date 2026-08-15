@@ -46,7 +46,7 @@ export function StageGlyph({
         <span
           key={stage}
           className={`h-1.5 w-3 rounded-sm ${
-            i <= reached ? (dead ? "bg-signal/70" : isLaw || reached === 6 ? "bg-teal-600" : "bg-ink/70") : "bg-slate-200"
+            i <= reached ? (dead ? "bg-signal/70" : isLaw || reached === 6 ? "bg-teal-600" : "bg-ink/70") : "bg-stone-200"
           }`}
         />
       ))}

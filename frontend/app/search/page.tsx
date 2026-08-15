@@ -21,9 +21,9 @@ const CATEGORY_STYLES: Record<string, string> = {
 
 function SectionHeading({ kicker, note }: { kicker: string; note?: string }) {
   return (
-    <div className="flex items-baseline justify-between border-b border-ink/80 pb-2">
-      <h2 className="text-xl">{kicker}</h2>
-      {note ? <p className="kicker">{note}</p> : null}
+    <div className="rule-heavy flex flex-wrap items-end justify-between gap-x-6 pt-3">
+      <h2 className="font-serif text-2xl font-bold tracking-tight text-ink">{kicker}</h2>
+      {note ? <p className="kicker pb-1">{note}</p> : null}
     </div>
   );
 }
@@ -48,8 +48,8 @@ export default async function SearchPage({
       title="Search the public record"
       description="One box for everything: your representatives, bills, votes, petitions, council motions — and every dollar MPs expense. Plain words work; we translate 'carbon tax' into what Parliament actually calls it."
     >
-      <form action="/search" method="get" className="glass-card rounded-md border-border p-5">
-        <div className="flex flex-col gap-3 sm:flex-row">
+      <form action="/search" method="get" className="max-w-3xl">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
           <input
             name="q"
             aria-label="Search MPs, bills, votes, spending"
@@ -58,11 +58,11 @@ export default async function SearchPage({
             maxLength={200}
             required
             placeholder="Search MPs, bills, votes, spending…"
-            className="w-full rounded-md border border-border bg-white px-4 py-3 text-base outline-none focus:border-accent"
+            className="w-full rounded-none border-0 border-b-2 border-ink bg-transparent px-1 py-2.5 text-xl outline-none placeholder:text-stone-300 focus:border-accent"
           />
           <button
             type="submit"
-            className="rounded-md bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+            className="shrink-0 rounded-full bg-ink px-7 py-2.5 text-base font-semibold text-white transition hover:bg-stone-700"
           >
             Search
           </button>
@@ -75,9 +75,9 @@ export default async function SearchPage({
           {people.length ? (
             <section>
               <SectionHeading kicker="Representatives" note="Matched by name or riding" />
-              <ul className="divide-y divide-border rounded-md border border-border bg-white">
+              <ul>
                 {people.map((person) => (
-                  <li key={person.slug} className="flex items-center gap-3 px-4 py-3">
+                  <li key={person.slug} className="rule flex items-center gap-3 py-3">
                     {person.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element -- external media host, avatar-sized
                       <img
@@ -90,7 +90,7 @@ export default async function SearchPage({
                     ) : (
                       <span
                         aria-hidden
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-500"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-stone-100 text-sm font-semibold text-stone-500"
                       >
                         {person.full_name.charAt(0)}
                       </span>
@@ -114,7 +114,7 @@ export default async function SearchPage({
                         ))}
                       </div>
                       {person.riding ? (
-                        <p className="mt-0.5 truncate text-sm text-slate-500">
+                        <p className="mt-0.5 truncate text-sm text-stone-500">
                           {person.riding}
                           {person.province_code ? `, ${person.province_code}` : ""}
                         </p>
@@ -131,12 +131,12 @@ export default async function SearchPage({
           {results.length ? (
             <section>
               <SectionHeading kicker="Bills, votes & more" note="From the parliamentary record" />
-              <div className="mt-3 space-y-3">
+              <div>
                 {results.map((item) => (
                   <Link
                     key={`${item.entity_type}-${item.url_path}`}
                     href={item.url_path}
-                    className="block rounded-md border border-border bg-white p-5 shadow-card transition hover:border-accent"
+                    className="rule group block py-4"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="kicker rounded-md bg-mist px-2 py-0.5">
@@ -148,8 +148,8 @@ export default async function SearchPage({
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-2 text-lg font-medium">{item.title}</p>
-                    <p className="mt-1 text-sm text-slate-500">{item.snippet}</p>
+                    <p className="mt-2 font-serif text-lg font-bold leading-snug tracking-tight text-ink transition group-hover:text-accent">{item.title}</p>
+                    <p className="mt-1 text-sm text-stone-500">{item.snippet}</p>
                   </Link>
                 ))}
               </div>
@@ -160,14 +160,14 @@ export default async function SearchPage({
           {expenses.length ? (
             <section>
               <SectionHeading kicker="Spending" note="From official MP expense disclosures" />
-              <ul className="divide-y divide-border rounded-md border border-border bg-white">
+              <ul>
                 {expenses.map((item) => (
-                  <li key={item.id} className="px-4 py-3">
+                  <li key={item.id} className="rule py-3">
                     <div className="flex items-baseline gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span
-                            className={`rounded-md px-2 py-0.5 text-xs font-medium ${CATEGORY_STYLES[item.category] ?? "bg-slate-100 text-slate-600"}`}
+                            className={`rounded-md px-2 py-0.5 text-xs font-medium ${CATEGORY_STYLES[item.category] ?? "bg-stone-100 text-stone-600"}`}
                           >
                             {item.category}
                           </span>
@@ -176,14 +176,14 @@ export default async function SearchPage({
                           </span>
                         </div>
                         {item.supplier && item.description ? (
-                          <p className="mt-0.5 text-sm text-slate-500">{item.description}</p>
+                          <p className="mt-0.5 text-sm text-stone-500">{item.description}</p>
                         ) : null}
                       </div>
                       <span className="shrink-0 text-right font-bold tabular-nums">
                         ${item.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-stone-500">
                       {item.mp_slug ? (
                         <Link href={`/politicians/${item.mp_slug}`} className="font-medium text-accent">
                           {item.mp_name}

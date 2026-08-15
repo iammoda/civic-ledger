@@ -36,9 +36,9 @@ export default async function GlossaryPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {terms.map((item) => (
-            <div key={item.term} id={item.term.replaceAll(" ", "-")} className="glass-card rounded-[2rem] p-5">
+            <div key={item.term} id={item.term.replaceAll(" ", "-")} className="rule-heavy pt-4">
               <h2 className="font-semibold capitalize">{item.term}</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-600">{item.definition_en}</p>
+              <p className="mt-1 text-sm leading-6 text-stone-600">{item.definition_en}</p>
             </div>
           ))}
         </div>

@@ -28,6 +28,20 @@ export type IssuePartyPosition = {
   nay: number;
 };
 
+/** One of the recorded votes behind the party-position numbers. */
+export type IssueVote = {
+  chamber: string;
+  session: string;
+  number: string;
+  occurred_on: string;
+  description_en: string;
+  plain_meaning_en?: string | null;
+  result?: string | null;
+  yea_total: number;
+  nay_total: number;
+  bill_number?: string | null;
+};
+
 export type IssueDetail = {
   slug: string;
   name_en: string;
@@ -35,6 +49,7 @@ export type IssueDetail = {
   bills: IssueBill[];
   party_positions: IssuePartyPosition[];
   vote_count: number;
+  votes: IssueVote[];
   positions_note: string;
 };
 

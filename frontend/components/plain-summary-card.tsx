@@ -35,7 +35,7 @@ export function PlainSummaryCard({ analysis }: { analysis: AnalysisState }) {
           return (
             <div key={key}>
               <h4 className="kicker">{title}</h4>
-              <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-700">
+              <ul className="mt-3 space-y-2.5 text-sm leading-6 text-stone-700">
                 {items.map((item) => (
                   <li key={item} className="flex gap-2">
                     <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
@@ -53,18 +53,18 @@ export function PlainSummaryCard({ analysis }: { analysis: AnalysisState }) {
           <summary className="cursor-pointer text-sm font-medium text-accent">
             Read the full summary
           </summary>
-          <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-700">
+          <p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-700">
             {payload.detailed_summary}
           </p>
         </details>
       ) : null}
 
-      <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-4 text-xs text-slate-500">
-        <span className="rounded-full bg-slate-100 px-3 py-1" title="AI-generated — usually accurate, occasionally wrong. Tell us below.">
+      <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-4 text-xs text-stone-500">
+        <span className="rounded-full bg-stone-100 px-3 py-1" title="AI-generated — usually accurate, occasionally wrong. Tell us below.">
           AI summary · may contain errors
         </span>
         {typeof payload.reading_grade === "number" ? (
-          <span className="rounded-full bg-slate-100 px-3 py-1">
+          <span className="rounded-full bg-stone-100 px-3 py-1">
             Reading level: grade {Math.round(payload.reading_grade)}
           </span>
         ) : null}

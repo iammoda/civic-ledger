@@ -19,7 +19,7 @@ export function PercentileStrip({
   const clamped = Math.max(0, Math.min(100, valuePct));
   const benchmark = benchmarkPct != null ? Math.max(0, Math.min(100, benchmarkPct)) : null;
   return (
-    <div className={`relative h-2 w-full rounded-full bg-slate-200 ${className}`} aria-hidden>
+    <div className={`relative h-2 w-full rounded-full bg-stone-200 ${className}`} aria-hidden>
       <div className="absolute inset-y-0 left-0 rounded-full bg-ink/80" style={{ width: `${clamped}%` }} />
       {benchmark != null ? (
         <div

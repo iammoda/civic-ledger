@@ -31,11 +31,11 @@ export function PostalLookupForm({
   const inputClass =
     mode === "act"
       ? "w-full rounded-full border border-black/10 bg-white px-5 py-3 outline-none focus:border-accent sm:max-w-xs"
-      : "w-full rounded-none border-0 border-b-2 border-ink bg-transparent px-1 py-2.5 font-sans text-2xl tracking-wide outline-none placeholder:text-slate-300 focus:border-accent sm:max-w-xs";
+      : "w-full rounded-none border-0 border-b-2 border-ink bg-transparent px-1 py-2.5 font-sans text-2xl tracking-wide outline-none placeholder:text-stone-300 focus:border-accent sm:max-w-xs";
   const buttonClass =
     mode === "act"
-      ? "rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white disabled:opacity-60"
-      : "shrink-0 rounded-full bg-ink px-7 py-3 text-base font-semibold text-white transition hover:bg-slate-700 disabled:opacity-60";
+      ? "rounded-full bg-ink px-6 py-3 text-sm font-medium text-white disabled:opacity-60"
+      : "shrink-0 rounded-full bg-ink px-7 py-3 text-base font-semibold text-white transition hover:bg-stone-700 disabled:opacity-60";
 
   const actHref = (slug: string) => {
     const params = new URLSearchParams();
@@ -63,7 +63,7 @@ export function PostalLookupForm({
         <button type="submit" disabled={pending} className={buttonClass}>
           {pending ? "Looking up…" : mode === "act" ? "Find my MP" : "Find my representatives"}
         </button>
-        <span className="self-center text-xs leading-5 text-slate-500 sm:max-w-52 sm:self-end sm:pb-1">
+        <span className="self-center text-xs leading-5 text-stone-500 sm:max-w-52 sm:self-end sm:pb-1">
           Sent once for the lookup, never stored — and never in the address bar.
         </span>
       </form>
@@ -80,7 +80,7 @@ export function PostalLookupForm({
           </p>
         ) : null}
         {state.status === "ok" && !ladder.length ? (
-          <p className="mt-4 text-sm text-slate-600">
+          <p className="mt-4 text-sm text-stone-600">
             No representatives came back for that postal code. Double-check it, or browse{" "}
             <Link href="/politicians" className="text-accent hover:underline">
               all representatives
@@ -92,16 +92,16 @@ export function PostalLookupForm({
 
       {mode === "act" && federalReps.length ? (
         <div className="mt-6 space-y-2">
-          <p className="text-sm font-medium text-slate-700">Your MP:</p>
+          <p className="text-sm font-medium text-stone-700">Your MP:</p>
           {federalReps.map((rep) => (
             <Link
               key={rep.person_slug}
               href={actHref(rep.person_slug!)}
-              className="block rounded-3xl border border-black/10 bg-white p-4 transition hover:border-accent"
+              className="block rule block py-3 transition hover:text-accent"
             >
               <p className="font-semibold">
                 {rep.name}
-                <span className="ml-2 font-normal text-slate-500">
+                <span className="ml-2 font-normal text-stone-500">
                   {rep.party_name ? `${rep.party_name} · ` : ""}
                   {rep.district_name}
                 </span>
@@ -129,12 +129,12 @@ export function PostalLookupForm({
                   ) : (
                     <span className="font-serif text-lg font-bold tracking-tight">{rep.name}</span>
                   )}
-                  <span className="ml-2 font-sans text-sm font-normal text-slate-500">
+                  <span className="ml-2 font-sans text-sm font-normal text-stone-500">
                     {rep.office}
                     {rep.party_name ? ` · ${rep.party_name}` : ""}
                   </span>
                 </p>
-                <p className="truncate text-sm text-slate-500">{rep.district_name}</p>
+                <p className="truncate text-sm text-stone-500">{rep.district_name}</p>
               </div>
               {rep.person_slug ? (
                 <SaveMyRep
@@ -149,14 +149,14 @@ export function PostalLookupForm({
               {rep.person_slug ? (
                 <Link
                   href={`/politicians/${rep.person_slug}`}
-                  className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+                  className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-700"
                 >
                   Full record →
                 </Link>
               ) : rep.email ? (
                 <a
                   href={`mailto:${rep.email}`}
-                  className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent"
+                  className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-stone-700 transition hover:border-accent hover:text-accent"
                 >
                   Contact
                 </a>
@@ -165,14 +165,14 @@ export function PostalLookupForm({
                   href={rep.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-accent"
+                  className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-stone-700 transition hover:border-accent hover:text-accent"
                 >
                   Official page ↗
                 </a>
               ) : null}
             </div>
           ))}
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 text-xs text-stone-500">
             Every level gets a record page here. Federal MPs have the deepest data (votes, money, expenses).
             Tap <span className="font-medium">Save</span> and your reps appear here on every visit — saved on
             your device only, never on our servers.

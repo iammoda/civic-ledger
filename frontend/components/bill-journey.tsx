@@ -211,7 +211,7 @@ export function BillJourney({ number, statusCode, statusEn, outcome, isLaw, deat
             dot = (
               <span
                 className={`relative z-10 h-6 w-6 shrink-0 rounded-full border-2 bg-white ${
-                  isAfterDeath ? "border-slate-200" : "border-slate-300"
+                  isAfterDeath ? "border-stone-200" : "border-stone-300"
                 }`}
               />
             );
@@ -228,7 +228,7 @@ export function BillJourney({ number, statusCode, statusEn, outcome, isLaw, deat
                 <span
                   aria-hidden
                   className={`absolute left-[11px] top-6 h-[calc(100%-1.5rem)] w-0.5 sm:left-6 sm:top-[11px] sm:h-0.5 sm:w-[calc(100%-1.5rem)] ${
-                    lineDone ? "bg-accent" : "bg-slate-200"
+                    lineDone ? "bg-accent" : "bg-stone-200"
                   }`}
                 />
               ) : null}
@@ -236,22 +236,22 @@ export function BillJourney({ number, statusCode, statusEn, outcome, isLaw, deat
               <div className="min-w-0 sm:pr-3">
                 <p
                   className={`text-sm leading-6 ${
-                    isCurrent ? "font-bold text-slate-900" : isDone ? "font-medium text-slate-700" : "text-slate-500"
+                    isCurrent ? "font-bold text-ink" : isDone ? "font-medium text-stone-700" : "text-stone-500"
                   }`}
                 >
                   {lawDone && i === lastIndex ? "Law" : step.label}
                 </p>
-                {step.sub && !isDeadHere ? <p className="text-xs text-slate-500">{step.sub}</p> : null}
+                {step.sub && !isDeadHere ? <p className="text-xs text-stone-500">{step.sub}</p> : null}
                 {isDeadHere ? <p className="mt-1 text-xs font-medium text-rose-700">{deathLabel}</p> : null}
                 {isCurrent && statusUnmatched && !isDead ? (
-                  <p className="mt-1 text-xs text-slate-500">{statusEn ?? statusCode}</p>
+                  <p className="mt-1 text-xs text-stone-500">{statusEn ?? statusCode}</p>
                 ) : null}
               </div>
             </li>
           );
         })}
       </ol>
-      <p className="mt-5 border-t border-black/5 pt-4 text-sm leading-6 text-slate-600">{bottomLine}</p>
+      <p className="mt-5 border-t border-black/5 pt-4 text-sm leading-6 text-stone-600">{bottomLine}</p>
     </div>
   );
 }

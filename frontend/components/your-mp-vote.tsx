@@ -38,7 +38,7 @@ export function YourMpVote({ ballots }: { ballots: BallotLite[] }) {
 
   if (!myMp) {
     return (
-      <p className="mt-4 text-xs text-slate-500">
+      <p className="mt-4 text-xs text-stone-500">
         <Link href="/" className="text-accent hover:underline">
           Enter your postal code
         </Link>{" "}
@@ -51,7 +51,7 @@ export function YourMpVote({ ballots }: { ballots: BallotLite[] }) {
 
   return (
     <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-accent/25 bg-teal-50/60 px-4 py-3 text-sm">
-      <span className="font-semibold text-slate-700">Your MP:</span>
+      <span className="font-semibold text-stone-700">Your MP:</span>
       <Link href={`/politicians/${myMp.slug}`} className="font-semibold text-accent hover:underline">
         {myMp.name}
       </Link>
@@ -59,13 +59,13 @@ export function YourMpVote({ ballots }: { ballots: BallotLite[] }) {
       {ballot ? (
         <span
           className={`font-semibold ${
-            ballot.ballot === "yea" ? "text-teal-700" : ballot.ballot === "nay" ? "text-signal" : "text-slate-600"
+            ballot.ballot === "yea" ? "text-teal-700" : ballot.ballot === "nay" ? "text-signal" : "text-stone-600"
           }`}
         >
           {BALLOT_VERBS[ballot.ballot] ?? ballot.ballot}
         </span>
       ) : (
-        <span className="text-slate-500">has no recorded ballot on this vote</span>
+        <span className="text-stone-500">has no recorded ballot on this vote</span>
       )}
       {ballot?.broke_party_line ? (
         <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">

@@ -41,8 +41,8 @@ function VoteRow({ vote }: { vote: VoteListItem }) {
   const close = margin > 0 && margin <= 10;
   return (
     <Link href={voteHref(vote)} className="rule group grid gap-x-8 gap-y-2 py-6 md:grid-cols-[8.5rem_1fr_auto]">
-      <div className="text-[13px] leading-5 text-slate-400">
-        <p className="font-semibold text-slate-500">{vote.bill_number ?? "Motion"}</p>
+      <div className="font-mono text-xs leading-5 text-stone-400">
+        <p className="font-semibold text-stone-500">{vote.bill_number ?? "Motion"}</p>
         <p>{formatDateShort(vote.occurred_on)}</p>
         <p>Vote {vote.number}</p>
         {close ? <p className="mt-1 font-semibold text-amber-700">Close vote</p> : null}
@@ -51,8 +51,8 @@ function VoteRow({ vote }: { vote: VoteListItem }) {
         <h2 className="font-serif text-xl font-bold leading-snug tracking-tight text-ink transition group-hover:text-accent sm:text-2xl">
           {headline}
         </h2>
-        {subline ? <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">{subline}</p> : null}
-        {action ? <p className="mt-1.5 text-[13px] font-medium text-slate-500">{action}</p> : null}
+        {subline ? <p className="mt-1.5 max-w-2xl text-sm leading-6 text-stone-500">{subline}</p> : null}
+        {action ? <p className="mt-1.5 text-[13px] font-medium text-stone-500">{action}</p> : null}
       </div>
       <VoteOutcome result={vote.result} yea={vote.yea_total} nay={vote.nay_total} />
     </Link>
@@ -65,8 +65,8 @@ function MotionRow({ vote }: { vote: VoteListItem }) {
   const passed = vote.result === "Passed";
   return (
     <Link href={voteHref(vote)} className="rule group flex items-baseline justify-between gap-4 py-3">
-      <p className="min-w-0 text-sm leading-6 text-slate-600 transition group-hover:text-accent">
-        <span className="mr-3 text-xs text-slate-400">{formatDateShort(vote.occurred_on)}</span>
+      <p className="min-w-0 text-sm leading-6 text-stone-600 transition group-hover:text-accent">
+        <span className="mr-3 font-mono text-xs text-stone-400">{formatDateShort(vote.occurred_on)}</span>
         {headline}
       </p>
       <p className={`stat-figure shrink-0 text-sm ${passed ? "text-teal-700" : "text-signal"}`}>
@@ -99,7 +99,7 @@ export default async function VotesPage({
       }
       segments.push(
         <details key={`group-${run[0].number}`} className="rule group/details py-4">
-          <summary className="cursor-pointer list-none text-sm font-medium text-slate-500 transition hover:text-ink [&::-webkit-details-marker]:hidden">
+          <summary className="cursor-pointer list-none text-sm font-medium text-stone-500 transition hover:text-ink [&::-webkit-details-marker]:hidden">
             <span className="mr-2 inline-block transition group-open/details:rotate-90">▸</span>
             {run.length} procedural votes — scheduling and motions, not laws
           </summary>
@@ -135,7 +135,7 @@ export default async function VotesPage({
           title={votes ? "No votes yet" : "Data temporarily unavailable"}
           detail={
             votes
-              ? "Votes appear after the first data sync."
+              ? "Recorded votes appear here as soon as Parliament publishes them."
               : "The data service isn't responding right now — try again in a minute."
           }
         />

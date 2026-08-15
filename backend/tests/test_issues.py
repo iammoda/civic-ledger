@@ -106,6 +106,16 @@ def test_issue_detail_bills_and_party_positions(db, client) -> None:
     assert positions["conservative"]["yea"] == 0
     assert positions["conservative"]["nay"] == 1
 
+    # The receipts: the actual recorded votes behind the party-position bars.
+    assert len(detail["votes"]) == 1
+    counted = detail["votes"][0]
+    assert counted["number"] == "1"
+    assert counted["session"] == "45-1"
+    assert counted["chamber"] == "house"
+    assert counted["bill_number"] == "C-12"
+    assert counted["result"] == "Passed"
+    assert counted["occurred_on"] == "2026-03-01"
+
 
 def test_issue_detail_404(db, client) -> None:
     seed_topics(db)

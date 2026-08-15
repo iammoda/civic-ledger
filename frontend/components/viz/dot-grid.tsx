@@ -50,6 +50,7 @@ export function DotGrid({ ballots, className = "" }: { ballots: Ballot[]; classN
 
   const width = PER_ROW * CELL;
   const height = y;
+  let dotIndex = 0;
 
   return (
     <svg
@@ -60,22 +61,27 @@ export function DotGrid({ ballots, className = "" }: { ballots: Ballot[]; classN
     >
       {parts.map((part) => (
         <g key={part.label}>
-          <text x={0} y={part.y} className="fill-slate-500" fontSize={11} fontWeight={600}>
+          <text x={0} y={part.y} className="fill-stone-500" fontSize={11} fontWeight={600}>
             {part.label}
           </text>
           {part.dots.map((dot, i) => {
+            const delay = { ["--dot-delay" as string]: `${Math.min((dotIndex++) * 2, 900)}ms` };
             if (dot.ballot === "yea") {
-              return <circle key={i} cx={dot.x + DOT} cy={dot.y + DOT} r={DOT - 1.5} fill={part.color}><title>{`${dot.name} — Yes`}</title></circle>;
+              return (
+                <circle key={i} className="reveal-dot" style={delay} cx={dot.x + DOT} cy={dot.y + DOT} r={DOT - 1.5} fill={part.color}>
+                  <title>{`${dot.name} — Yes`}</title>
+                </circle>
+              );
             }
             if (dot.ballot === "nay") {
               return (
-                <circle key={i} cx={dot.x + DOT} cy={dot.y + DOT} r={DOT - 2.5} fill="none" stroke={part.color} strokeWidth={2}>
+                <circle key={i} className="reveal-dot" style={delay} cx={dot.x + DOT} cy={dot.y + DOT} r={DOT - 2.5} fill="none" stroke={part.color} strokeWidth={2}>
                   <title>{`${dot.name} — No`}</title>
                 </circle>
               );
             }
             return (
-              <circle key={i} cx={dot.x + DOT} cy={dot.y + DOT} r={DOT - 3} fill="#cbd5e1" opacity={0.55}>
+              <circle key={i} className="reveal-dot" style={delay} cx={dot.x + DOT} cy={dot.y + DOT} r={DOT - 3} fill="#cbd5e1" opacity={0.55}>
                 <title>{`${dot.name} — did not vote`}</title>
               </circle>
             );

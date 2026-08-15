@@ -26,7 +26,7 @@ function MinisterPhoto({ minister, size }: { minister: CabinetMinister; size: nu
   return (
     <span
       aria-hidden
-      className="flex shrink-0 items-center justify-center rounded-md bg-slate-100 font-serif font-semibold text-slate-400"
+      className="flex shrink-0 items-center justify-center rounded-md bg-stone-100 font-serif font-semibold text-stone-400"
       style={{ width: size, height: size, borderBottom: border, fontSize: size / 2.5 }}
     >
       {minister.full_name.charAt(0)}
@@ -66,8 +66,8 @@ export default async function CabinetPage() {
                 <p className="mt-1 font-serif text-3xl font-bold tracking-tight text-ink transition group-hover:text-accent sm:text-4xl">
                   {pm.full_name}
                 </p>
-                <p className="mt-1 text-[15px] font-semibold text-slate-700">{pm.title_en}</p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-[15px] font-semibold text-stone-700">{pm.title_en}</p>
+                <p className="mt-1 text-sm text-stone-500">
                   <span className="font-medium" style={{ color: partyColor(pm.party_slug) }}>
                     {partyInfo(pm.party_slug).label}
                   </span>
@@ -88,11 +88,11 @@ export default async function CabinetPage() {
                   <p className="truncate font-serif text-[17px] font-bold tracking-tight text-ink transition group-hover:text-accent">
                     {minister.full_name}
                   </p>
-                  <p className="mt-0.5 line-clamp-2 text-[13px] font-medium leading-5 text-slate-600">
+                  <p className="mt-0.5 line-clamp-2 text-[13px] font-medium leading-5 text-stone-600">
                     {minister.title_en}
                   </p>
                   {minister.riding ? (
-                    <p className="mt-0.5 truncate text-xs text-slate-400">{minister.riding}</p>
+                    <p className="mt-0.5 truncate text-xs text-stone-400">{minister.riding}</p>
                   ) : null}
                 </div>
               </Link>

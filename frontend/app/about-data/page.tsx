@@ -49,16 +49,16 @@ export default function AboutDataPage() {
     >
       <div className="grid gap-6 md:grid-cols-2">
         {sections.map((section) => (
-          <section key={section.title} className="glass-card rounded-[2rem] p-6">
+          <section key={section.title} className="rule-heavy pt-5">
             <h2 className="text-2xl font-semibold">{section.title}</h2>
-            <p className="mt-4 text-sm leading-7 text-slate-600">{section.body}</p>
+            <p className="mt-4 text-sm leading-7 text-stone-600">{section.body}</p>
           </section>
         ))}
       </div>
 
-      <div className="glass-card mt-6 rounded-[2rem] p-6">
+      <div className="rule-heavy mt-8 pt-5">
         <h2 className="text-xl font-semibold">Deeper reading</h2>
-        <ul className="mt-4 space-y-2 text-sm text-slate-700">
+        <ul className="mt-4 space-y-2 text-sm text-stone-700">
           <li>
             <Link href="/methodology" className="text-accent">
               Our detector thresholds and review rules →

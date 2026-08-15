@@ -16,7 +16,7 @@ export function EditorialRow({
 }) {
   return (
     <div className={`rule grid gap-x-8 gap-y-2 py-6 md:grid-cols-[10rem_1fr] ${className}`}>
-      <div className="min-w-0 space-y-1 text-[13px] leading-5 text-slate-500">{rail}</div>
+      <div className="min-w-0 space-y-1 text-[13px] leading-5 text-stone-500">{rail}</div>
       <div className="min-w-0">{children}</div>
     </div>
   );
@@ -40,7 +40,7 @@ export function SectionHeading({
         {kicker ? <p className="kicker text-accent">{kicker}</p> : null}
         <h2 className="mt-1 font-serif text-2xl font-bold tracking-tight text-ink sm:text-3xl">{title}</h2>
       </div>
-      {aside ? <div className="pb-1 text-sm text-slate-500">{aside}</div> : null}
+      {aside ? <div className="pb-1 text-sm text-stone-500">{aside}</div> : null}
     </div>
   );
 }

@@ -39,7 +39,7 @@ export function Sparkline({
             width={barWidth}
             height={h}
             rx={1}
-            className={last ? "fill-accent" : "fill-slate-300"}
+            className={last ? "fill-accent" : "fill-stone-300"}
           />
         );
       })}

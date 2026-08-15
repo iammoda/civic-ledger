@@ -9,7 +9,7 @@ export function ExplainerStrip({ id, children }: { id: string; children: React.R
   return (
     <div
       data-explainer={id}
-      className="mb-6 rounded-2xl border border-accent/20 bg-teal-50/50 px-4 py-3 text-sm leading-6 text-slate-700"
+      className="mb-6 rounded-2xl border border-accent/20 bg-teal-50/50 px-4 py-3 text-sm leading-6 text-stone-700"
     >
       {children}{" "}
       <Link href="/glossary" className="whitespace-nowrap font-medium text-accent hover:underline">

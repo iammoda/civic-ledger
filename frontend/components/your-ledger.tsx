@@ -33,8 +33,8 @@ type VotesResponse = {
 const BALLOT_LABEL: Record<string, { text: string; className: string }> = {
   yea: { text: "voted Yes", className: "text-teal-700" },
   nay: { text: "voted No", className: "text-signal" },
-  paired: { text: "sat out by agreement", className: "text-slate-500" },
-  absent: { text: "didn't vote", className: "text-slate-500" }
+  paired: { text: "sat out by agreement", className: "text-stone-500" },
+  absent: { text: "didn't vote", className: "text-stone-500" }
 };
 
 /**
@@ -74,7 +74,7 @@ export function PostalOrLedger() {
       <div>
         <p className="kicker">Start with your postal code</p>
         <PostalLookupForm mode="ladder" />
-        <p className="mt-4 text-sm text-slate-500">
+        <p className="mt-4 text-sm text-stone-500">
           Or{" "}
           <Link href="/ask" className="link-editorial font-medium text-ink">
             ask a question in plain words
@@ -93,7 +93,7 @@ export function PostalOrLedger() {
       <ul>
         {reps.map((rep) => (
           <li key={rep.slug} className="rule flex flex-wrap items-baseline gap-x-3 gap-y-1 py-3 first:border-t-0">
-            <span className="w-20 shrink-0 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
+            <span className="w-20 shrink-0 text-[13px] font-semibold uppercase tracking-wide text-stone-400">
               {rep.office ?? rep.level}
             </span>
             <Link
@@ -103,12 +103,12 @@ export function PostalOrLedger() {
               {rep.name}
             </Link>
             {rep.party ? <PartyBadge party={rep.party} size="xs" /> : null}
-            {rep.riding ? <span className="text-sm text-slate-500">{rep.riding}</span> : null}
+            {rep.riding ? <span className="text-sm text-stone-500">{rep.riding}</span> : null}
             <button
               type="button"
               onClick={() => removeMyRep(rep.slug)}
               aria-label={`Remove ${rep.name} from your saved representatives`}
-              className="ml-auto text-xs text-slate-400 transition hover:text-signal"
+              className="ml-auto text-xs text-stone-400 transition hover:text-signal"
             >
               remove
             </button>
@@ -122,7 +122,7 @@ export function PostalOrLedger() {
           <p className="kicker">How {mp.name.split(/\s+/).slice(-1)[0]} voted recently</p>
           <ul className="mt-1">
             {mpRecord.items.map((ballot) => {
-              const label = BALLOT_LABEL[ballot.ballot] ?? { text: ballot.ballot, className: "text-slate-600" };
+              const label = BALLOT_LABEL[ballot.ballot] ?? { text: ballot.ballot, className: "text-stone-600" };
               const headline =
                 ballot.bill_one_sentence ?? ballot.plain_meaning_en ?? ballot.bill_title ?? ballot.description_en;
               return (
@@ -134,12 +134,12 @@ export function PostalOrLedger() {
                     <p className="text-[15px] leading-6 text-ink group-hover:text-accent">
                       <span className={`font-bold ${label.className}`}>{label.text}</span>
                       {ballot.bill_number ? (
-                        <span className="ml-2 text-[13px] font-semibold text-slate-500">{ballot.bill_number}</span>
+                        <span className="ml-2 text-[13px] font-semibold text-stone-500">{ballot.bill_number}</span>
                       ) : null}
-                      <span className="ml-2 text-slate-400">·</span>{" "}
-                      <span className="text-slate-600">{headline}</span>
+                      <span className="ml-2 text-stone-400">·</span>{" "}
+                      <span className="text-stone-600">{headline}</span>
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-400">
+                    <p className="mt-0.5 text-xs text-stone-400">
                       {formatDateShort(ballot.occurred_on)}
                       {ballot.broke_party_line ? (
                         <span className="ml-2 font-semibold text-amber-700">broke party ranks</span>

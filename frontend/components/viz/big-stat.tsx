@@ -21,7 +21,7 @@ export function BigStat({
     <div className="min-w-0">
       <p className={`stat-figure font-sans text-4xl sm:text-5xl ${toneClass}`}>{value}</p>
       <p className="kicker mt-1.5">{label}</p>
-      {detail ? <p className="mt-0.5 text-[13px] leading-5 text-slate-500">{detail}</p> : null}
+      {detail ? <p className="mt-0.5 text-[13px] leading-5 text-stone-500">{detail}</p> : null}
     </div>
   );
 }

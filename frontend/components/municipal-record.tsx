@@ -7,8 +7,8 @@ function resultBadge(result: string) {
     carried: "bg-emerald-50 text-emerald-700",
     lost: "bg-rose-50 text-rose-700",
     referred: "bg-amber-50 text-amber-700",
-    withdrawn: "bg-slate-100 text-slate-600",
-    unknown: "bg-slate-100 text-slate-500"
+    withdrawn: "bg-stone-100 text-stone-600",
+    unknown: "bg-stone-100 text-stone-500"
   };
   const labels: Record<string, string> = {
     carried: "Carried",
@@ -32,7 +32,7 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
 
   return (
     <>
-      <div className="glass-card rounded-[2rem] p-6">
+      <div className="rule-heavy pt-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-xl font-semibold">Meeting attendance</h2>
           {record.attendance_pct != null ? (
@@ -44,10 +44,10 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
             {record.attendance.map((body) => {
               const recorded = body.present + body.absent + body.regrets;
               return (
-                <div key={body.body_name} className="rounded-3xl border border-black/10 bg-white p-4">
+                <div key={body.body_name} className="rule py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-medium">{body.body_name}</p>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-stone-600">
                       Present <span className="font-semibold">{body.present}</span> of {recorded} recorded
                       {body.regrets ? ` · ${body.regrets} regrets` : ""}
                       {body.absent ? ` · ${body.absent} absent` : ""}
@@ -56,32 +56,32 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
                 </div>
               );
             })}
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-stone-500">
               Parsed from the official minutes{record.meetings_tracked_since ? ` since ${record.meetings_tracked_since}` : ""}.
               Members appear from the meeting they joined; partial attendance counts as present.
             </p>
           </div>
         ) : (
-          <p className="mt-4 text-sm text-slate-600">
+          <p className="mt-4 text-sm text-stone-600">
             No attendance parsed yet — either minutes for this council are not ingested, or this member
             has not appeared in tracked meetings.
           </p>
         )}
       </div>
 
-      <div className="glass-card rounded-[2rem] p-6">
+      <div className="rule-heavy pt-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-xl font-semibold">Motions</h2>
-          <span className="text-sm text-slate-600">
+          <span className="text-sm text-stone-600">
             moved {record.motions_moved} · seconded {record.motions_seconded}
           </span>
         </div>
         {hasMotions ? (
           <div className="mt-4 space-y-3">
             {record.recent_motions.map((motion, index) => (
-              <div key={`${motion.resolution_number}-${index}`} className="rounded-3xl border border-black/10 bg-white p-4">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-medium text-slate-600 capitalize">
+              <div key={`${motion.resolution_number}-${index}`} className="rule py-3">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                  <span className="rounded-full bg-stone-100 px-2.5 py-0.5 font-medium text-stone-600 capitalize">
                     {motion.role}
                   </span>
                   {resultBadge(motion.result)}
@@ -93,7 +93,7 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
                   <p className="mt-2 text-sm font-semibold leading-5">{motion.item_title}</p>
                 ) : null}
                 {motion.text_excerpt ? (
-                  <p className="mt-1 text-sm leading-5 text-slate-600">{motion.text_excerpt}…</p>
+                  <p className="mt-1 text-sm leading-5 text-stone-600">{motion.text_excerpt}…</p>
                 ) : null}
                 <p className="mt-2 flex flex-wrap gap-3 text-xs">
                   {motion.vote_number && motion.session_label && motion.chamber_slug ? (
@@ -105,7 +105,7 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
                     </Link>
                   ) : null}
                   {motion.source_url ? (
-                    <a href={motion.source_url} target="_blank" rel="noreferrer" className="text-slate-500 hover:text-accent">
+                    <a href={motion.source_url} target="_blank" rel="noreferrer" className="text-stone-500 hover:text-accent">
                       Official minutes ↗
                     </a>
                   ) : null}
@@ -114,22 +114,22 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
             ))}
           </div>
         ) : (
-          <p className="mt-4 text-sm text-slate-600">No motions moved or seconded in tracked meetings yet.</p>
+          <p className="mt-4 text-sm text-stone-600">No motions moved or seconded in tracked meetings yet.</p>
         )}
       </div>
 
-      <div className="glass-card rounded-[2rem] p-6">
+      <div className="rule-heavy pt-5">
         <h2 className="text-xl font-semibold">Conflict of interest declarations</h2>
         {record.declarations.length ? (
           <div className="mt-4 space-y-3">
             {record.declarations.map((declaration, index) => (
-              <div key={index} className="rounded-3xl border border-black/10 bg-white p-4 text-sm">
-                <p className="text-xs text-slate-500">
+              <div key={index} className="rule py-3 text-sm">
+                <p className="text-xs text-stone-500">
                   {declaration.meeting_date} · {declaration.body_name}
                 </p>
-                <p className="mt-1 leading-5 text-slate-700">{declaration.note}</p>
+                <p className="mt-1 leading-5 text-stone-700">{declaration.note}</p>
                 {declaration.source_url ? (
-                  <a href={declaration.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-slate-500 hover:text-accent">
+                  <a href={declaration.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-stone-500 hover:text-accent">
                     Official minutes ↗
                   </a>
                 ) : null}
@@ -137,7 +137,7 @@ export function MunicipalRecordCards({ record }: { record: MunicipalRecord }) {
             ))}
           </div>
         ) : (
-          <p className="mt-4 text-sm text-slate-600">
+          <p className="mt-4 text-sm text-stone-600">
             None declared in tracked meetings. Declarations are parsed from the “Declaration of Conflict
             of Interest” section of every ingested meeting’s minutes.
           </p>

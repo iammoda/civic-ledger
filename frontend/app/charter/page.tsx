@@ -44,24 +44,24 @@ export default function CharterPage() {
     >
       <div className="space-y-4">
         {COMMITMENTS.map((item, index) => (
-          <section key={item.title} className="glass-card rounded-[2rem] p-6">
+          <section key={item.title} className="rule-heavy pt-5">
             <h2 className="text-lg font-bold">
-              <span className="mr-2 text-slate-300">{index + 1}.</span>
+              <span className="mr-2 text-stone-300">{index + 1}.</span>
               {item.title}
             </h2>
-            <p className="mt-2 text-sm leading-7 text-slate-600">{item.body}</p>
+            <p className="mt-2 text-sm leading-7 text-stone-600">{item.body}</p>
           </section>
         ))}
       </div>
 
       <div className="mt-8 flex flex-wrap gap-3 text-sm">
-        <Link href="/methodology" className="rounded-full border border-black/10 bg-white px-5 py-2.5 font-medium text-slate-700 transition hover:border-accent hover:text-accent">
+        <Link href="/methodology" className="rounded-full border border-black/10 bg-white px-5 py-2.5 font-medium text-stone-700 transition hover:border-accent hover:text-accent">
           How we flag patterns →
         </Link>
-        <Link href="/about-data" className="rounded-full border border-black/10 bg-white px-5 py-2.5 font-medium text-slate-700 transition hover:border-accent hover:text-accent">
+        <Link href="/about-data" className="rounded-full border border-black/10 bg-white px-5 py-2.5 font-medium text-stone-700 transition hover:border-accent hover:text-accent">
           Where the data comes from →
         </Link>
-        <Link href="/corrections" className="rounded-full border border-black/10 bg-white px-5 py-2.5 font-medium text-slate-700 transition hover:border-accent hover:text-accent">
+        <Link href="/corrections" className="rounded-full border border-black/10 bg-white px-5 py-2.5 font-medium text-stone-700 transition hover:border-accent hover:text-accent">
           Report an error →
         </Link>
       </div>

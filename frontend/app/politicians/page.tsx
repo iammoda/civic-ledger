@@ -5,6 +5,7 @@ import { DataGap } from "@/components/data-gap";
 import { LevelBadge } from "@/components/level-badge";
 import { PageShell } from "@/components/page-shell";
 import { SectionTabs, YOUR_REPS_TABS } from "@/components/section-tabs";
+import { WhoDoesWhatStrip } from "@/components/who-does-what";
 import { listPoliticians } from "@/lib/api";
 import { partyColor, partyInfo } from "@/lib/parties";
 
@@ -64,6 +65,8 @@ export default async function PoliticiansPage({
     >
       <SectionTabs tabs={YOUR_REPS_TABS} ariaLabel="Your reps sections" />
 
+      <WhoDoesWhatStrip className="mb-8" />
+
       {/* Level first: the primary way into the directory. */}
       <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium">
         <span className="kicker">Level</span>
@@ -71,11 +74,12 @@ export default async function PoliticiansPage({
           <Link
             key={entry.key}
             href={buildHref({ level: entry.key, party: "", province: "" })}
+            scroll={false}
             aria-current={level === entry.key ? "page" : undefined}
             className={`border-b-2 pb-0.5 transition ${
               level === entry.key
                 ? "border-ink font-semibold text-ink"
-                : "border-transparent text-slate-500 hover:text-ink"
+                : "border-transparent text-stone-500 hover:text-ink"
             }`}
           >
             {entry.label}
@@ -90,12 +94,12 @@ export default async function PoliticiansPage({
             aria-label="Search representatives by name"
             defaultValue={q ?? ""}
             placeholder="Search by name…"
-            className="w-full rounded-none border-0 border-b-2 border-ink bg-transparent px-1 py-2 text-lg outline-none placeholder:text-slate-300 focus:border-accent sm:max-w-sm"
+            className="w-full rounded-none border-0 border-b-2 border-ink bg-transparent px-1 py-2 text-lg outline-none placeholder:text-stone-300 focus:border-accent sm:max-w-sm"
           />
           {party ? <input type="hidden" name="party" value={party} /> : null}
           {province ? <input type="hidden" name="province" value={province} /> : null}
           {level !== "federal" ? <input type="hidden" name="level" value={level} /> : null}
-          <button type="submit" className="shrink-0 rounded-full bg-ink px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
+          <button type="submit" className="shrink-0 rounded-full bg-ink px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700">
             Search
           </button>
         </div>
@@ -110,7 +114,8 @@ export default async function PoliticiansPage({
                 <Link
                   key={slug}
                   href={buildHref({ party: slug })}
-                  className="text-slate-500 transition hover:text-ink"
+                  scroll={false}
+                  className="text-stone-500 transition hover:text-ink"
                 >
                   <span
                     aria-hidden
@@ -121,7 +126,7 @@ export default async function PoliticiansPage({
                 </Link>
               ))
             )}
-            <span aria-hidden className="text-slate-300">·</span>
+            <span aria-hidden className="text-stone-300">·</span>
             {province ? (
               <Link href={buildHref({ province: "" })} className="rounded-full border border-signal/40 px-3 py-1 text-signal">
                 {province} ✕
@@ -131,7 +136,8 @@ export default async function PoliticiansPage({
                 <Link
                   key={code}
                   href={buildHref({ province: code })}
-                  className="text-slate-400 transition hover:text-ink"
+                  scroll={false}
+                  className="text-stone-400 transition hover:text-ink"
                 >
                   {code}
                 </Link>
@@ -147,12 +153,12 @@ export default async function PoliticiansPage({
           detail={
             q || party || province
               ? "Try different filters or clear the search."
-              : "Run the first OpenParliament ingestion job to populate politician profiles."
+              : "Representative profiles appear here as official rosters are published."
           }
         />
       ) : (
         <>
-          <p className="rule-heavy mb-2 pt-3 text-sm text-slate-500">
+          <p className="rule-heavy mb-2 pt-3 text-sm text-stone-500">
             <span className="stat-figure text-lg text-ink">{politicians.meta.total}</span> representatives
           </p>
           <div className="grid gap-x-10 sm:grid-cols-2 xl:grid-cols-3">
@@ -178,7 +184,7 @@ export default async function PoliticiansPage({
                   ) : (
                     <div
                       aria-hidden
-                      className="flex h-18 w-18 shrink-0 items-center justify-center rounded-md bg-slate-100 font-serif text-2xl font-semibold text-slate-400"
+                      className="flex h-18 w-18 shrink-0 items-center justify-center rounded-md bg-stone-100 font-serif text-2xl font-semibold text-stone-400"
                       style={{ width: 72, height: 72, borderBottom: `3px solid ${partyColor(partyEntry?.slug)}` }}
                     >
                       {politician.full_name.charAt(0)}
@@ -188,7 +194,7 @@ export default async function PoliticiansPage({
                     <h2 className="truncate font-serif text-lg font-bold tracking-tight text-ink transition group-hover:text-accent">
                       {politician.full_name}
                     </h2>
-                    <p className="mt-0.5 truncate text-sm text-slate-500">
+                    <p className="mt-0.5 truncate text-sm text-stone-500">
                       <span className="font-medium" style={{ color: partyColor(partyEntry?.slug) }}>
                         {partyEntry ? partyInfo(partyEntry.slug).label : "No party on record"}
                       </span>

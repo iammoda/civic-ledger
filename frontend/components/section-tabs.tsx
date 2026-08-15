@@ -29,7 +29,7 @@ export const MONEY_TABS: SectionTab[] = [
 
 export function SectionTabs({ tabs, ariaLabel }: { tabs: SectionTab[]; ariaLabel: string }) {
   return (
-    <nav aria-label={ariaLabel} className="mb-8 flex gap-6 overflow-x-auto border-b border-border text-[15px] font-medium text-slate-500">
+    <nav aria-label={ariaLabel} className="mb-8 flex gap-6 overflow-x-auto border-b border-border text-[15px] font-medium text-stone-500">
       {tabs.map((tab) => (
         <NavLink
           key={tab.href}

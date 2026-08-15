@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import { IBM_Plex_Mono, Inter, Source_Serif_4 } from "next/font/google";
 
 import "./globals.css";
 import { SiteFooter } from "@/components/site-footer";
@@ -16,6 +16,14 @@ const displaySerif = Source_Serif_4({
 const uiSans = Inter({
   subsets: ["latin"],
   variable: "--font-ui"
+});
+
+/* The evidence voice: everything set in mono is the official record speaking
+   — dates, tallies, vote numbers, sources. Serif interprets; mono testifies. */
+const evidenceMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-evidence",
+  weight: ["400", "500", "600"]
 });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -40,7 +48,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" className={`${displaySerif.variable} ${uiSans.variable}`}>
+    <html lang="en" className={`${displaySerif.variable} ${uiSans.variable} ${evidenceMono.variable}`}>
       <body className="text-ink">
         <a href="#main" className="skip-link">
           Skip to content

@@ -27,7 +27,7 @@ export function BallotList({ vote }: { vote: VoteDetail }) {
   return (
     <div>
       {dissenters.length ? (
-        <div className="mb-5 rounded-3xl border border-amber-200 bg-amber-50/60 p-4">
+        <div className="mb-5 border-l-4 border-amber-400 pl-4">
           <p className="text-xs uppercase tracking-[0.18em] text-amber-700">
             Broke party ranks ({dissenters.length})
           </p>
@@ -39,7 +39,7 @@ export function BallotList({ vote }: { vote: VoteDetail }) {
                 className="flex items-center justify-between rounded-2xl bg-white p-3 text-sm transition hover:-translate-y-0.5"
               >
                 <span className="font-medium">{ballot.full_name}</span>
-                <span className="flex items-center gap-2 text-slate-500">
+                <span className="flex items-center gap-2 text-stone-500">
                   {BALLOT_LABELS[ballot.ballot] ?? ballot.ballot}
                   <PartyBadge party={ballot.party_slug} size="xs" />
                 </span>
@@ -55,10 +55,10 @@ export function BallotList({ vote }: { vote: VoteDetail }) {
           const nays = ballots.filter((b) => b.ballot === "nay").length;
           const others = ballots.length - yeas - nays;
           return (
-            <details key={partySlug} className="rounded-3xl border border-black/10 bg-white p-4">
+            <details key={partySlug} className="rule py-3">
               <summary className="cursor-pointer text-sm">
                 <PartyBadge party={partySlug} />
-                <span className="ml-2 text-slate-500">
+                <span className="ml-2 text-stone-500">
                   {yeas} Yes · {nays} No{others ? ` · ${others} other` : ""} ({ballots.length} MPs)
                 </span>
               </summary>
@@ -70,12 +70,12 @@ export function BallotList({ vote }: { vote: VoteDetail }) {
                     <Link
                       key={ballot.person_slug}
                       href={`/politicians/${ballot.person_slug}`}
-                      className="flex items-center justify-between rounded-xl px-3 py-1.5 text-sm transition hover:bg-slate-50"
+                      className="flex items-center justify-between rounded-xl px-3 py-1.5 text-sm transition hover:bg-stone-50"
                     >
                       <span className={ballot.broke_party_line ? "font-medium text-amber-700" : ""}>
                         {ballot.full_name}
                       </span>
-                      <span className="text-slate-500">{BALLOT_LABELS[ballot.ballot] ?? ballot.ballot}</span>
+                      <span className="text-stone-500">{BALLOT_LABELS[ballot.ballot] ?? ballot.ballot}</span>
                     </Link>
                   ))}
               </div>

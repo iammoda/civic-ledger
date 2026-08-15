@@ -1,12 +1,14 @@
 import Link from "next/link";
 
+import { Reveal } from "@/components/motion/reveal";
+
 import type { ReceiptBoard, ReceiptRow } from "@/lib/api";
 import { partyColor, partyInfo } from "@/lib/parties";
 
 function Avatar({ row }: { row: ReceiptRow }) {
   if (row.image_url) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element -- external media host, avatar-sized
       <img
         src={row.image_url}
         alt=""
@@ -18,7 +20,7 @@ function Avatar({ row }: { row: ReceiptRow }) {
   }
   return (
     <span
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 font-serif text-base font-semibold text-slate-400"
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-stone-100 font-serif text-base font-semibold text-stone-400"
       style={{ borderBottom: `2px solid ${partyColor(row.party)}` }}
     >
       {row.person_name.charAt(0)}
@@ -37,15 +39,16 @@ export function LeaderBoard({ board }: { board: ReceiptBoard }) {
     <section>
       <div className="rule-heavy pt-3">
         <h2 className="font-serif text-2xl font-bold tracking-tight text-ink">{board.title}</h2>
-        <p className="mt-1 text-sm text-slate-500">{board.subtitle}</p>
+        <p className="mt-1 text-sm text-stone-500">{board.subtitle}</p>
       </div>
+      <Reveal as="div">
       <ol className="mt-2">
         {board.rows.map((row, index) => {
           const pct = Math.max(2, (row.value / max) * 100);
           const inner = (
             <>
-              <span className="stat-figure w-7 shrink-0 pt-1 text-right font-serif text-lg text-slate-300">
-                {index + 1}
+              <span className="w-7 shrink-0 pt-1.5 text-right font-mono text-sm font-semibold text-stone-300">
+                {String(index + 1).padStart(2, "0")}
               </span>
               <Avatar row={row} />
               <span className="min-w-0 flex-1">
@@ -60,13 +63,16 @@ export function LeaderBoard({ board }: { board: ReceiptBoard }) {
                     {row.display}
                   </span>
                 </span>
-                <span className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-slate-100" aria-hidden>
-                  <span className="block h-full rounded-full bg-ink/70" style={{ width: `${pct}%` }} />
+                <span className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-stone-100" aria-hidden>
+                  <span
+                    className="reveal-bar block h-full rounded-full bg-ink/70"
+                    style={{ width: `${pct}%`, transitionDelay: `${Math.min(index * 60, 600)}ms` }}
+                  />
                 </span>
                 {row.context ? (
-                  <span className="mt-1 block truncate text-xs text-slate-500">{row.context}</span>
+                  <span className="mt-1 block truncate text-xs text-stone-500">{row.context}</span>
                 ) : row.riding ? (
-                  <span className="mt-1 block truncate text-xs text-slate-500">{row.riding}</span>
+                  <span className="mt-1 block truncate text-xs text-stone-500">{row.riding}</span>
                 ) : null}
               </span>
             </>
@@ -87,8 +93,9 @@ export function LeaderBoard({ board }: { board: ReceiptBoard }) {
           );
         })}
       </ol>
+      </Reveal>
       {/* The caveat ships with the numbers — the anti-fake-news layer. */}
-      <p className="mt-3 text-xs leading-5 text-slate-500">{board.caveat}</p>
+      <p className="mt-3 text-xs leading-5 text-stone-500">{board.caveat}</p>
     </section>
   );
 }

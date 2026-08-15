@@ -13,6 +13,7 @@ const STATIC_PATHS = [
   "/politicians",
   "/issues",
   "/expenses",
+  "/money",
   "/petitions",
   "/receipts",
   "/cabinet",

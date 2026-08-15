@@ -35,9 +35,9 @@ export default function MethodologyPage() {
       description="Every number on this site traces to an official government record. Here is exactly how the automated checks work."
     >
       <div className="space-y-6">
-        <div className="glass-card rounded-[2rem] p-8">
+        <div className="rule-heavy pt-5">
           <h2 className="text-xl font-semibold">The rules we hold ourselves to</h2>
-          <ul className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
+          <ul className="mt-4 space-y-3 text-sm leading-7 text-stone-700">
             <li>
               <span className="font-medium">Human review before publishing.</span> Detectors only create
               drafts. A human reviews every flag against the underlying records before it can appear publicly.
@@ -66,22 +66,22 @@ export default function MethodologyPage() {
           </ul>
         </div>
 
-        <div className="glass-card rounded-[2rem] p-8">
+        <div className="rule-heavy pt-5">
           <h2 className="text-xl font-semibold">The detectors</h2>
           <div className="mt-4 space-y-4">
             {DETECTORS.map((detector) => (
-              <div key={detector.name} className="rounded-3xl border border-black/10 bg-white p-5">
+              <div key={detector.name} className="rule py-4">
                 <h3 className="font-medium">{detector.name}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-700">{detector.what}</p>
-                <p className="mt-2 text-xs text-slate-500">Source: {detector.source}</p>
+                <p className="mt-2 text-sm leading-6 text-stone-700">{detector.what}</p>
+                <p className="mt-2 text-xs text-stone-500">Source: {detector.source}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="glass-card rounded-[2rem] p-8">
+        <div className="rule-heavy pt-5">
           <h2 className="text-xl font-semibold">AI-generated text</h2>
-          <p className="mt-3 text-sm leading-7 text-slate-700">
+          <p className="mt-3 text-sm leading-7 text-stone-700">
             Plain-language summaries are AI-generated from official records, held to a grade-8 readability
             standard, and always cite their sources. Summaries that fail quality checks are blocked, not
             published. Vote directions (&quot;voted to advance / block&quot;) are resolved by deterministic
@@ -90,9 +90,9 @@ export default function MethodologyPage() {
           </p>
         </div>
 
-        <div className="glass-card rounded-[2rem] p-8">
+        <div className="rule-heavy pt-5">
           <h2 className="text-xl font-semibold">Spotted an error?</h2>
-          <p className="mt-3 text-sm leading-7 text-slate-700">
+          <p className="mt-3 text-sm leading-7 text-stone-700">
             Corrections make this platform better and are handled through a public queue.{" "}
             <Link href="/corrections" className="text-accent">
               Submit a correction or dispute →

@@ -8,7 +8,7 @@ export function Jargon({ term, children }: { term: string; children?: React.Reac
   return (
     <Link
       href={`/glossary#${term.replaceAll(" ", "-")}`}
-      className="underline decoration-dotted decoration-slate-400 underline-offset-4 hover:decoration-accent"
+      className="underline decoration-dotted decoration-stone-400 underline-offset-4 hover:decoration-accent"
       title={`What does "${term}" mean? Tap for the plain-language definition.`}
     >
       {children ?? term}

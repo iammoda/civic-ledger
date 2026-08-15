@@ -48,27 +48,27 @@ export default async function CorrectionsPage({
       description="Anyone can submit — including politicians' offices. Every submission goes into a review queue and outcomes are reflected on the affected pages."
     >
       {error ? (
-        <div className="glass-card mb-6 rounded-[2rem] border-l-4 border-signal p-6">
+        <div className="mb-8 border-l-4 border-signal pl-5">
           <p className="font-medium">That didn&apos;t go through.</p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-stone-600">
             The review queue is briefly unavailable. Your text isn&apos;t saved — please copy it and try again in
             a minute.
           </p>
         </div>
       ) : null}
       {submitted ? (
-        <div className="glass-card mb-6 rounded-[2rem] border-l-4 border-accent p-6">
+        <div className="mb-8 border-l-4 border-accent pl-5">
           <p className="font-medium">Thank you — your submission is in the review queue.</p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-stone-600">
             If you left contact details and we need clarification, we&apos;ll reach out.
           </p>
         </div>
       ) : null}
 
-      <form action={submitCorrection} className="glass-card rounded-[2rem] p-8">
+      <form action={submitCorrection} className="rule-heavy pt-5">
         <div className="space-y-5">
           <div>
-            <label htmlFor="page_url" className="text-sm font-medium text-slate-700">
+            <label htmlFor="page_url" className="text-sm font-medium text-stone-700">
               Which page is affected?
             </label>
             <input
@@ -81,7 +81,7 @@ export default async function CorrectionsPage({
             />
           </div>
           <div>
-            <label htmlFor="message" className="text-sm font-medium text-slate-700">
+            <label htmlFor="message" className="text-sm font-medium text-stone-700">
               What&apos;s wrong, and what&apos;s your evidence?
             </label>
             <textarea
@@ -92,11 +92,11 @@ export default async function CorrectionsPage({
               maxLength={5000}
               rows={6}
               placeholder="Tell us what's inaccurate. Links to official records help us resolve it faster."
-              className="mt-2 w-full rounded-3xl border border-black/10 bg-white px-5 py-4 outline-none focus:border-accent"
+              className="mt-2 w-full rounded-xl border border-border bg-white px-5 py-4 outline-none focus:border-accent"
             />
           </div>
           <div>
-            <label htmlFor="contact" className="text-sm font-medium text-slate-700">
+            <label htmlFor="contact" className="text-sm font-medium text-stone-700">
               Contact (optional)
             </label>
             <input
@@ -107,7 +107,7 @@ export default async function CorrectionsPage({
               className="mt-2 w-full rounded-full border border-black/10 bg-white px-5 py-3 outline-none focus:border-accent"
             />
           </div>
-          <button type="submit" className="rounded-full bg-slate-900 px-8 py-3 text-sm font-medium text-white">
+          <button type="submit" className="rounded-full bg-ink px-8 py-3 text-sm font-medium text-white">
             Submit to the review queue
           </button>
         </div>

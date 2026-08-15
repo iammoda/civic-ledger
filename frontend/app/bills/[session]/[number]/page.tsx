@@ -110,13 +110,13 @@ export default async function BillDetailPage({
           <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <Link
               href={`/act?bill=${encodeURIComponent(`${bill.session}/${bill.number}`)}`}
-              className="rounded-full bg-ink px-5 py-2.5 font-semibold text-white transition hover:bg-slate-700"
+              className="rounded-full bg-ink px-5 py-2.5 font-semibold text-white transition hover:bg-stone-700"
             >
               Contact your MP about this
             </Link>
             <Link
               href="/petitions"
-              className="rounded-full border border-border px-5 py-2.5 font-semibold text-slate-700 transition hover:border-accent hover:text-accent"
+              className="rounded-full border border-border px-5 py-2.5 font-semibold text-stone-700 transition hover:border-accent hover:text-accent"
             >
               Find a related petition
             </Link>
@@ -133,7 +133,7 @@ export default async function BillDetailPage({
               </span>
             ) : null}
             {bill.topics.map((topic) => (
-              <span key={topic} className="text-slate-500">
+              <span key={topic} className="text-stone-500">
                 {topic}
               </span>
             ))}
@@ -156,10 +156,10 @@ export default async function BillDetailPage({
           {!plainSummary && bill.official_summary_en ? (
             <div className="max-w-3xl">
               <p className="kicker">Official summary · Library of Parliament</p>
-              <p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-slate-700">
+              <p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-stone-700">
                 {bill.official_summary_en}
               </p>
-              <p className="mt-4 text-xs text-slate-500">
+              <p className="mt-4 text-xs text-stone-500">
                 Written by the non-partisan Library of Parliament — not by us, and not by AI.
               </p>
             </div>
@@ -168,8 +168,8 @@ export default async function BillDetailPage({
             pendingGap ? (
               <div className="max-w-2xl border-l-2 border-accent/40 pl-4">
                 <p className="text-sm font-semibold text-ink">Summary being written</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Our AI is reading the bill now. Refresh in a minute.
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  A plain-language summary is being written now. Refresh in a minute.
                 </p>
               </div>
             ) : blockedGap ? (
@@ -208,7 +208,7 @@ export default async function BillDetailPage({
                 <li key={index} className="rule py-4">
                   <p className="font-semibold text-ink">{componentTitle}</p>
                   {description ? (
-                    <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{description}</p>
+                    <p className="mt-1 max-w-3xl text-sm leading-6 text-stone-600">{description}</p>
                   ) : null}
                 </li>
               );
@@ -229,7 +229,7 @@ export default async function BillDetailPage({
                   className="rule group flex items-start justify-between gap-6 py-5"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs text-slate-400">{formatDateShort(vote.occurred_on)}</p>
+                    <p className="text-xs text-stone-400">{formatDateShort(vote.occurred_on)}</p>
                     <p className="mt-1 text-[15px] font-medium leading-6 text-ink transition group-hover:text-accent">
                       {vote.plain_meaning_en ?? vote.description_en}
                     </p>
@@ -270,7 +270,7 @@ export default async function BillDetailPage({
                     ) : (
                       <span
                         aria-hidden
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-slate-100 text-sm font-semibold text-slate-600"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-stone-100 text-sm font-semibold text-stone-600"
                       >
                         {dissenter.full_name.charAt(0)}
                       </span>
@@ -285,7 +285,7 @@ export default async function BillDetailPage({
                         </Link>
                         <PartyBadge party={dissenter.party_slug} size="xs" />
                       </div>
-                      <p className="mt-0.5 text-sm text-slate-500">
+                      <p className="mt-0.5 text-sm text-stone-500">
                         voted {ballotLabel(dissenter.ballot)} against their party ·{" "}
                         <Link
                           href={`/votes/${dissenter.chamber}/${dissenter.session}/${dissenter.vote_number}`}
@@ -323,7 +323,7 @@ export default async function BillDetailPage({
                 Open LEGISinfo ↗
               </a>
             ) : (
-              <p className="text-slate-500">LEGISinfo link not attached yet.</p>
+              <p className="text-stone-500">LEGISinfo link not attached yet.</p>
             )}
           </div>
 

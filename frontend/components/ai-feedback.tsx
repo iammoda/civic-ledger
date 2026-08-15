@@ -31,18 +31,18 @@ export function AiFeedback({ subject }: { subject: string }) {
   };
 
   if (sent) {
-    return <p className="mt-2 text-xs text-slate-500">Thanks — noted.</p>;
+    return <p className="mt-2 text-xs text-stone-500">Thanks — noted.</p>;
   }
 
   return (
-    <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+    <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-stone-500">
       Was this summary helpful and accurate?
       {["Yes", "Sort of", "No"].map((answer) => (
         <button
           key={answer}
           type="button"
           onClick={() => send(answer)}
-          className="rounded-full border border-black/10 bg-white px-2.5 py-1 font-medium text-slate-600 transition hover:border-accent hover:text-accent"
+          className="rounded-full border border-black/10 bg-white px-2.5 py-1 font-medium text-stone-600 transition hover:border-accent hover:text-accent"
         >
           {answer}
         </button>

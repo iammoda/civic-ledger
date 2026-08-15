@@ -97,13 +97,13 @@ export default function PrivacyPage() {
     >
       <div className="space-y-4">
         {SECTIONS.map((section) => (
-          <section key={section.title} className="glass-card rounded-[2rem] p-6">
+          <section key={section.title} className="rule-heavy pt-5">
             <h2 className="text-lg font-bold">{section.title}</h2>
-            <p className="mt-2 text-sm leading-7 text-slate-600">{section.body}</p>
+            <p className="mt-2 text-sm leading-7 text-stone-600">{section.body}</p>
           </section>
         ))}
       </div>
-      <p className="mt-8 text-sm text-slate-500">
+      <p className="mt-8 text-sm text-stone-500">
         Questions about privacy? Use the{" "}
         <Link href="/corrections" className="text-accent hover:underline">
           contact form

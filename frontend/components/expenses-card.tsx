@@ -24,7 +24,7 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
     <section>
       <div className="rule-heavy pt-3">
         <h2 className="font-serif text-2xl font-bold tracking-tight text-ink sm:text-3xl">Spending</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-stone-500">
           Their office budget is taxpayer money — staff, travel, hospitality, contracts. From the official
           quarterly disclosures.
         </p>
@@ -38,7 +38,7 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
                 Flagged pattern · human-reviewed
               </p>
               <p className="mt-2 font-medium leading-6">{flag.headline_en}</p>
-              {flag.detail_en ? <p className="mt-1 text-sm leading-6 text-slate-600">{flag.detail_en}</p> : null}
+              {flag.detail_en ? <p className="mt-1 text-sm leading-6 text-stone-600">{flag.detail_en}</p> : null}
             </div>
           ))}
         </div>
@@ -48,13 +48,13 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
         <div className="mt-6">
           <div className="flex flex-wrap items-baseline gap-3">
             <span className="stat-figure font-sans text-4xl text-ink">{money(latest.total)}</span>
-            <span className="text-sm text-slate-500">
+            <span className="text-sm text-stone-500">
               in Q{latest.quarter} {latest.fiscal_year}
             </span>
             {medianDeltaPct != null ? (
               <span
                 className={`text-sm font-medium ${
-                  medianDeltaPct > 50 ? "text-amber-700" : "text-slate-500"
+                  medianDeltaPct > 50 ? "text-amber-700" : "text-stone-500"
                 }`}
               >
                 {Math.abs(medianDeltaPct) <= 5
@@ -67,7 +67,7 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
             {expenses.spend_percentile != null ? (
               <span
                 className={`text-sm font-medium ${
-                  expenses.spend_percentile >= 90 ? "text-amber-700" : "text-slate-500"
+                  expenses.spend_percentile >= 90 ? "text-amber-700" : "text-stone-500"
                 }`}
               >
                 spends more than {Math.round(expenses.spend_percentile)}% of MPs
@@ -87,7 +87,7 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
                 <p className="kicker">{label}</p>
                 <p className="stat-figure mt-1 text-lg font-semibold">{money(value)}</p>
                 {latest.total > 0 ? (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-stone-500">
                     {Math.round((value / latest.total) * 100)}% of quarter
                   </p>
                 ) : null}
@@ -103,13 +103,13 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
             Office budget used: {money(budget.ytd_total)} of {money(budget.annual_budget)} (
             {Math.round(budget.utilization_pct)}%)
           </p>
-          <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+          <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-stone-200">
             <div
               className={`h-full rounded-full ${runningHot ? "bg-amber-500" : "bg-accent"}`}
               style={{ width: `${Math.min(100, Math.max(0, budget.utilization_pct))}%` }}
             />
           </div>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-stone-500">
             {budget.note} Covers Q1–Q{budget.quarters_reported} of FY{budget.fiscal_year}–
             {budget.fiscal_year + 1}.
           </p>
@@ -117,7 +117,7 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
       ) : null}
 
       {expenses.mp_annual_salary != null ? (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-stone-500">
           MP salary: {money(expenses.mp_annual_salary)}/yr (set by law, all MPs) — separate from this office
           budget.
         </p>
@@ -133,7 +133,7 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
               <div key={item.id} className="rule flex items-start justify-between gap-3 py-3 text-sm">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{item.supplier ?? item.description ?? item.purpose ?? "—"}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-stone-500">
                     {item.category} · Q{item.quarter} {item.fiscal_year}
                     {item.occurred_on ? ` · ${item.occurred_on}` : ""}
                   </p>
@@ -145,7 +145,7 @@ export function ExpensesCard({ expenses }: { expenses: MpExpensesResponse }) {
         </details>
       ) : null}
 
-      <p className="mt-6 border-t border-border pt-4 text-xs leading-5 text-slate-500">
+      <p className="mt-6 border-t border-border pt-4 text-xs leading-5 text-stone-500">
         {expenses.sources_note}{" "}
         <Link href={`/expenses?q=${encodeURIComponent(expenses.full_name)}`} className="text-accent">
           Search all their expenses →
