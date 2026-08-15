@@ -406,27 +406,41 @@ async def _collect_rows(
     max_pages: int | None,
 ) -> list[GridRow]:
     """Metadata pass: walk the grid (no clicks), newest amendments first."""
-    collected: list[GridRow] = []
+    collected: dict[str, GridRow] = {}
     grid_html = await client.search_active()
+    # Hard ceiling from the grid's own item count — the pager's "Next"
+    # control still renders on the last page, so without this the walk
+    # would loop there forever.
+    total_items = parse_total_items(grid_html)
+    page_ceiling = (total_items // 10 + 2) if total_items else 500
+    previous_page_ids: set[str] = set()
     page_no = 1
     while True:
         rows = parse_grid_rows(grid_html)
         if not rows:
             break
+        page_ids = {row.registration_number for row in rows}
+        if page_ids == previous_page_ids:
+            break  # pager wrapped: same page twice = we're at the end
+        previous_page_ids = page_ids
         fresh = [
             row
             for row in rows
-            if not (
+            if row.registration_number not in collected
+            and not (
                 row.registration_number in known
                 and known[row.registration_number] == row.last_amendment_date
             )
         ]
-        collected.extend(fresh)
+        for row in fresh:
+            collected[row.registration_number] = row
+        if page_no % 25 == 0:
+            logger.info("ontario lobbying: walked %d pages, %d to fetch", page_no, len(collected))
         newest = max((r.last_amendment_date for r in rows if r.last_amendment_date), default=None)
         if not full and watermark is not None and not fresh and (newest is None or newest <= watermark):
             break
         page_no += 1
-        if max_pages is not None and page_no > max_pages:
+        if page_no > page_ceiling or (max_pages is not None and page_no > max_pages):
             break
         try:
             next_html = await client.next_page(grid_html)
@@ -439,7 +453,7 @@ async def _collect_rows(
         if next_html is None:
             break
         grid_html = next_html
-    return collected
+    return list(collected.values())
 
 
 async def _harvest_window(
@@ -556,6 +570,8 @@ async def sync_ontario_lobbying(
                 upsert_registration(db, row, detail, mpp_index)
                 count += 1
             db.commit()
+            if count and count % 100 < len(harvested):
+                logger.info("ontario lobbying: %d registrations synced so far", count)
 
     db.commit()
     return count
