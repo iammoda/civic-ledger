@@ -131,7 +131,7 @@ def _search_expenses(db: Session, q: str, *, limit: int = 8) -> list[SearchExpen
     Token matching (AND across words, OR across fields): names are stored
     surname-first, so "mark holland" must match word-by-word.
     """
-    query = select(ExpenseItem)
+    query = select(ExpenseItem).where(ExpenseItem.scope == "federal")
     for token in q.strip().lower().split()[:8]:
         query = query.where(
             or_(

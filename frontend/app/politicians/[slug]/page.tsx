@@ -6,6 +6,7 @@ import { DataGap } from "@/components/data-gap";
 import { CiteThis } from "@/components/cite-this";
 import { ExpensesCard } from "@/components/expenses-card";
 import { MoneyInfluence } from "@/components/money-influence";
+import { MppExpensesCard } from "@/components/mpp-expenses-card";
 import { MppLobbyingCard } from "@/components/mpp-lobbying-card";
 import { MunicipalRecordCards } from "@/components/municipal-record";
 import { PartyBadge } from "@/components/party-badge";
@@ -15,6 +16,7 @@ import { SectionHeading } from "@/components/viz/editorial";
 import { provinceShort } from "@/lib/humanize";
 import { PercentileStrip } from "@/components/viz/percentile-strip";
 import {
+  getMppExpenses,
   getMppLobbyingRegistrations,
   getMunicipalRecord,
   getPolitician,
@@ -81,12 +83,13 @@ export default async function PoliticianDetailPage({
   const isFederal = (politician.level ?? "federal") === "federal";
   const isMunicipal = politician.level === "municipal";
   const isProvincial = politician.level === "provincial";
-  const [money, votingRecord, expenses, municipal, mppLobbying] = await Promise.all([
+  const [money, votingRecord, expenses, municipal, mppLobbying, mppExpenses] = await Promise.all([
     isFederal ? getPoliticianMoney(slug) : Promise.resolve(null),
     getPoliticianVotes(slug, { filter, offset, limit: 10 }),
     isFederal ? getPoliticianExpenses(slug) : Promise.resolve(null),
     isMunicipal ? getMunicipalRecord(slug) : Promise.resolve(null),
-    isProvincial ? getMppLobbyingRegistrations(slug, { limit: 10 }) : Promise.resolve(null)
+    isProvincial ? getMppLobbyingRegistrations(slug, { limit: 10 }) : Promise.resolve(null),
+    isProvincial ? getMppExpenses(slug, { limit: 8 }) : Promise.resolve(null)
   ]);
 
   const hasVotes = isFederal || politician.level === "provincial" || Boolean(votingRecord?.items?.length);
@@ -451,6 +454,9 @@ export default async function PoliticianDetailPage({
           ) : null}
           {money ? <MoneyInfluence money={money} slug={politician.slug} /> : null}
           {expenses ? <ExpensesCard expenses={expenses} /> : null}
+          {mppExpenses && mppExpenses.total > 0 ? (
+            <MppExpensesCard expenses={mppExpenses} />
+          ) : null}
           {mppLobbying && mppLobbying.total > 0 ? (
             <MppLobbyingCard lobbying={mppLobbying} />
           ) : null}
@@ -459,7 +465,7 @@ export default async function PoliticianDetailPage({
               title={politician.level === "provincial" ? "More provincial records coming" : "Municipal money records"}
               detail={
                 politician.level === "provincial"
-                  ? "Money and expense records for provincial politicians are added as their governments publish usable data. Ontario bills and votes update nightly."
+                  ? "Ontario MPPs: expenses and lobbying registrations above update from ola.org and the Integrity Commissioner's registry. Other provinces are added as their governments publish usable data."
                   : "Councillor pay and expense statements (Municipal Act s.284) are only published as PDFs, so they aren't searchable here yet. Meeting attendance, motions, and votes above come from the official minutes and open data — every entry links to its source."
               }
             />

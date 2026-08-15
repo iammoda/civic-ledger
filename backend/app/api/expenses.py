@@ -149,7 +149,7 @@ def politician_expenses(slug: str, db: Session = Depends(get_db)) -> MpExpensesR
 
     top_items = db.scalars(
         select(ExpenseItem)
-        .where(ExpenseItem.person_id == person.id)
+        .where(ExpenseItem.person_id == person.id, ExpenseItem.scope == "federal")
         .order_by(ExpenseItem.amount.desc())
         .limit(8)
     ).all()
@@ -248,6 +248,7 @@ def _expense_search_query(
     fiscal_year: int | None,
     min_amount: float | None,
     traveller_type: str | None,
+    scope: str = "federal",
 ):
     """Shared filter set for the JSON explorer and the CSV export.
 
@@ -256,7 +257,7 @@ def _expense_search_query(
     query must appear in SOME field of the row (AND across tokens, OR across
     fields) — word order stops mattering.
     """
-    query = select(ExpenseItem)
+    query = select(ExpenseItem).where(ExpenseItem.scope == scope)
     if q:
         for token in q.strip().lower().split()[:8]:
             query = query.where(
@@ -289,10 +290,11 @@ CSV_EXPORT_CAP = 10_000
 )
 def search_expenses_csv(
     q: str | None = Query(default=None, max_length=200),
-    category: str | None = Query(default=None, pattern="^(travel|hospitality|contract)$"),
+    category: str | None = Query(default=None, pattern="^(travel|hospitality|contract|accommodation|meals)$"),
     fiscal_year: int | None = None,
     min_amount: float | None = Query(default=None, ge=0),
     traveller_type: str | None = Query(default=None, max_length=64),
+    scope: str = Query(default="federal", pattern="^(federal|on-mpp)$"),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
     """The current expense search, as a CSV — for journalists and spreadsheets.
@@ -304,7 +306,7 @@ def search_expenses_csv(
     import csv
     import io
 
-    query = _expense_search_query(q, category, fiscal_year, min_amount, traveller_type)
+    query = _expense_search_query(q, category, fiscal_year, min_amount, traveller_type, scope)
     items = db.scalars(query.order_by(ExpenseItem.amount.desc()).limit(CSV_EXPORT_CAP)).all()
 
     def rows():
@@ -336,17 +338,18 @@ def search_expenses_csv(
 @router.get("/expenses/search")
 def search_expenses(
     q: str | None = Query(default=None, max_length=200),
-    category: str | None = Query(default=None, pattern="^(travel|hospitality|contract)$"),
+    category: str | None = Query(default=None, pattern="^(travel|hospitality|contract|accommodation|meals)$"),
     fiscal_year: int | None = None,
     min_amount: float | None = Query(default=None, ge=0),
     traveller_type: str | None = Query(default=None, max_length=64),
+    scope: str = Query(default="federal", pattern="^(federal|on-mpp)$"),
     sort: str = Query(default="amount", pattern="^(amount|date)$"),
     limit: int = Query(default=25, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict:
     """Cross-MP searchable expense explorer. Biggest-first by default."""
-    query = _expense_search_query(q, category, fiscal_year, min_amount, traveller_type)
+    query = _expense_search_query(q, category, fiscal_year, min_amount, traveller_type, scope)
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     order = ExpenseItem.amount.desc() if sort == "amount" else ExpenseItem.occurred_on.desc().nullslast()
@@ -397,3 +400,54 @@ def search_expenses(
         "items": [_search_model(item).model_dump() for item in items],
         "meta": PageMeta(total=total, limit=limit, offset=offset).model_dump(),
     }
+
+class MppExpenseTotals(BaseModel):
+    category: str
+    total: float
+
+
+class MppExpensesResponse(BaseModel):
+    slug: str
+    full_name: str
+    total: float
+    by_category: list[MppExpenseTotals]
+    items: list[ExpenseItemModel]
+    source_note: str
+
+
+@router.get("/politicians/{slug}/mpp-expenses", response_model=MppExpensesResponse)
+def mpp_expenses(
+    slug: str,
+    limit: int = Query(default=10, le=100),
+    db: Session = Depends(get_db),
+) -> MppExpensesResponse:
+    """Ontario MPP expense disclosures for one member — travel, accommodation,
+    meals and hospitality, from ola.org (no staff/office budgets: Ontario
+    doesn't disclose those per member)."""
+    person = db.scalar(select(Person).where(Person.slug == slug))
+    if person is None:
+        raise HTTPException(status_code=404, detail="Politician not found")
+
+    base = select(ExpenseItem).where(
+        ExpenseItem.person_id == person.id, ExpenseItem.scope == "on-mpp"
+    )
+    totals = db.execute(
+        select(ExpenseItem.category, func.sum(ExpenseItem.amount))
+        .where(ExpenseItem.person_id == person.id, ExpenseItem.scope == "on-mpp")
+        .group_by(ExpenseItem.category)
+        .order_by(func.sum(ExpenseItem.amount).desc())
+    ).all()
+    items = db.scalars(base.order_by(ExpenseItem.amount.desc()).limit(limit)).all()
+    return MppExpensesResponse(
+        slug=person.slug,
+        full_name=person.full_name,
+        total=float(sum(total for _, total in totals)),
+        by_category=[MppExpenseTotals(category=c, total=float(t)) for c, t in totals],
+        items=[_item_model(item) for item in items],
+        source_note=(
+            "Source: Legislative Assembly of Ontario members' expense "
+            "disclosures (ola.org), synced monthly. Covers travel, "
+            "accommodation, meals and hospitality billed by the member; "
+            "in-constituency travel is not disclosed by the Assembly."
+        ),
+    )

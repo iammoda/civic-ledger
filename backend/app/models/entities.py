@@ -784,7 +784,9 @@ class ExpenseItem(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True, index=True)
     mp_name_raw: Mapped[str] = mapped_column(String(255), index=True)
-    category: Mapped[str] = mapped_column(String(16), index=True)  # travel|hospitality|contract
+    category: Mapped[str] = mapped_column(String(16), index=True)  # travel|hospitality|contract|accommodation|meals
+    # federal (MP proactive disclosure) | on-mpp (Ontario MPP disclosure)
+    scope: Mapped[str] = mapped_column(String(16), default="federal", index=True)
     fiscal_year: Mapped[int] = mapped_column(Integer, index=True)
     quarter: Mapped[int] = mapped_column(Integer, index=True)
     supplier: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)

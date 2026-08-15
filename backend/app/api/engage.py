@@ -85,6 +85,7 @@ def _closest_vote_story(db: Session) -> DigestStory | None:
 def _biggest_expense_story(db: Session) -> DigestStory | None:
     latest = db.execute(
         select(ExpenseItem.fiscal_year, ExpenseItem.quarter)
+        .where(ExpenseItem.scope == "federal")
         .order_by(ExpenseItem.fiscal_year.desc(), ExpenseItem.quarter.desc())
         .limit(1)
     ).first()
@@ -93,7 +94,7 @@ def _biggest_expense_story(db: Session) -> DigestStory | None:
     fiscal_year, quarter = latest
     item = db.scalar(
         select(ExpenseItem)
-        .where(ExpenseItem.fiscal_year == fiscal_year, ExpenseItem.quarter == quarter)
+        .where(ExpenseItem.fiscal_year == fiscal_year, ExpenseItem.quarter == quarter, ExpenseItem.scope == "federal")
         .order_by(ExpenseItem.amount.desc())
         .limit(1)
     )
@@ -273,7 +274,7 @@ def _biggest_expense_contexts(db: Session, person_ids: list[int], fy: int, q: in
     for pid in person_ids:
         item = db.scalar(
             select(ExpenseItem)
-            .where(ExpenseItem.person_id == pid, ExpenseItem.fiscal_year == fy, ExpenseItem.quarter == q)
+            .where(ExpenseItem.person_id == pid, ExpenseItem.fiscal_year == fy, ExpenseItem.quarter == q, ExpenseItem.scope == "federal")
             .order_by(ExpenseItem.amount.desc())
             .limit(1)
         )
@@ -569,7 +570,7 @@ def receipts(
     if not is_provincial:
         contract_query = (
             select(ExpenseItem)
-            .where(ExpenseItem.category == "contract")
+            .where(ExpenseItem.category == "contract", ExpenseItem.scope == "federal")
             .order_by(ExpenseItem.amount.desc())
             .limit(10)
         )

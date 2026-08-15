@@ -235,11 +235,41 @@ class OntarioLobbyRegistryClient:
         }
 
     async def _post(self, url: str, data: dict[str, str]) -> str:
+        """POST with retries — these are idempotent page renders, and a
+        single transient ReadError must not abort a multi-hour crawl."""
         assert self._client is not None
-        response = await self._client.post(url, data=data)
-        response.raise_for_status()
-        await asyncio.sleep(REQUEST_DELAY_SECONDS)
-        return response.text
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                response = await self._client.post(url, data=data)
+                response.raise_for_status()
+                await asyncio.sleep(REQUEST_DELAY_SECONDS)
+                return response.text
+            except httpx.TransportError as exc:
+                last_exc = exc
+                await asyncio.sleep(2.0 * (attempt + 1))
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code < 500:
+                    raise
+                last_exc = exc
+                await asyncio.sleep(2.0 * (attempt + 1))
+        assert last_exc is not None
+        raise last_exc
+
+    async def _get(self, url: str) -> str:
+        assert self._client is not None
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                response = await self._client.get(url)
+                response.raise_for_status()
+                await asyncio.sleep(REQUEST_DELAY_SECONDS)
+                return response.text
+            except httpx.TransportError as exc:
+                last_exc = exc
+                await asyncio.sleep(2.0 * (attempt + 1))
+        assert last_exc is not None
+        raise last_exc
 
     @staticmethod
     def _date_fields(prefix: str, iso: str) -> dict[str, str]:
@@ -251,17 +281,14 @@ class OntarioLobbyRegistryClient:
         }
 
     async def _search(self, extra: dict[str, str]) -> str:
-        assert self._client is not None
-        landing = await self._client.get(BASE_URL + "Default.aspx")
-        landing.raise_for_status()
-        await asyncio.sleep(REQUEST_DELAY_SECONDS)
+        landing = await self._get(BASE_URL + "Default.aspx")
         return await self._post(
             BASE_URL + "Default.aspx",
             {
                 "__EVENTTARGET": "",
                 "__EVENTARGUMENT": "",
                 "__LASTFOCUS": "",
-                **self._state(landing.text),
+                **self._state(landing),
                 "ctl00$BodyContent$ucQuickSearch$rdoStatusGroup1": "rdoCurrentlyActive",
                 **extra,
                 "ctl00$BodyContent$ucQuickSearch$btnSearch": "SEARCH",
@@ -401,7 +428,14 @@ async def _collect_rows(
         page_no += 1
         if max_pages is not None and page_no > max_pages:
             break
-        next_html = await client.next_page(grid_html)
+        try:
+            next_html = await client.next_page(grid_html)
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "ontario lobbying: page walk stopped at page %d (%s); syncing what we have",
+                page_no, type(exc).__name__,
+            )
+            break
         if next_html is None:
             break
         grid_html = next_html

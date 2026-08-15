@@ -120,6 +120,7 @@ export function searchExpenses(params: {
   fiscal_year?: string;
   min_amount?: string;
   sort?: string;
+  scope?: string;
   offset?: string;
 }) {
   const searchParams = new URLSearchParams();
@@ -182,4 +183,24 @@ export function getMppLobbyingRegistrations(slug: string, params?: { limit?: num
   if (params?.offset) searchParams.set("offset", String(params.offset));
   const qs = searchParams.toString();
   return fetchApi<MppLobbyingResponse>(`/politicians/${slug}/lobbying-registrations${qs ? `?${qs}` : ""}`);
+}
+
+// --- Ontario MPP expense disclosures ----------------------------------------
+
+export type MppExpenseTotals = { category: string; total: number };
+
+export type MppExpensesApiResponse = {
+  slug: string;
+  full_name: string;
+  total: number;
+  by_category: MppExpenseTotals[];
+  items: ExpenseItemModel[];
+  source_note: string;
+};
+
+export function getMppExpenses(slug: string, params?: { limit?: number }) {
+  const searchParams = new URLSearchParams();
+  if (params?.limit != null) searchParams.set("limit", String(params.limit));
+  const qs = searchParams.toString();
+  return fetchApi<MppExpensesApiResponse>(`/politicians/${slug}/mpp-expenses${qs ? `?${qs}` : ""}`);
 }

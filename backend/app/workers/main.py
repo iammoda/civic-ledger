@@ -437,6 +437,33 @@ async def sync_ontario_lobbying_job(ctx: dict[str, Any]) -> None:
         db.close()
 
 
+async def sync_ontario_expenses_job(ctx: dict[str, Any]) -> None:
+    """Monthly: Ontario MPP expense disclosure CSVs from ola.org."""
+    from datetime import datetime, timezone
+
+    from app.db.session import SessionLocal
+    from app.ingestion.ontario_expenses import sync_ontario_expenses
+    from app.models import IngestionRun
+
+    db = SessionLocal()
+    try:
+        run = IngestionRun(source_name="ola", job_name="ontario_expenses_sync", status="running")
+        db.add(run)
+        db.commit()
+        try:
+            count = await sync_ontario_expenses(db)
+            run.item_count = count
+            run.status = "succeeded"
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            run.status = "failed"
+            run.error_message = str(exc)[:2000]
+        run.finished_at = datetime.now(timezone.utc)
+        db.commit()
+    finally:
+        db.close()
+
+
 async def sync_municipal_job(ctx: dict[str, Any], backfill: bool = False) -> None:
     """Nightly: municipal council/committee minutes via eScribe — attendance,
     motions, per-member votes, conflict declarations. backfill=True re-syncs
@@ -540,6 +567,7 @@ class WorkerSettings:
         sync_representatives_job,
         sync_ontario_job,
         sync_ontario_lobbying_job,
+        sync_ontario_expenses_job,
         sync_municipal_job,
         sync_opendata_votes_job,
         run_detectors_job,
@@ -558,6 +586,7 @@ class WorkerSettings:
         cron(sync_representatives_job, weekday=3, hour={4}, minute={0}),  # Thursdays
         cron(sync_ontario_job, hour={6}, minute={30}),  # nightly 06:30 UTC
         cron(sync_ontario_lobbying_job, weekday=5, hour={4}, minute={0}),  # Saturdays
+        cron(sync_ontario_expenses_job, day={3}, hour={5}, minute={0}),  # monthly, 3rd
         cron(sync_municipal_job, hour={9}, minute={0}),  # nightly 09:00 UTC
         cron(sync_opendata_votes_job, weekday=4, hour={4}, minute={0}),  # Fridays
     ]

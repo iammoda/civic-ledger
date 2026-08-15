@@ -15,6 +15,19 @@ const CATEGORY_CHIPS = [
   { label: "Hospitality", value: "hospitality" }
 ];
 
+const ONTARIO_CATEGORY_CHIPS = [
+  { label: "All", value: "" },
+  { label: "Travel", value: "travel" },
+  { label: "Accommodation", value: "accommodation" },
+  { label: "Meals", value: "meals" },
+  { label: "Hospitality", value: "hospitality" }
+];
+
+const SCOPE_CHIPS = [
+  { label: "Federal MPs", value: "" },
+  { label: "Ontario MPPs", value: "on-mpp" }
+];
+
 const CATEGORY_STYLES: Record<string, string> = {
   contract: "text-sky-700",
   travel: "text-violet-700",
@@ -30,14 +43,23 @@ export const metadata: Metadata = {
 export default async function ExpensesPage({
   searchParams
 }: {
-  searchParams: Promise<{ q?: string; category?: string; fiscal_year?: string; min_amount?: string; sort?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    category?: string;
+    fiscal_year?: string;
+    min_amount?: string;
+    sort?: string;
+    scope?: string;
+  }>;
 }) {
   const params = await searchParams;
+  const isOntario = params.scope === "on-mpp";
   const results = await searchExpenses(params);
+  const categoryChips = isOntario ? ONTARIO_CATEGORY_CHIPS : CATEGORY_CHIPS;
 
   // CSV export of the current filters (served by the API; capped at 10k rows).
   const csvParams = new URLSearchParams();
-  for (const key of ["q", "category", "fiscal_year", "min_amount"] as const) {
+  for (const key of ["q", "category", "fiscal_year", "min_amount", "scope"] as const) {
     if (params[key]) csvParams.set(key, params[key]!);
   }
   const csvHref = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/v1"}/expenses/search.csv${
@@ -129,8 +151,31 @@ export default async function ExpensesPage({
           </a>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium">
+          <span className="kicker">Who</span>
+          {SCOPE_CHIPS.map((chip) => {
+            const active = (params.scope ?? "") === chip.value;
+            return (
+              <Link
+                key={chip.label}
+                href={buildHref({ scope: chip.value || undefined, category: undefined })}
+                scroll={false}
+                className={`border-b-2 pb-0.5 transition ${
+                  active ? "border-ink font-semibold text-ink" : "border-transparent text-stone-500 hover:text-ink"
+                }`}
+              >
+                {chip.label}
+              </Link>
+            );
+          })}
+          {isOntario ? (
+            <span className="text-xs font-normal text-stone-500">
+              travel, accommodation, meals &amp; hospitality only — Ontario doesn&apos;t disclose office budgets per MPP
+            </span>
+          ) : null}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium">
           <span className="kicker">Show</span>
-          {CATEGORY_CHIPS.map((chip) => {
+          {categoryChips.map((chip) => {
             const active = (params.category ?? "") === chip.value;
             return (
               <Link
