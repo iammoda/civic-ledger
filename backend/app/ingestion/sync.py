@@ -390,9 +390,16 @@ async def sync_bills(ctx: SyncContext, client: OpenParliamentClient, *, session_
 def sweep_session_deaths(ctx: SyncContext, session_label: str) -> int:
     """Mark still-pending bills of an ended session as died (prorogation/
     dissolution kills everything on the Order Paper)."""
+    from app.data.sessions import PRO_FORMA_NUMBERS
+
     session = ctx.session_for_label(session_label)
     bills = ctx.db.scalars(
-        select(Bill).where(Bill.session_id == session.id, Bill.outcome == "pending")
+        select(Bill).where(
+            Bill.session_id == session.id,
+            Bill.outcome == "pending",
+            # Ceremonial C-1/S-1 were never meant to pass — not deaths.
+            Bill.number.not_in(PRO_FORMA_NUMBERS),
+        )
     ).all()
     for bill in bills:
         stage = stage_from_status_code(bill.status_code)

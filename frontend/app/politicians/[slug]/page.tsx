@@ -11,6 +11,7 @@ import { PartyBadge } from "@/components/party-badge";
 import { PartyLogo } from "@/components/party-logo";
 import { VotingRecord } from "@/components/voting-record";
 import { SectionHeading } from "@/components/viz/editorial";
+import { provinceShort } from "@/lib/humanize";
 import { PercentileStrip } from "@/components/viz/percentile-strip";
 import {
   getMunicipalRecord,
@@ -37,7 +38,9 @@ export async function generateMetadata({
   const membership = politician.current_membership;
   const level = politician.level ?? "federal";
   const memberWord = level === "federal" ? "MP" : level === "provincial" ? "MPP" : "Councillor";
-  const place = membership?.riding_name ?? membership?.region_name ?? null;
+  const basePlace = membership?.riding_name ?? membership?.region_name ?? null;
+  const province = provinceShort(membership?.province_code);
+  const place = basePlace && province && level === "federal" ? `${basePlace} (${province})` : basePlace;
   const who = [membership?.party?.short_name, memberWord, place ? `for ${place}` : null].filter(Boolean).join(" ");
   const title = who ? `${politician.full_name} — ${who}` : politician.full_name;
   const description =
@@ -86,8 +89,12 @@ export default async function PoliticianDetailPage({
 
   const stats = politician.stats;
   const party = politician.current_membership?.party;
-  const place =
+  const basePlace =
     politician.current_membership?.riding_name ?? politician.current_membership?.region_name ?? null;
+  const province = provinceShort(politician.current_membership?.province_code);
+  // "North Island—Powell River (B.C.)" — the riding alone doesn't tell most
+  // readers which province they're looking at.
+  const place = basePlace && province && isFederal ? `${basePlace} (${province})` : basePlace;
   const memberWord = isFederal ? "MP" : politician.level === "provincial" ? "MPP" : "Representative";
   const subtitle =
     politician.bio_en ??

@@ -20,7 +20,7 @@ TOPICS: list[dict[str, str]] = [
     {"slug": "immigration", "name_en": "Immigration", "aliases_en": "visa, permanent residence, refugees, asylum, study permit, temporary foreign workers"},
     {"slug": "indigenous", "name_en": "Indigenous Peoples", "aliases_en": "First Nations, Inuit, Métis, reconciliation, treaty rights, drinking water advisories"},
     {"slug": "defence-security", "name_en": "Defence & National Security", "aliases_en": "military, NATO, armed forces, NORAD, foreign interference, spying"},
-    {"slug": "public-safety", "name_en": "Public Safety & Crime", "aliases_en": "gun control, firearms, bail, auto theft, policing, RCMP, border"},
+    {"slug": "public-safety", "name_en": "Public Safety & Crime", "aliases_en": "gun control, firearms, bail, auto theft, policing, RCMP, border, police budget, police funding, police services board, police service"},
     {"slug": "justice-rights", "name_en": "Justice & Rights", "aliases_en": "charter, human rights, courts, sentencing, free speech, discrimination"},
     {"slug": "seniors-pensions", "name_en": "Seniors & Pensions", "aliases_en": "CPP, OAS, GIS, retirement, old age security, long-term care"},
     {"slug": "families-children", "name_en": "Families & Children", "aliases_en": "child care, daycare, child benefit, CCB, parental leave"},

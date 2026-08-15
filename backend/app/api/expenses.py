@@ -249,19 +249,25 @@ def _expense_search_query(
     min_amount: float | None,
     traveller_type: str | None,
 ):
-    """Shared filter set for the JSON explorer and the CSV export."""
+    """Shared filter set for the JSON explorer and the CSV export.
+
+    Token matching: names are stored surname-first ("Holland, Hon. Mark"),
+    so "mark holland" as one substring matches nothing. Every word in the
+    query must appear in SOME field of the row (AND across tokens, OR across
+    fields) — word order stops mattering.
+    """
     query = select(ExpenseItem)
     if q:
-        needle = q.strip().lower()
-        query = query.where(
-            or_(
-                func.lower(func.coalesce(ExpenseItem.supplier, "")).contains(needle, autoescape=True),
-                func.lower(func.coalesce(ExpenseItem.description, "")).contains(needle, autoescape=True),
-                func.lower(func.coalesce(ExpenseItem.purpose, "")).contains(needle, autoescape=True),
-                func.lower(func.coalesce(ExpenseItem.city, "")).contains(needle, autoescape=True),
-                func.lower(ExpenseItem.mp_name_raw).contains(needle, autoescape=True),
+        for token in q.strip().lower().split()[:8]:
+            query = query.where(
+                or_(
+                    func.lower(func.coalesce(ExpenseItem.supplier, "")).contains(token, autoescape=True),
+                    func.lower(func.coalesce(ExpenseItem.description, "")).contains(token, autoescape=True),
+                    func.lower(func.coalesce(ExpenseItem.purpose, "")).contains(token, autoescape=True),
+                    func.lower(func.coalesce(ExpenseItem.city, "")).contains(token, autoescape=True),
+                    func.lower(ExpenseItem.mp_name_raw).contains(token, autoescape=True),
+                )
             )
-        )
     if category:
         query = query.where(ExpenseItem.category == category)
     if fiscal_year:

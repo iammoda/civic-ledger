@@ -131,3 +131,25 @@ export function formatDateShort(iso?: string | null): string {
   const label = `${MONTHS[Number(month) - 1].slice(0, 3)} ${Number(day)}`;
   return sameYear ? label : `${label}, ${year}`;
 }
+
+/** Standard Canadian abbreviations, for riding subtitles: "Ottawa Centre (Ont.)". */
+const PROVINCE_SHORT: Record<string, string> = {
+  AB: "Alta.",
+  BC: "B.C.",
+  MB: "Man.",
+  NB: "N.B.",
+  NL: "N.L.",
+  NS: "N.S.",
+  NT: "N.W.T.",
+  NU: "Nunavut",
+  ON: "Ont.",
+  PE: "P.E.I.",
+  QC: "Que.",
+  SK: "Sask.",
+  YT: "Yukon"
+};
+
+export function provinceShort(code?: string | null): string | null {
+  if (!code) return null;
+  return PROVINCE_SHORT[code.toUpperCase()] ?? code.toUpperCase();
+}

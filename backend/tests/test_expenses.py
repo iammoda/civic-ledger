@@ -299,3 +299,23 @@ def test_expense_csv_export(db, client) -> None:
     assert len(lines) == 2  # header + the one contract row
     assert "Acme Consulting" in lines[1]
     assert "30000.00" in lines[1]
+
+
+def test_expense_search_matches_natural_name_order(db, client) -> None:
+    """Names are stored surname-first ('Holland, Hon. Mark') — searching
+    'Mark Holland' must still find them (token AND-matching)."""
+    mp = _mp(db, slug="mark-holland", name="Holland, Hon. Mark", family="Holland")
+    _item(db, mp, category="hospitality", amount=500.0, supplier="Catering Co")
+    db.commit()
+
+    for query in ("Mark Holland", "holland mark", "Holland"):
+        payload = client.get("/v1/expenses/search", params={"q": query}).json()
+        assert payload["meta"]["total"] == 1, f"query {query!r} found nothing"
+
+    # Tokens must ALL match: an unrelated word kills the row.
+    payload = client.get("/v1/expenses/search", params={"q": "mark nonexistentword"}).json()
+    assert payload["meta"]["total"] == 0
+
+    # Tokens can span fields: name + supplier together.
+    payload = client.get("/v1/expenses/search", params={"q": "holland catering"}).json()
+    assert payload["meta"]["total"] == 1

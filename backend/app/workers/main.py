@@ -54,6 +54,11 @@ async def refresh_politicians(ctx: dict[str, Any]) -> None:
         if html:
             sync_ministers(db, html)
         seed_glossary(db)
+        # Session dates (static historical facts) + Graveyard hygiene.
+        from app.data.sessions import mark_pro_forma_bills, seed_session_dates
+
+        seed_session_dates(db)
+        mark_pro_forma_bills(db)
     finally:
         db.close()
 

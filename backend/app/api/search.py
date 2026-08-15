@@ -67,22 +67,25 @@ def _search_people(db: Session, q: str, *, limit: int = 8) -> list[SearchPersonI
 
     needle = q.strip().lower()
     name_prefix = func.lower(Person.full_name).startswith(needle, autoescape=True)
-    people = db.scalars(
-        select(Person)
-        .where(
+    # AND across tokens so "singh jagmeet" and "jagmeet singh" both work;
+    # each token may match the name or the riding.
+    query = select(Person)
+    for token in needle.split()[:6]:
+        query = query.where(
             or_(
-                func.lower(Person.full_name).contains(needle, autoescape=True),
+                func.lower(Person.full_name).contains(token, autoescape=True),
                 Person.memberships.any(
                     and_(
                         PersonMembership.is_current.is_(True),
                         func.lower(func.coalesce(PersonMembership.riding_name, "")).contains(
-                            needle, autoescape=True
+                            token, autoescape=True
                         ),
                     )
                 ),
             )
         )
-        .options(
+    people = db.scalars(
+        query.options(
             selectinload(Person.memberships).selectinload(PersonMembership.party),
             selectinload(Person.chamber).selectinload(Chamber.jurisdiction),
         )
@@ -123,22 +126,23 @@ def _search_people(db: Session, q: str, *, limit: int = 8) -> list[SearchPersonI
 
 
 def _search_expenses(db: Session, q: str, *, limit: int = 8) -> list[SearchExpenseItem]:
-    """Expense line items — same matching as /v1/expenses/search, biggest first."""
-    needle = q.strip().lower()
-    items = db.scalars(
-        select(ExpenseItem)
-        .where(
+    """Expense line items — same matching as /v1/expenses/search, biggest first.
+
+    Token matching (AND across words, OR across fields): names are stored
+    surname-first, so "mark holland" must match word-by-word.
+    """
+    query = select(ExpenseItem)
+    for token in q.strip().lower().split()[:8]:
+        query = query.where(
             or_(
-                func.lower(func.coalesce(ExpenseItem.supplier, "")).contains(needle, autoescape=True),
-                func.lower(func.coalesce(ExpenseItem.description, "")).contains(needle, autoescape=True),
-                func.lower(func.coalesce(ExpenseItem.purpose, "")).contains(needle, autoescape=True),
-                func.lower(func.coalesce(ExpenseItem.city, "")).contains(needle, autoescape=True),
-                func.lower(ExpenseItem.mp_name_raw).contains(needle, autoescape=True),
+                func.lower(func.coalesce(ExpenseItem.supplier, "")).contains(token, autoescape=True),
+                func.lower(func.coalesce(ExpenseItem.description, "")).contains(token, autoescape=True),
+                func.lower(func.coalesce(ExpenseItem.purpose, "")).contains(token, autoescape=True),
+                func.lower(func.coalesce(ExpenseItem.city, "")).contains(token, autoescape=True),
+                func.lower(ExpenseItem.mp_name_raw).contains(token, autoescape=True),
             )
         )
-        .order_by(ExpenseItem.amount.desc())
-        .limit(limit)
-    ).all()
+    items = db.scalars(query.order_by(ExpenseItem.amount.desc()).limit(limit)).all()
     if not items:
         return []
 
