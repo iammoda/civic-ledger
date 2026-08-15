@@ -605,6 +605,60 @@ class Organization(Base, TimestampMixin):
     lobby_communications: Mapped[list["LobbyCommunication"]] = relationship(back_populates="client_org")
 
 
+class LobbyRegistration(Base, TimestampMixin):
+    """One Ontario lobbyist-registry registration: who is registered to
+    lobby which ministries/offices about what. Ontario publishes
+    registrations, not per-meeting communication logs — this table means
+    "licensed to lobby", never "met with"."""
+
+    __tablename__ = "lobby_registrations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    jurisdiction_code: Mapped[str] = mapped_column(String(8), default="on", index=True)
+    registration_number: Mapped[str] = mapped_column(String(64), unique=True)
+    lobbyist_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    lobbyist_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    firm_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    # consultant | in_house_organization | in_house_persons
+    lobbyist_type: Mapped[str] = mapped_column(String(32))
+    client_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    client_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="active", index=True)
+    initial_filing_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_amendment_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    subject_matters: Mapped[str | None] = mapped_column(Text, nullable=True)
+    goals: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Newline-joined lists, exactly as filed.
+    target_ministries: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_mpp_offices: Mapped[str | None] = mapped_column(Text, nullable=True)
+    techniques: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    mpp_links: Mapped[list["LobbyRegistrationMpp"]] = relationship(
+        back_populates="registration", cascade="all, delete-orphan"
+    )
+
+
+class LobbyRegistrationMpp(Base, TimestampMixin):
+    """A registration that names a specific MPP's office as a lobbying
+    target, resolved from the riding named in the filing."""
+
+    __tablename__ = "lobby_registration_mpps"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    registration_id: Mapped[int] = mapped_column(
+        ForeignKey("lobby_registrations.id", ondelete="CASCADE"), index=True
+    )
+    person_id: Mapped[int] = mapped_column(ForeignKey("people.id"), index=True)
+    riding_as_filed: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    registration: Mapped[LobbyRegistration] = relationship(back_populates="mpp_links")
+    person: Mapped[Person] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("registration_id", "person_id", name="uq_lobby_registration_mpp"),
+    )
+
+
 class LobbyCommunication(Base, TimestampMixin):
     """One communication report from the Registry of Lobbyists: a lobbyist
     (for a client org) contacted a designated public office holder."""

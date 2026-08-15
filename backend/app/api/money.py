@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ratelimit import rate_limit
 from app.db.session import get_db
-from app.models import Contribution, Correction, IntegrityFlag, LobbyCommunication, Person
+from app.models import Contribution, Correction, IntegrityFlag, LobbyCommunication, LobbyRegistration, LobbyRegistrationMpp, Person
 from app.services.lazy import enqueue
 
 
@@ -369,3 +369,132 @@ def submit_correction(payload: CorrectionRequest, db: Session = Depends(get_db))
     db.add(correction)
     db.commit()
     return {"ok": True, "id": correction.id}
+
+# ---------------------------------------------------------------------------
+# Ontario lobbyist registry (registrations — NOT communication logs)
+# ---------------------------------------------------------------------------
+
+class OntarioRegistrationItem(BaseModel):
+    registration_number: str
+    lobbyist_name: str | None = None
+    firm_name: str | None = None
+    lobbyist_type: str
+    client_name: str | None = None
+    client_description: str | None = None
+    subject_matters: str | None = None
+    goals: str | None = None
+    target_ministries: list[str] = []
+    target_mpp_offices: list[str] = []
+    initial_filing_date: date | None = None
+    last_amendment_date: date | None = None
+    registry_note: str
+
+
+ONTARIO_REGISTRY_NOTE = (
+    "Ontario publishes lobbying REGISTRATIONS — who is registered to lobby "
+    "which offices about what — not per-meeting logs like the federal "
+    "registry. A registration means licensed to lobby, never met with."
+)
+
+
+def _registration_item(reg: LobbyRegistration) -> OntarioRegistrationItem:
+    return OntarioRegistrationItem(
+        registration_number=reg.registration_number,
+        lobbyist_name=reg.lobbyist_name,
+        firm_name=reg.firm_name,
+        lobbyist_type=reg.lobbyist_type,
+        client_name=reg.client_name,
+        client_description=reg.client_description,
+        subject_matters=reg.subject_matters,
+        goals=reg.goals,
+        target_ministries=(reg.target_ministries or "").split("\n") if reg.target_ministries else [],
+        target_mpp_offices=(reg.target_mpp_offices or "").split("\n") if reg.target_mpp_offices else [],
+        initial_filing_date=reg.initial_filing_date,
+        last_amendment_date=reg.last_amendment_date,
+        registry_note=ONTARIO_REGISTRY_NOTE,
+    )
+
+
+class OntarioRegistrationsResponse(BaseModel):
+    total: int
+    items: list[OntarioRegistrationItem]
+    registry_note: str = ONTARIO_REGISTRY_NOTE
+
+
+@router.get("/lobbying/ontario", response_model=OntarioRegistrationsResponse)
+def ontario_registrations(
+    q: str | None = Query(default=None, max_length=200),
+    subject: str | None = Query(default=None, max_length=200),
+    ministry: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=25, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> OntarioRegistrationsResponse:
+    """Ontario's active lobbying registrations, searchable — the provincial
+    counterpart to the federal communications explorer."""
+    query = select(LobbyRegistration).where(LobbyRegistration.status == "active")
+    if q:
+        for token in q.strip().lower().split()[:6]:
+            query = query.where(
+                or_(
+                    func.lower(func.coalesce(LobbyRegistration.client_name, "")).contains(token, autoescape=True),
+                    func.lower(func.coalesce(LobbyRegistration.firm_name, "")).contains(token, autoescape=True),
+                    func.lower(func.coalesce(LobbyRegistration.lobbyist_name, "")).contains(token, autoescape=True),
+                    func.lower(func.coalesce(LobbyRegistration.goals, "")).contains(token, autoescape=True),
+                )
+            )
+    if subject:
+        query = query.where(
+            func.lower(func.coalesce(LobbyRegistration.subject_matters, "")).contains(
+                subject.strip().lower(), autoescape=True
+            )
+        )
+    if ministry:
+        query = query.where(
+            func.lower(func.coalesce(LobbyRegistration.target_ministries, "")).contains(
+                ministry.strip().lower(), autoescape=True
+            )
+        )
+
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    items = db.scalars(
+        query.order_by(LobbyRegistration.last_amendment_date.desc().nullslast()).offset(offset).limit(limit)
+    ).all()
+    return OntarioRegistrationsResponse(total=total, items=[_registration_item(r) for r in items])
+
+
+class MppLobbyingResponse(BaseModel):
+    slug: str
+    full_name: str
+    total: int
+    items: list[OntarioRegistrationItem]
+    registry_note: str = ONTARIO_REGISTRY_NOTE
+
+
+@router.get("/politicians/{slug}/lobbying-registrations", response_model=MppLobbyingResponse)
+def mpp_lobbying_registrations(
+    slug: str,
+    limit: int = Query(default=25, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> MppLobbyingResponse:
+    """Registrations that name this MPP's office as a lobbying target."""
+    person = db.scalar(select(Person).where(Person.slug == slug))
+    if person is None:
+        raise HTTPException(status_code=404, detail="Politician not found")
+
+    query = (
+        select(LobbyRegistration)
+        .join(LobbyRegistrationMpp, LobbyRegistrationMpp.registration_id == LobbyRegistration.id)
+        .where(LobbyRegistrationMpp.person_id == person.id, LobbyRegistration.status == "active")
+    )
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    items = db.scalars(
+        query.order_by(LobbyRegistration.last_amendment_date.desc().nullslast()).offset(offset).limit(limit)
+    ).all()
+    return MppLobbyingResponse(
+        slug=person.slug,
+        full_name=person.full_name,
+        total=total,
+        items=[_registration_item(r) for r in items],
+    )

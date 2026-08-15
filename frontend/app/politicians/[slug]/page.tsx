@@ -6,6 +6,7 @@ import { DataGap } from "@/components/data-gap";
 import { CiteThis } from "@/components/cite-this";
 import { ExpensesCard } from "@/components/expenses-card";
 import { MoneyInfluence } from "@/components/money-influence";
+import { MppLobbyingCard } from "@/components/mpp-lobbying-card";
 import { MunicipalRecordCards } from "@/components/municipal-record";
 import { PartyBadge } from "@/components/party-badge";
 import { PartyLogo } from "@/components/party-logo";
@@ -14,6 +15,7 @@ import { SectionHeading } from "@/components/viz/editorial";
 import { provinceShort } from "@/lib/humanize";
 import { PercentileStrip } from "@/components/viz/percentile-strip";
 import {
+  getMppLobbyingRegistrations,
   getMunicipalRecord,
   getPolitician,
   getPoliticianExpenses,
@@ -21,7 +23,7 @@ import {
   getPoliticianVotes
 } from "@/lib/api";
 import type { VotesFilter } from "@/lib/api";
-import { SALARY_AS_OF, SALARY_SOURCE_URL, formatSalary, mpSalary } from "@/lib/salaries";
+import { MPP_BASE_SALARY, MPP_SALARY_AS_OF, MPP_SALARY_SOURCE_URL, SALARY_AS_OF, SALARY_SOURCE_URL, formatSalary, mpSalary } from "@/lib/salaries";
 import { partyColor } from "@/lib/parties";
 import { JsonLd, personJsonLd } from "@/lib/jsonld";
 
@@ -78,11 +80,13 @@ export default async function PoliticianDetailPage({
   // votes where the city publishes them.
   const isFederal = (politician.level ?? "federal") === "federal";
   const isMunicipal = politician.level === "municipal";
-  const [money, votingRecord, expenses, municipal] = await Promise.all([
+  const isProvincial = politician.level === "provincial";
+  const [money, votingRecord, expenses, municipal, mppLobbying] = await Promise.all([
     isFederal ? getPoliticianMoney(slug) : Promise.resolve(null),
     getPoliticianVotes(slug, { filter, offset, limit: 10 }),
     isFederal ? getPoliticianExpenses(slug) : Promise.resolve(null),
-    isMunicipal ? getMunicipalRecord(slug) : Promise.resolve(null)
+    isMunicipal ? getMunicipalRecord(slug) : Promise.resolve(null),
+    isProvincial ? getMppLobbyingRegistrations(slug, { limit: 10 }) : Promise.resolve(null)
   ]);
 
   const hasVotes = isFederal || politician.level === "provincial" || Boolean(votingRecord?.items?.length);
@@ -115,7 +119,18 @@ export default async function PoliticianDetailPage({
     : null;
 
   // Published pay: base + dominant role top-up, never computed from thin air.
-  const salary = isFederal ? mpSalary(politician.roles ?? []) : null;
+  // Ontario MPPs get the published base only (role top-ups are set separately
+  // and we don't guess numbers — the official table is linked instead).
+  const isOntarioMpp =
+    politician.level === "provincial" && (politician.jurisdiction_name ?? "").includes("Ontario");
+  const salary = isFederal
+    ? mpSalary(politician.roles ?? [])
+    : isOntarioMpp
+      ? { total: MPP_BASE_SALARY, breakdown: ["MPP base"] }
+      : null;
+  const salarySourceUrl = isFederal ? SALARY_SOURCE_URL : MPP_SALARY_SOURCE_URL;
+  const salaryAsOf = isFederal ? SALARY_AS_OF : MPP_SALARY_AS_OF;
+  const salaryNote = isFederal ? "set by law, not by the MP" : "base salary, set by law — role top-ups extra";
 
   const surname = politician.full_name.trim().split(/\s+/).slice(-1)[0] || politician.full_name;
   const dissentCount = stats?.dissent_count;
@@ -190,11 +205,11 @@ export default async function PoliticianDetailPage({
                   <dd className="stat-figure mt-0.5 text-lg text-ink">
                     {formatSalary(salary.total)}
                     <span className="ml-2 font-sans text-xs font-normal tracking-normal text-stone-500">
-                      set by law, not by the MP{" "}
-                      <a href={SALARY_SOURCE_URL} target="_blank" rel="noreferrer" className="text-accent">
+                      {salaryNote}{" "}
+                      <a href={salarySourceUrl} target="_blank" rel="noreferrer" className="text-accent">
                         (source ↗)
                       </a>{" "}
-                      · as of {SALARY_AS_OF}
+                      · as of {salaryAsOf}
                     </span>
                   </dd>
                 </div>
@@ -436,6 +451,9 @@ export default async function PoliticianDetailPage({
           ) : null}
           {money ? <MoneyInfluence money={money} slug={politician.slug} /> : null}
           {expenses ? <ExpensesCard expenses={expenses} /> : null}
+          {mppLobbying && mppLobbying.total > 0 ? (
+            <MppLobbyingCard lobbying={mppLobbying} />
+          ) : null}
           {!isFederal ? (
             <DataGap
               title={politician.level === "provincial" ? "More provincial records coming" : "Municipal money records"}

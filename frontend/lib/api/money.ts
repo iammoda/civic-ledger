@@ -130,3 +130,56 @@ export function searchExpenses(params: {
 }
 
 // --- Municipal record (attendance, motions, declarations) -------------------
+
+// --- Ontario lobbyist registry (registrations, not communication logs) ------
+
+export type OntarioRegistration = {
+  registration_number: string;
+  lobbyist_name?: string | null;
+  firm_name?: string | null;
+  lobbyist_type: string;
+  client_name?: string | null;
+  client_description?: string | null;
+  subject_matters?: string | null;
+  goals?: string | null;
+  target_ministries: string[];
+  target_mpp_offices: string[];
+  initial_filing_date?: string | null;
+  last_amendment_date?: string | null;
+};
+
+export type OntarioRegistrationsResponse = {
+  total: number;
+  items: OntarioRegistration[];
+  registry_note: string;
+};
+
+export function getOntarioRegistrations(params?: {
+  q?: string;
+  subject?: string;
+  ministry?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const searchParams = new URLSearchParams();
+  if (params?.q) searchParams.set("q", params.q);
+  if (params?.subject) searchParams.set("subject", params.subject);
+  if (params?.ministry) searchParams.set("ministry", params.ministry);
+  if (params?.limit != null) searchParams.set("limit", String(params.limit));
+  if (params?.offset) searchParams.set("offset", String(params.offset));
+  const qs = searchParams.toString();
+  return fetchApi<OntarioRegistrationsResponse>(`/lobbying/ontario${qs ? `?${qs}` : ""}`);
+}
+
+export type MppLobbyingResponse = OntarioRegistrationsResponse & {
+  slug: string;
+  full_name: string;
+};
+
+export function getMppLobbyingRegistrations(slug: string, params?: { limit?: number; offset?: number }) {
+  const searchParams = new URLSearchParams();
+  if (params?.limit != null) searchParams.set("limit", String(params.limit));
+  if (params?.offset) searchParams.set("offset", String(params.offset));
+  const qs = searchParams.toString();
+  return fetchApi<MppLobbyingResponse>(`/politicians/${slug}/lobbying-registrations${qs ? `?${qs}` : ""}`);
+}

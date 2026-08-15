@@ -47,3 +47,15 @@ export function mpSalary(roles: string[] = []): {
 export function formatSalary(amount: number): string {
   return `$${amount.toLocaleString()}`;
 }
+
+// --- Ontario MPPs -----------------------------------------------------------
+// As of April 2025 Ontario pegged MPP base pay to 75% of the federal MP
+// sessional allowance (it had been frozen at $116,550 since 2009). Role
+// top-ups (ministers, Speaker, leaders) are set separately — link the
+// official table rather than guessing them.
+
+export const MPP_SALARY_AS_OF = "April 2025";
+export const MPP_SALARY_SOURCE_URL = "https://www.ontario.ca/laws/statute/90l10";
+
+/** Ontario MPP base salary — 75% of the federal MP base. */
+export const MPP_BASE_SALARY = 157_350;

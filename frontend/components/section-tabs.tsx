@@ -24,7 +24,8 @@ export const YOUR_REPS_TABS: SectionTab[] = [
 export const MONEY_TABS: SectionTab[] = [
   { href: "/money", label: "Overview" },
   { href: "/expenses", label: "Every expense" },
-  { href: "/receipts", label: "Leaderboards" }
+  { href: "/receipts", label: "Leaderboards" },
+  { href: "/lobbying/ontario", label: "Ontario lobbying" }
 ];
 
 export function SectionTabs({ tabs, ariaLabel }: { tabs: SectionTab[]; ariaLabel: string }) {
