@@ -299,15 +299,18 @@ class OntarioLobbyRegistryClient:
         """Quick search for all active registrations; returns page 1 HTML."""
         return await self._search({})
 
-    async def search_window(self, start: date, end: date) -> str:
-        """Active registrations last amended within [start, end]."""
-        return await self._search(
-            {
-                "ctl00$BodyContent$ucQuickSearch$rdoStatusGroup2": "rdoActiveWithinDates",
-                **self._date_fields("FromDate", start.isoformat()),
-                **self._date_fields("ToDate", end.isoformat()),
-            }
-        )
+    async def search_window(self, start: date, end: date, *, lobbyist: str | None = None) -> str:
+        """Active registrations last amended within [start, end], optionally
+        narrowed to a lobbyist name — tiny result sets make row clicks cheap
+        and deterministic."""
+        extra = {
+            "ctl00$BodyContent$ucQuickSearch$rdoStatusGroup2": "rdoActiveWithinDates",
+            **self._date_fields("FromDate", start.isoformat()),
+            **self._date_fields("ToDate", end.isoformat()),
+        }
+        if lobbyist:
+            extra["ctl00$BodyContent$ucQuickSearch$txtSearchByLobbyist"] = lobbyist
+        return await self._search(extra)
 
     async def next_page(self, current_html: str) -> str | None:
         target = parse_next_page_target(current_html)
@@ -512,71 +515,47 @@ async def _collect_rows(
     return list(collected.values())
 
 
-async def _harvest_window(
-    client: OntarioLobbyRegistryClient,
-    window_date: date,
-    remaining: dict[str, GridRow],
-) -> list[tuple[GridRow, RegistrationDetail]]:
-    """Fetch details for the still-wanted registrations amended around a date.
+async def _fetch_one(
+    client: OntarioLobbyRegistryClient, row: GridRow
+) -> RegistrationDetail | None:
+    """One registration's detail via a NARROW search (amendment-date window
+    + lobbyist name), which usually returns 1-3 rows.
 
-    Two registry quirks shape this (both verified empirically):
-    - the date-range filter is edge-exclusive, so search date ± 1 day;
-    - only the FIRST row-click after a fresh render chain returns a
-      trustworthy detail, and the server-side row order behind
-      RowClick;<i> does not match the displayed order.
-
-    So: for every index i in the window, run a fresh search chain (search,
-    page to i's page, click i once), parse whatever registration comes
-    back, and keep it if it's one we want. Identity always comes from the
-    parsed registration number — never from grid position.
+    Rows sharing an amendment date render in unstable order between
+    requests, so identity always comes from the parsed registration number:
+    click the index where it's displayed, verify, and retry a couple of
+    times on shuffles — with tiny result sets that converges immediately.
     """
     from datetime import timedelta
 
-    window_start = window_date - timedelta(days=1)
-    window_end = window_date + timedelta(days=1)
+    if row.last_amendment_date is None:
+        return None
+    window_start = row.last_amendment_date - timedelta(days=1)
+    window_end = row.last_amendment_date + timedelta(days=1)
 
-    wanted_here = {
-        number
-        for number, row in remaining.items()
-        if row.last_amendment_date and window_start <= row.last_amendment_date <= window_end
-    }
-    if not wanted_here:
-        return []
-
-    first_page = await client.search_window(window_start, window_end)
-    total = parse_total_items(first_page) or len(parse_grid_rows(first_page))
-
-    harvested: list[tuple[GridRow, RegistrationDetail]] = []
-    for index in range(total):
-        if not wanted_here:
-            break
-        page_no, row_in_page = divmod(index, 10)
-        grid_html = first_page if index == 0 else await client.search_window(window_start, window_end)
-        for _ in range(page_no):
+    for _attempt in range(3):
+        grid_html = await client.search_window(window_start, window_end, lobbyist=row.lobbyist_name)
+        page_budget = 5
+        while page_budget:
+            rows = parse_grid_rows(grid_html)
+            index = next(
+                (i for i, r in enumerate(rows) if r.registration_number == row.registration_number),
+                None,
+            )
+            if index is not None:
+                detail = parse_registration_detail(await client.fetch_detail(grid_html, index))
+                if detail.registration_number == row.registration_number:
+                    return detail
+                break  # shuffled: fresh search, try again
+            page_budget -= 1
             next_html = await client.next_page(grid_html)
             if next_html is None:
-                grid_html = None
                 break
             grid_html = next_html
-        if grid_html is None:
-            continue
-        try:
-            detail_html = await client.fetch_detail(grid_html, row_in_page)
-            detail = parse_registration_detail(detail_html)
-        except (httpx.HTTPError, ValueError) as exc:
-            logger.warning(
-                "ontario lobbying: window %s index %d failed (%s); continuing",
-                window_date, index, type(exc).__name__,
-            )
-            continue
-        number = detail.registration_number
-        if number in wanted_here:
-            harvested.append((remaining[number], detail))
-            wanted_here.discard(number)
-            del remaining[number]
-    for number in wanted_here:
-        logger.warning("ontario lobbying: could not harvest %s; will retry next sync", number)
-    return harvested
+    logger.warning(
+        "ontario lobbying: could not fetch %s; will retry next sync", row.registration_number
+    )
+    return None
 
 
 async def sync_ontario_lobbying(
@@ -604,31 +583,30 @@ async def sync_ontario_lobbying(
             client, known=known, watermark=watermark, full=full, max_pages=max_pages
         )
         logger.info("ontario lobbying: %d registrations to fetch", len(rows))
-        remaining = {
-            row.registration_number: row for row in rows if row.last_amendment_date is not None
-        }
-        for window_date in sorted(
-            {row.last_amendment_date for row in remaining.values()}, reverse=True
-        ):
-            if not any(
-                row.last_amendment_date == window_date for row in remaining.values()
-            ):
-                continue  # already harvested via an adjacent window
+        ordered = sorted(
+            (row for row in rows if row.last_amendment_date is not None),
+            key=lambda r: r.last_amendment_date,
+            reverse=True,
+        )
+        for row in ordered:
             try:
-                harvested = await _harvest_window(client, window_date, remaining)
+                detail = await _fetch_one(client, row)
             except httpx.HTTPError as exc:
                 logger.warning(
-                    "ontario lobbying: window %s failed (%s); continuing",
-                    window_date,
+                    "ontario lobbying: fetch failed for %s (%s); continuing",
+                    row.registration_number,
                     type(exc).__name__,
                 )
                 continue
-            for row, detail in harvested:
-                upsert_registration(db, row, detail, mpp_index, minister_index)
-                count += 1
-            db.commit()
-            if count and count % 100 < len(harvested):
+            if detail is None:
+                continue
+            upsert_registration(db, row, detail, mpp_index, minister_index)
+            count += 1
+            if count % 25 == 0:
+                db.commit()
+            if count % 100 == 0:
                 logger.info("ontario lobbying: %d registrations synced so far", count)
+        db.commit()
 
     db.commit()
     return count
