@@ -388,37 +388,59 @@ def resolve_ministry_target(target: str, minister_index: dict[str, int]) -> int 
     return None
 
 
-def upsert_registration(
-    db: Session,
-    row: GridRow,
-    detail: RegistrationDetail,
-    mpp_index: dict[str, int],
-    minister_index: dict[str, int] | None = None,
-) -> LobbyRegistration:
+def upsert_stub(db: Session, row: GridRow) -> LobbyRegistration:
+    """Phase 1: store what the grid alone gives us — the registration
+    exists and is searchable immediately; details follow in phase 2.
+
+    A changed amendment date flips detail_synced back to False so
+    amendments get their details re-fetched."""
     registration = db.scalar(
         select(LobbyRegistration).where(
             LobbyRegistration.registration_number == row.registration_number
         )
     )
     if registration is None:
-        registration = LobbyRegistration(registration_number=row.registration_number)
+        registration = LobbyRegistration(
+            registration_number=row.registration_number,
+            jurisdiction_code="on",
+            detail_synced=False,
+        )
         db.add(registration)
+    elif registration.last_amendment_date != row.last_amendment_date:
+        registration.detail_synced = False
 
     registration.jurisdiction_code = "on"
-    registration.lobbyist_number = detail.lobbyist_number or row.registration_number.split("-")[0]
-    registration.lobbyist_name = detail.lobbyist_name or row.lobbyist_name
-    registration.firm_name = detail.firm_name or row.firm_name
+    registration.lobbyist_number = registration.lobbyist_number or row.registration_number.split("-")[0]
+    registration.lobbyist_name = row.lobbyist_name or registration.lobbyist_name
+    registration.firm_name = row.firm_name or registration.firm_name
     registration.lobbyist_type = row.lobbyist_type
-    registration.client_name = detail.client_name or row.client_name
-    registration.client_description = detail.client_description
+    registration.client_name = row.client_name or registration.client_name
     registration.status = row.status or "active"
-    registration.initial_filing_date = detail.initial_filing_date
     registration.last_amendment_date = row.last_amendment_date
+    db.flush()
+    return registration
+
+
+def apply_detail(
+    db: Session,
+    registration: LobbyRegistration,
+    detail: RegistrationDetail,
+    mpp_index: dict[str, int],
+    minister_index: dict[str, int] | None = None,
+) -> None:
+    """Phase 2: the full filing — goals, subjects, targets, person links."""
+    registration.lobbyist_number = detail.lobbyist_number or registration.lobbyist_number
+    registration.lobbyist_name = detail.lobbyist_name or registration.lobbyist_name
+    registration.firm_name = detail.firm_name or registration.firm_name
+    registration.client_name = detail.client_name or registration.client_name
+    registration.client_description = detail.client_description
+    registration.initial_filing_date = detail.initial_filing_date
     registration.subject_matters = detail.subject_matters
     registration.goals = detail.goals
     registration.target_ministries = "\n".join(detail.target_ministries) or None
     registration.target_mpp_offices = "\n".join(detail.target_mpp_offices) or None
     registration.techniques = detail.techniques
+    registration.detail_synced = True
     db.flush()
 
     # Re-resolve person links from scratch (amendments change targets).
@@ -453,48 +475,80 @@ def upsert_registration(
                     riding_as_filed=None,
                 )
             )
+
+
+def upsert_registration(
+    db: Session,
+    row: GridRow,
+    detail: RegistrationDetail,
+    mpp_index: dict[str, int],
+    minister_index: dict[str, int] | None = None,
+) -> LobbyRegistration:
+    """Stub + detail in one step (used by tests and single-shot paths)."""
+    registration = upsert_stub(db, row)
+    apply_detail(db, registration, detail, mpp_index, minister_index)
     return registration
 
 
-async def _collect_rows(
+async def _walk_grid(
+    db: Session,
     client: OntarioLobbyRegistryClient,
     *,
-    known: dict[str, date | None],
     watermark: date | None,
     full: bool,
     max_pages: int | None,
-) -> list[GridRow]:
-    """Metadata pass: walk the grid (no clicks), newest amendments first."""
-    collected: dict[str, GridRow] = {}
+) -> tuple[int, int | None, set[str], bool]:
+    """Phase 1: walk the grid newest-amendments-first, upserting stubs.
+
+    Returns (stub_count, registry_total, seen_numbers, walk_completed).
+    Incremental walks stop at the first fully-known page; only a COMPLETED
+    full walk is allowed to end-date vanished registrations.
+    """
+    known: dict[str, date | None] = {
+        number: amended
+        for number, amended in db.execute(
+            select(LobbyRegistration.registration_number, LobbyRegistration.last_amendment_date).where(
+                LobbyRegistration.jurisdiction_code == "on"
+            )
+        ).all()
+    }
+
     grid_html = await client.search_active()
-    # Hard ceiling from the grid's own item count — the pager's "Next"
-    # control still renders on the last page, so without this the walk
-    # would loop there forever.
-    total_items = parse_total_items(grid_html)
-    page_ceiling = (total_items // 10 + 2) if total_items else 500
+    registry_total = parse_total_items(grid_html)
+    page_ceiling = (registry_total // 10 + 2) if registry_total else 500
     previous_page_ids: set[str] = set()
+    seen: set[str] = set()
+    stubs = 0
+    walk_completed = False
     page_no = 1
     while True:
         rows = parse_grid_rows(grid_html)
         if not rows:
+            walk_completed = True
             break
         page_ids = {row.registration_number for row in rows}
         if page_ids == previous_page_ids:
-            break  # pager wrapped: same page twice = we're at the end
+            walk_completed = True  # pager wrapped: same page twice = the end
+            break
         previous_page_ids = page_ids
-        fresh = [
-            row
-            for row in rows
-            if row.registration_number not in collected
-            and not (
+
+        fresh = False
+        for row in rows:
+            if row.registration_number in seen:
+                continue
+            seen.add(row.registration_number)
+            unchanged = (
                 row.registration_number in known
                 and known[row.registration_number] == row.last_amendment_date
             )
-        ]
-        for row in fresh:
-            collected[row.registration_number] = row
+            if not unchanged:
+                fresh = True
+                upsert_stub(db, row)
+                stubs += 1
+        db.commit()
+
         if page_no % 25 == 0:
-            logger.info("ontario lobbying: walked %d pages, %d to fetch", page_no, len(collected))
+            logger.info("ontario lobbying: walked %d pages, %d stubs", page_no, stubs)
         newest = max((r.last_amendment_date for r in rows if r.last_amendment_date), default=None)
         if not full and watermark is not None and not fresh and (newest is None or newest <= watermark):
             break
@@ -505,18 +559,19 @@ async def _collect_rows(
             next_html = await client.next_page(grid_html)
         except httpx.HTTPError as exc:
             logger.warning(
-                "ontario lobbying: page walk stopped at page %d (%s); syncing what we have",
+                "ontario lobbying: walk stopped at page %d (%s); stubs so far are kept",
                 page_no, type(exc).__name__,
             )
             break
         if next_html is None:
+            walk_completed = True
             break
         grid_html = next_html
-    return list(collected.values())
+    return stubs, registry_total, seen, walk_completed
 
 
 async def _fetch_one(
-    client: OntarioLobbyRegistryClient, row: GridRow
+    client: OntarioLobbyRegistryClient, registration: LobbyRegistration
 ) -> RegistrationDetail | None:
     """One registration's detail via a NARROW search (amendment-date window
     + lobbyist name), which usually returns 1-3 rows.
@@ -528,23 +583,29 @@ async def _fetch_one(
     """
     from datetime import timedelta
 
-    if row.last_amendment_date is None:
+    if registration.last_amendment_date is None:
         return None
-    window_start = row.last_amendment_date - timedelta(days=1)
-    window_end = row.last_amendment_date + timedelta(days=1)
+    window_start = registration.last_amendment_date - timedelta(days=1)
+    window_end = registration.last_amendment_date + timedelta(days=1)
 
     for _attempt in range(3):
-        grid_html = await client.search_window(window_start, window_end, lobbyist=row.lobbyist_name)
+        grid_html = await client.search_window(
+            window_start, window_end, lobbyist=registration.lobbyist_name
+        )
         page_budget = 5
         while page_budget:
             rows = parse_grid_rows(grid_html)
             index = next(
-                (i for i, r in enumerate(rows) if r.registration_number == row.registration_number),
+                (
+                    i
+                    for i, r in enumerate(rows)
+                    if r.registration_number == registration.registration_number
+                ),
                 None,
             )
             if index is not None:
                 detail = parse_registration_detail(await client.fetch_detail(grid_html, index))
-                if detail.registration_number == row.registration_number:
+                if detail.registration_number == registration.registration_number:
                     return detail
                 break  # shuffled: fresh search, try again
             page_budget -= 1
@@ -553,63 +614,114 @@ async def _fetch_one(
                 break
             grid_html = next_html
     logger.warning(
-        "ontario lobbying: could not fetch %s; will retry next sync", row.registration_number
+        "ontario lobbying: could not fetch %s; will retry next sync",
+        registration.registration_number,
     )
     return None
 
 
 async def sync_ontario_lobbying(
     db: Session, *, full: bool = False, max_pages: int | None = None
-) -> int:
-    """Sync Ontario lobbyist registrations. Incremental by default: only
-    rows amended since the newest amendment already stored are fetched.
-    `full=True` re-walks the whole registry (~4k details, politely slow)."""
+) -> dict[str, int]:
+    """Two-phase sync. Phase 1 (fast): walk the grid, upsert stub rows so
+    every registration is listed immediately. Phase 2 (slow, resumable):
+    fetch full filings for rows with detail_synced=False — including ones
+    left over from interrupted earlier runs.
+
+    Returns counts, including the registry's own total so callers can
+    record coverage honestly.
+    """
     watermark: date | None = None
     if not full:
-        watermark = db.scalar(select(func.max(LobbyRegistration.last_amendment_date)))
+        watermark = db.scalar(
+            select(func.max(LobbyRegistration.last_amendment_date)).where(
+                LobbyRegistration.jurisdiction_code == "on"
+            )
+        )
 
-    known: dict[str, date | None] = {
-        number: amended
-        for number, amended in db.execute(
-            select(LobbyRegistration.registration_number, LobbyRegistration.last_amendment_date)
-        ).all()
-    }
     mpp_index = _ontario_mpp_index(db)
     minister_index = _ontario_minister_index(db)
 
-    count = 0
     async with OntarioLobbyRegistryClient() as client:
-        rows = await _collect_rows(
-            client, known=known, watermark=watermark, full=full, max_pages=max_pages
+        stubs, registry_total, seen, walk_completed = await _walk_grid(
+            db, client, watermark=watermark, full=full, max_pages=max_pages
         )
-        logger.info("ontario lobbying: %d registrations to fetch", len(rows))
-        ordered = sorted(
-            (row for row in rows if row.last_amendment_date is not None),
-            key=lambda r: r.last_amendment_date,
-            reverse=True,
-        )
-        for row in ordered:
+
+        # Only a COMPLETED full walk may end-date vanished registrations —
+        # a partial walk hasn't seen everything that's still active.
+        ended = 0
+        if full and walk_completed and seen:
+            stale = db.scalars(
+                select(LobbyRegistration).where(
+                    LobbyRegistration.jurisdiction_code == "on",
+                    LobbyRegistration.status == "active",
+                    LobbyRegistration.registration_number.not_in(seen),
+                )
+            ).all()
+            for registration in stale:
+                registration.status = "ended"
+                ended += 1
+            db.commit()
+
+        # Phase 2: every unsynced stub, newest first (also resumes leftovers).
+        pending = db.scalars(
+            select(LobbyRegistration)
+            .where(
+                LobbyRegistration.jurisdiction_code == "on",
+                LobbyRegistration.detail_synced.is_(False),
+                LobbyRegistration.status == "active",
+            )
+            .order_by(LobbyRegistration.last_amendment_date.desc().nullslast())
+        ).all()
+        logger.info("ontario lobbying: %d stubs new, %d details pending", stubs, len(pending))
+
+        details = 0
+        for registration in pending:
             try:
-                detail = await _fetch_one(client, row)
+                detail = await _fetch_one(client, registration)
             except httpx.HTTPError as exc:
                 logger.warning(
                     "ontario lobbying: fetch failed for %s (%s); continuing",
-                    row.registration_number,
+                    registration.registration_number,
                     type(exc).__name__,
                 )
                 continue
             if detail is None:
                 continue
-            upsert_registration(db, row, detail, mpp_index, minister_index)
-            count += 1
-            if count % 25 == 0:
+            apply_detail(db, registration, detail, mpp_index, minister_index)
+            details += 1
+            if details % 25 == 0:
                 db.commit()
-            if count % 100 == 0:
-                logger.info("ontario lobbying: %d registrations synced so far", count)
+            if details % 100 == 0:
+                logger.info("ontario lobbying: %d details synced so far", details)
         db.commit()
 
-    db.commit()
-    return count
+    synced_active = db.scalar(
+        select(func.count(LobbyRegistration.id)).where(
+            LobbyRegistration.jurisdiction_code == "on",
+            LobbyRegistration.status == "active",
+        )
+    ) or 0
+    still_pending = db.scalar(
+        select(func.count(LobbyRegistration.id)).where(
+            LobbyRegistration.jurisdiction_code == "on",
+            LobbyRegistration.detail_synced.is_(False),
+            LobbyRegistration.status == "active",
+        )
+    ) or 0
+    if registry_total and synced_active != registry_total:
+        logger.warning(
+            "ontario lobbying: coverage drift — registry says %d active, we hold %d",
+            registry_total, synced_active,
+        )
+    return {
+        "stubs": stubs,
+        "details": details,
+        "ended": ended,
+        "registry_total": registry_total or 0,
+        "stored_active": int(synced_active),
+        "details_pending": int(still_pending),
+    }
 
 
 def backfill_ministry_links(db: Session) -> int:

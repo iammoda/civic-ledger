@@ -425,12 +425,15 @@ def _registration_item(reg: LobbyRegistration) -> OntarioRegistrationItem:
 
 class OntarioRegistrationsResponse(BaseModel):
     total: int
+    # Two-phase Ontario crawl: stubs whose full filing is still being fetched.
+    details_pending: int = 0
     items: list[OntarioRegistrationItem]
     registry_note: str = ONTARIO_REGISTRY_NOTE
 
 
-@router.get("/lobbying/ontario", response_model=OntarioRegistrationsResponse)
-def ontario_registrations(
+@router.get("/lobbying/registrations", response_model=OntarioRegistrationsResponse)
+def lobbying_registrations(
+    jurisdiction: str = Query(default="on", pattern="^(on|bc)$"),
     q: str | None = Query(default=None, max_length=200),
     subject: str | None = Query(default=None, max_length=200),
     ministry: str | None = Query(default=None, max_length=200),
@@ -438,10 +441,11 @@ def ontario_registrations(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> OntarioRegistrationsResponse:
-    """Ontario's active lobbying registrations, searchable — the provincial
-    counterpart to the federal communications explorer."""
+    """Active lobbying registrations for a province ("licensed to lobby",
+    never "met with") — searchable by organization, subject and ministry."""
     query = select(LobbyRegistration).where(
-        LobbyRegistration.status == "active", LobbyRegistration.jurisdiction_code == "on"
+        LobbyRegistration.status == "active",
+        LobbyRegistration.jurisdiction_code == jurisdiction,
     )
     if q:
         for token in q.strip().lower().split()[:6]:
@@ -467,10 +471,21 @@ def ontario_registrations(
         )
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    details_pending = db.scalar(
+        select(func.count(LobbyRegistration.id)).where(
+            LobbyRegistration.jurisdiction_code == jurisdiction,
+            LobbyRegistration.status == "active",
+            LobbyRegistration.detail_synced.is_(False),
+        )
+    ) or 0
     items = db.scalars(
         query.order_by(LobbyRegistration.last_amendment_date.desc().nullslast()).offset(offset).limit(limit)
     ).all()
-    return OntarioRegistrationsResponse(total=total, items=[_registration_item(r) for r in items])
+    return OntarioRegistrationsResponse(
+        total=total,
+        details_pending=int(details_pending),
+        items=[_registration_item(r) for r in items],
+    )
 
 
 class MppLobbyingResponse(BaseModel):
@@ -533,17 +548,19 @@ class BcCommsResponse(BaseModel):
     )
 
 
-@router.get("/lobbying/bc", response_model=BcCommsResponse)
-def bc_lobbying(
+@router.get("/lobbying/communications", response_model=BcCommsResponse)
+def lobbying_communications(
+    jurisdiction: str = Query(default="ca", pattern="^(ca|bc)$"),
     q: str | None = Query(default=None, max_length=200),
     subject: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=25, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> BcCommsResponse:
-    """BC's lobbying activity reports, searchable — real meeting logs, the
-    same shape as the federal registry."""
-    query = select(LobbyCommunication).where(LobbyCommunication.jurisdiction_code == "bc")
+    """Per-meeting lobbying logs (federal registry or BC's activity
+    reports), searchable — every row is a communication a lobbyist was
+    legally required to report."""
+    query = select(LobbyCommunication).where(LobbyCommunication.jurisdiction_code == jurisdiction)
     if q:
         for token in q.strip().lower().split()[:6]:
             query = query.where(
@@ -578,4 +595,32 @@ def bc_lobbying(
             )
             for c in comms
         ],
+    )
+
+@router.get("/lobbying/ontario", response_model=OntarioRegistrationsResponse)
+def ontario_registrations_alias(
+    q: str | None = Query(default=None, max_length=200),
+    subject: str | None = Query(default=None, max_length=200),
+    ministry: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=25, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> OntarioRegistrationsResponse:
+    """Back-compat alias for /lobbying/registrations?jurisdiction=on."""
+    return lobbying_registrations(
+        jurisdiction="on", q=q, subject=subject, ministry=ministry, limit=limit, offset=offset, db=db
+    )
+
+
+@router.get("/lobbying/bc", response_model=BcCommsResponse)
+def bc_lobbying_alias(
+    q: str | None = Query(default=None, max_length=200),
+    subject: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=25, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> BcCommsResponse:
+    """Back-compat alias for /lobbying/communications?jurisdiction=bc."""
+    return lobbying_communications(
+        jurisdiction="bc", q=q, subject=subject, limit=limit, offset=offset, db=db
     )

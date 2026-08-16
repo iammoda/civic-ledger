@@ -424,11 +424,13 @@ async def sync_ontario_lobbying_job(ctx: dict[str, Any]) -> None:
         db.add(run)
         db.commit()
         try:
-            count = await sync_ontario_lobbying(db)
+            counts = await sync_ontario_lobbying(db)
             from app.ingestion.ontario_lobbying import backfill_ministry_links
 
             backfill_ministry_links(db)
-            run.item_count = count
+            run.item_count = counts["stubs"] + counts["details"]
+            # Coverage honesty: the registry's own total vs what we hold.
+            run.metadata_json = counts
             run.status = "succeeded"
         except Exception as exc:  # noqa: BLE001
             db.rollback()

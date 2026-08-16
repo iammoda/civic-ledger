@@ -32,7 +32,7 @@ export function MppLobbyingCard({ lobbying }: { lobbying: MppLobbyingResponse })
         ))}
       </div>
       <p className="mt-3 text-sm font-medium">
-        <Link href="/lobbying/ontario" className="link-editorial text-ink">
+        <Link href="/lobbying?province=on" className="link-editorial text-ink">
           Search Ontario&apos;s full lobbyist registry →
         </Link>
       </p>

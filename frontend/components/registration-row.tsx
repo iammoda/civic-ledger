@@ -10,10 +10,12 @@ const REGISTRY_SEARCH_URL = "https://lobbyist.oico.on.ca/Pages/Public/PublicSear
  */
 export function RegistrationRow({
   item,
-  compact = false
+  compact = false,
+  registryUrl = REGISTRY_SEARCH_URL
 }: {
   item: OntarioRegistration;
   compact?: boolean;
+  registryUrl?: string;
 }) {
   const title = item.client_name ?? item.firm_name ?? item.lobbyist_name ?? "Unnamed registrant";
   const subjects = (item.subject_matters ?? "").split(";").map((s) => s.trim()).filter(Boolean);
@@ -97,7 +99,7 @@ export function RegistrationRow({
           Registration {item.registration_number}
           {item.initial_filing_date ? ` · first filed ${formatDateShort(item.initial_filing_date)}` : ""} ·
           registrations mean licensed to lobby, never &ldquo;met with&rdquo; ·{" "}
-          <a href={REGISTRY_SEARCH_URL} target="_blank" rel="noreferrer" className="text-accent">
+          <a href={registryUrl} target="_blank" rel="noreferrer" className="text-accent">
             verify in the official registry ↗
           </a>
         </p>

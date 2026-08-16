@@ -47,7 +47,7 @@ export function BcLobbyingCard({
         <Link href={`/politicians/${slug}/lobbying`} className="link-editorial text-ink">
           All {lobbying.total.toLocaleString("en-CA")} reports, searchable →
         </Link>
-        <Link href="/lobbying/bc" className="link-editorial text-ink">
+        <Link href="/lobbying?province=bc" className="link-editorial text-ink">
           Search all BC lobbying →
         </Link>
       </p>

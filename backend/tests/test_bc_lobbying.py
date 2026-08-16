@@ -142,3 +142,36 @@ def test_sync_bc_registrations_active_only_and_end_dating(db) -> None:
                   "CONTRIBUTORS_IND,DIRECT_INT_IND,GOVT_FUND_IND,PREVIOUS_VERSION_REG_ID,ARRANGE_MEETING\n"})
     sync_bc_registrations(db, empty)
     assert db.scalar(select(LobbyRegistration.status)) == "ended"
+
+
+def test_generalized_lobbying_endpoints_and_aliases(db) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.db.session import get_db
+    from app.main import app
+
+    _bc_mla(db)
+    sync_bc_communications(db, build_lar_zip())
+    sync_bc_registrations(db, build_registrations_zip())
+    db.commit()
+
+    app.dependency_overrides[get_db] = lambda: db
+    try:
+        with TestClient(app) as client:
+            # Communications: jurisdiction switches datasets.
+            bc = client.get("/v1/lobbying/communications", params={"jurisdiction": "bc"}).json()
+            assert bc["total"] == 3
+            ca = client.get("/v1/lobbying/communications", params={"jurisdiction": "ca"}).json()
+            assert ca["total"] == 0  # nothing federal seeded here — no blending
+
+            # Registrations: BC lane serves BC rows; Ontario lane is empty.
+            bc_regs = client.get("/v1/lobbying/registrations", params={"jurisdiction": "bc"}).json()
+            assert bc_regs["total"] == 1
+            on_regs = client.get("/v1/lobbying/registrations", params={"jurisdiction": "on"}).json()
+            assert on_regs["total"] == 0
+
+            # Old routes still answer, pre-filtered.
+            assert client.get("/v1/lobbying/bc").json()["total"] == 3
+            assert client.get("/v1/lobbying/ontario").json()["total"] == 0
+    finally:
+        app.dependency_overrides.clear()

@@ -632,6 +632,9 @@ class LobbyRegistration(Base, TimestampMixin):
     target_ministries: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_mpp_offices: Mapped[str | None] = mapped_column(Text, nullable=True)
     techniques: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Two-phase Ontario crawl: stubs (grid data only) are False until the
+    # per-registration detail fetch fills goals/subjects/targets.
+    detail_synced: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
 
     mpp_links: Mapped[list["LobbyRegistrationMpp"]] = relationship(
         back_populates="registration", cascade="all, delete-orphan"

@@ -259,3 +259,35 @@ def test_backfill_links_existing_registrations(db) -> None:
     assert backfill_ministry_links(db) == 1
     link = db.scalar(select(LobbyRegistrationMpp))
     assert link.person_id == minister.id and link.target_kind == "ministry"
+
+
+def test_two_phase_stub_then_detail(db) -> None:
+    from app.ingestion.ontario_lobbying import apply_detail, upsert_stub
+
+    # Phase 1: the stub is listed immediately with grid data only.
+    registration = upsert_stub(db, _row())
+    db.commit()
+    assert registration.detail_synced is False
+    assert registration.client_name == "Acme Corp"
+    assert registration.goals is None  # details not fetched yet
+
+    # Phase 2: detail fills the filing and flips the flag.
+    apply_detail(db, registration, _detail(), {}, {})
+    db.commit()
+    assert registration.detail_synced is True
+    assert registration.goals == "Change zoning rules"
+    assert registration.subject_matters == "Housing"
+
+    # An amendment (new date) marks it for re-fetch without losing data.
+    amended = _row()
+    amended.last_amendment_date = amended.last_amendment_date.replace(day=5)
+    upsert_stub(db, amended)
+    db.commit()
+    assert registration.detail_synced is False
+    assert registration.goals == "Change zoning rules"  # old detail retained meanwhile
+
+    # Re-walking the SAME amendment date doesn't clear the synced flag.
+    apply_detail(db, registration, _detail(), {}, {})
+    upsert_stub(db, amended)
+    db.commit()
+    assert registration.detail_synced is True

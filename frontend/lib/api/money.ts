@@ -156,26 +156,11 @@ export type OntarioRegistration = {
 
 export type OntarioRegistrationsResponse = {
   total: number;
+  details_pending: number;
   items: OntarioRegistration[];
   registry_note: string;
 };
 
-export function getOntarioRegistrations(params?: {
-  q?: string;
-  subject?: string;
-  ministry?: string;
-  limit?: number;
-  offset?: number;
-}) {
-  const searchParams = new URLSearchParams();
-  if (params?.q) searchParams.set("q", params.q);
-  if (params?.subject) searchParams.set("subject", params.subject);
-  if (params?.ministry) searchParams.set("ministry", params.ministry);
-  if (params?.limit != null) searchParams.set("limit", String(params.limit));
-  if (params?.offset) searchParams.set("offset", String(params.offset));
-  const qs = searchParams.toString();
-  return fetchApi<OntarioRegistrationsResponse>(`/lobbying/ontario${qs ? `?${qs}` : ""}`);
-}
 
 export type MppLobbyingResponse = OntarioRegistrationsResponse & {
   slug: string;
@@ -223,12 +208,30 @@ export type BcCommsResponse = {
   registry_note: string;
 };
 
-export function getBcLobbying(params?: { q?: string; subject?: string; limit?: number; offset?: number }) {
-  const searchParams = new URLSearchParams();
+
+// --- Unified lobbying hub fetchers -------------------------------------------
+
+export function getLobbyingCommunications(
+  jurisdiction: "ca" | "bc",
+  params?: { q?: string; subject?: string; limit?: number; offset?: number }
+) {
+  const searchParams = new URLSearchParams({ jurisdiction });
   if (params?.q) searchParams.set("q", params.q);
   if (params?.subject) searchParams.set("subject", params.subject);
   if (params?.limit != null) searchParams.set("limit", String(params.limit));
   if (params?.offset) searchParams.set("offset", String(params.offset));
-  const qs = searchParams.toString();
-  return fetchApi<BcCommsResponse>(`/lobbying/bc${qs ? `?${qs}` : ""}`);
+  return fetchApi<BcCommsResponse>(`/lobbying/communications?${searchParams.toString()}`);
+}
+
+export function getLobbyingRegistrations(
+  jurisdiction: "on" | "bc",
+  params?: { q?: string; subject?: string; ministry?: string; limit?: number; offset?: number }
+) {
+  const searchParams = new URLSearchParams({ jurisdiction });
+  if (params?.q) searchParams.set("q", params.q);
+  if (params?.subject) searchParams.set("subject", params.subject);
+  if (params?.ministry) searchParams.set("ministry", params.ministry);
+  if (params?.limit != null) searchParams.set("limit", String(params.limit));
+  if (params?.offset) searchParams.set("offset", String(params.offset));
+  return fetchApi<OntarioRegistrationsResponse>(`/lobbying/registrations?${searchParams.toString()}`);
 }
