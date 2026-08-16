@@ -671,6 +671,8 @@ class LobbyCommunication(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     # Registry communication number, e.g. "12345-selection" per DPOH row.
     source_ref: Mapped[str] = mapped_column(String(64), index=True)
+    # ca (federal Registry of Lobbyists) | bc (ORL Lobbying Activity Reports)
+    jurisdiction_code: Mapped[str] = mapped_column(String(8), default="ca", index=True)
     comm_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     client_org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), nullable=True, index=True)
     client_name: Mapped[str | None] = mapped_column(String(500), nullable=True)

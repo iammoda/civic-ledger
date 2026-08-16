@@ -27,7 +27,8 @@ const STATIC_PATHS = [
   "/corrections",
   "/privacy",
   "/terms",
-  "/lobbying/ontario"
+  "/lobbying/ontario",
+  "/lobbying/bc"
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

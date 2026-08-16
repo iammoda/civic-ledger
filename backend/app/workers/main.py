@@ -498,6 +498,34 @@ async def sync_ontario_roles_job(ctx: dict[str, Any]) -> None:
         db.close()
 
 
+async def sync_bc_lobbying_job(ctx: dict[str, Any]) -> None:
+    """Monthly: BC lobbying — activity reports + registrations (ORL open data)."""
+    from datetime import datetime, timezone
+
+    from app.db.session import SessionLocal
+    from app.ingestion.bc_lobbying import sync_bc_lobbying
+    from app.models import IngestionRun
+
+    db = SessionLocal()
+    try:
+        run = IngestionRun(source_name="bc-orl", job_name="bc_lobbying_sync", status="running")
+        db.add(run)
+        db.commit()
+        try:
+            counts = await sync_bc_lobbying(db)
+            run.item_count = counts["communications"] + counts["registrations"]
+            run.metadata_json = counts
+            run.status = "succeeded"
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            run.status = "failed"
+            run.error_message = str(exc)[:2000]
+        run.finished_at = datetime.now(timezone.utc)
+        db.commit()
+    finally:
+        db.close()
+
+
 async def sync_municipal_job(ctx: dict[str, Any], backfill: bool = False) -> None:
     """Nightly: municipal council/committee minutes via eScribe — attendance,
     motions, per-member votes, conflict declarations. backfill=True re-syncs
@@ -603,6 +631,7 @@ class WorkerSettings:
         sync_ontario_lobbying_job,
         sync_ontario_expenses_job,
         sync_ontario_roles_job,
+        sync_bc_lobbying_job,
         sync_municipal_job,
         sync_opendata_votes_job,
         run_detectors_job,
@@ -623,6 +652,7 @@ class WorkerSettings:
         cron(sync_ontario_lobbying_job, weekday=5, hour={4}, minute={0}),  # Saturdays
         cron(sync_ontario_expenses_job, day={3}, hour={5}, minute={0}),  # monthly, 3rd
         cron(sync_ontario_roles_job, weekday=6, hour={5}, minute={0}),  # Sundays
+        cron(sync_bc_lobbying_job, day={5}, hour={6}, minute={0}),  # monthly, 5th
         cron(sync_municipal_job, hour={9}, minute={0}),  # nightly 09:00 UTC
         cron(sync_opendata_votes_job, weekday=4, hour={4}, minute={0}),  # Fridays
     ]

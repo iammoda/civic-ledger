@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ratelimit import rate_limit
 from app.db.session import get_db
-from app.models import Contribution, Correction, IntegrityFlag, LobbyCommunication, LobbyRegistration, LobbyRegistrationMpp, Person
+from app.models import Chamber, Contribution, Correction, IntegrityFlag, LobbyCommunication, LobbyRegistration, LobbyRegistrationMpp, Person
 from app.services.lazy import enqueue
 
 
@@ -214,6 +214,8 @@ class CorrectionRequest(BaseModel):
 
 class LobbyingSearchResponse(BaseModel):
     slug: str
+    # Which registry these reports come from: ca (federal) | bc (ORL).
+    registry: str = "ca"
     full_name: str
     total: int
     items: list[LobbyCommItem]
@@ -333,8 +335,12 @@ def politician_lobbying(
             if name:
                 subject_counter[name] += 1
 
+    chamber = db.scalar(select(Chamber).where(Chamber.id == person.chamber_id)) if person.chamber_id else None
+    registry = "bc" if chamber is not None and chamber.slug == "bc-assembly" else "ca"
+
     return LobbyingSearchResponse(
         slug=person.slug,
+        registry=registry,
         full_name=person.full_name,
         total=total,
         items=[
@@ -434,7 +440,9 @@ def ontario_registrations(
 ) -> OntarioRegistrationsResponse:
     """Ontario's active lobbying registrations, searchable — the provincial
     counterpart to the federal communications explorer."""
-    query = select(LobbyRegistration).where(LobbyRegistration.status == "active")
+    query = select(LobbyRegistration).where(
+        LobbyRegistration.status == "active", LobbyRegistration.jurisdiction_code == "on"
+    )
     if q:
         for token in q.strip().lower().split()[:6]:
             query = query.where(
@@ -513,4 +521,61 @@ def mpp_lobbying_registrations(
         office_count=int(kind_counts.get("mpp_office", 0)),
         ministry_count=int(kind_counts.get("ministry", 0)),
         items=[_registration_item(r) for r in items],
+    )
+
+class BcCommsResponse(BaseModel):
+    total: int
+    items: list[LobbyCommItem]
+    registry_note: str = (
+        "BC publishes per-meeting Lobbying Activity Reports (since May 2020) — "
+        "each row is a dated communication a lobbyist was required to report. "
+        "Source: Office of the Registrar of Lobbyists for BC, open data."
+    )
+
+
+@router.get("/lobbying/bc", response_model=BcCommsResponse)
+def bc_lobbying(
+    q: str | None = Query(default=None, max_length=200),
+    subject: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=25, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> BcCommsResponse:
+    """BC's lobbying activity reports, searchable — real meeting logs, the
+    same shape as the federal registry."""
+    query = select(LobbyCommunication).where(LobbyCommunication.jurisdiction_code == "bc")
+    if q:
+        for token in q.strip().lower().split()[:6]:
+            query = query.where(
+                or_(
+                    func.lower(func.coalesce(LobbyCommunication.client_name, "")).contains(token, autoescape=True),
+                    func.lower(func.coalesce(LobbyCommunication.registrant_name, "")).contains(token, autoescape=True),
+                    func.lower(LobbyCommunication.dpoh_name).contains(token, autoescape=True),
+                    func.lower(func.coalesce(LobbyCommunication.institution, "")).contains(token, autoescape=True),
+                )
+            )
+    if subject:
+        query = query.where(
+            func.lower(func.coalesce(LobbyCommunication.subjects, "")).contains(
+                subject.strip().lower(), autoescape=True
+            )
+        )
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    comms = db.scalars(
+        query.order_by(LobbyCommunication.comm_date.desc().nullslast()).offset(offset).limit(limit)
+    ).all()
+    return BcCommsResponse(
+        total=total,
+        items=[
+            LobbyCommItem(
+                comm_date=c.comm_date,
+                client_name=c.client_name,
+                registrant_name=c.registrant_name,
+                subjects=c.subjects,
+                institution=c.institution,
+                dpoh_title=f"{c.dpoh_name}" + (f" — {c.dpoh_title}" if c.dpoh_title else ""),
+                registry_url=None,
+            )
+            for c in comms
+        ],
     )

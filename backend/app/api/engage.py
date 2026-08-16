@@ -114,13 +114,21 @@ def _biggest_expense_story(db: Session) -> DigestStory | None:
 
 
 def _most_lobbied_story(db: Session) -> DigestStory | None:
-    latest_date = db.scalar(select(func.max(LobbyCommunication.comm_date)))
+    latest_date = db.scalar(
+        select(func.max(LobbyCommunication.comm_date)).where(
+            LobbyCommunication.jurisdiction_code == "ca"
+        )
+    )
     if latest_date is None:
         return None
     cutoff = latest_date - timedelta(days=30)
     row = db.execute(
         select(LobbyCommunication.dpoh_person_id, func.count().label("n"))
-        .where(LobbyCommunication.dpoh_person_id.is_not(None), LobbyCommunication.comm_date >= cutoff)
+        .where(
+            LobbyCommunication.dpoh_person_id.is_not(None),
+            LobbyCommunication.comm_date >= cutoff,
+            LobbyCommunication.jurisdiction_code == "ca",
+        )
         .group_by(LobbyCommunication.dpoh_person_id)
         .order_by(func.count().desc())
         .limit(1)

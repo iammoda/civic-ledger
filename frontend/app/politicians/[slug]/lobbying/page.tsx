@@ -42,7 +42,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     return { title: "Lobbying" };
   }
   const title = `Who lobbies ${data.full_name}?`;
-  const description = `${data.total.toLocaleString("en-CA")} registered lobbying communications with ${data.full_name}, from the federal Registry of Lobbyists — searchable by organization and subject.`;
+  const registryName =
+    data.registry === "bc" ? "BC's Registrar of Lobbyists" : "the federal Registry of Lobbyists";
+  const description = `${data.total.toLocaleString("en-CA")} registered lobbying communications with ${data.full_name}, from ${registryName} — searchable by organization and subject.`;
   return {
     title,
     description,
@@ -74,6 +76,7 @@ export default async function PoliticianLobbyingPage({
   }
 
   const basePath = `/politicians/${slug}/lobbying`;
+  const isBc = data.registry === "bc";
 
   // CSV export of the current filters (served by the API; capped at 10k rows).
   const csvParams = new URLSearchParams();
@@ -104,9 +107,9 @@ export default async function PoliticianLobbyingPage({
       </p>
 
       <ExplainerStrip id="lobbying-registry">
-        The Registry of Lobbyists is the federal public record where paid lobbyists must report every
-        communication with office holders like MPs and ministers. It&apos;s evidence of access, not wrongdoing.
-        The registry records who met whom and the subjects — it does not publish what was said or asked for.
+        {isBc
+          ? "BC's Lobbyists Registry is the provincial public record where paid lobbyists must report every communication with public office holders like MLAs and ministers. It's evidence of access, not wrongdoing — who met whom and the subjects, not what was said."
+          : "The Registry of Lobbyists is the federal public record where paid lobbyists must report every communication with office holders like MPs and ministers. It's evidence of access, not wrongdoing. The registry records who met whom and the subjects — it does not publish what was said or asked for."}
       </ExplainerStrip>
 
       <form action={basePath} method="get" className="mb-6">
@@ -214,8 +217,11 @@ export default async function PoliticianLobbyingPage({
       )}
 
       <p className="mt-8 text-xs leading-6 text-stone-500">
-        Source: Registry of Lobbyists (Office of the Commissioner of Lobbying of Canada). Lobbyists file
-        these reports themselves; dates and subjects are as reported.{" "}
+        Source:{" "}
+        {isBc
+          ? "Office of the Registrar of Lobbyists for BC (open data, monthly)."
+          : "Registry of Lobbyists (Office of the Commissioner of Lobbying of Canada)."}{" "}
+        Lobbyists file these reports themselves; dates and subjects are as reported.{" "}
         <Link href="/methodology" className="text-accent">
           Methodology →
         </Link>

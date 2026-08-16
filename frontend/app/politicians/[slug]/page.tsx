@@ -7,6 +7,7 @@ import { CiteThis } from "@/components/cite-this";
 import { ExpensesCard } from "@/components/expenses-card";
 import { MoneyInfluence } from "@/components/money-influence";
 import { MppExpensesCard } from "@/components/mpp-expenses-card";
+import { BcLobbyingCard } from "@/components/bc-lobbying-card";
 import { MppLobbyingCard } from "@/components/mpp-lobbying-card";
 import { MunicipalRecordCards } from "@/components/municipal-record";
 import { PartyBadge } from "@/components/party-badge";
@@ -16,6 +17,7 @@ import { provinceShort } from "@/lib/humanize";
 import { PercentileStrip } from "@/components/viz/percentile-strip";
 import {
   getMppExpenses,
+  getPoliticianLobbying,
   getMppLobbyingRegistrations,
   getMunicipalRecord,
   getPolitician,
@@ -82,13 +84,16 @@ export default async function PoliticianDetailPage({
   const isFederal = (politician.level ?? "federal") === "federal";
   const isMunicipal = politician.level === "municipal";
   const isProvincial = politician.level === "provincial";
-  const [money, votingRecord, expenses, municipal, mppLobbying, mppExpenses] = await Promise.all([
+  const isBc = isProvincial && (politician.jurisdiction_name ?? "").includes("British Columbia");
+  const isOntarioProvincial = isProvincial && (politician.jurisdiction_name ?? "").includes("Ontario");
+  const [money, votingRecord, expenses, municipal, mppLobbying, mppExpenses, bcLobbying] = await Promise.all([
     isFederal ? getPoliticianMoney(slug) : Promise.resolve(null),
     getPoliticianVotes(slug, { filter, offset, limit: 10 }),
     isFederal ? getPoliticianExpenses(slug) : Promise.resolve(null),
     isMunicipal ? getMunicipalRecord(slug) : Promise.resolve(null),
-    isProvincial ? getMppLobbyingRegistrations(slug, { limit: 10 }) : Promise.resolve(null),
-    isProvincial ? getMppExpenses(slug, { limit: 8 }) : Promise.resolve(null)
+    isOntarioProvincial ? getMppLobbyingRegistrations(slug, { limit: 10 }) : Promise.resolve(null),
+    isOntarioProvincial ? getMppExpenses(slug, { limit: 8 }) : Promise.resolve(null),
+    isBc ? getPoliticianLobbying(slug, { limit: 8 }) : Promise.resolve(null)
   ]);
 
   const hasVotes = isFederal || politician.level === "provincial" || Boolean(votingRecord?.items?.length);
@@ -468,6 +473,9 @@ export default async function PoliticianDetailPage({
           ) : null}
           {mppLobbying && mppLobbying.total > 0 ? (
             <MppLobbyingCard lobbying={mppLobbying} />
+          ) : null}
+          {bcLobbying && bcLobbying.total > 0 ? (
+            <BcLobbyingCard lobbying={bcLobbying} slug={politician.slug} />
           ) : null}
           {!isFederal ? (
             <DataGap

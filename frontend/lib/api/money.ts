@@ -38,6 +38,7 @@ export function getPoliticianMoney(slug: string) {
 }
 
 export type PoliticianLobbyingResponse = {
+  registry?: string;
   slug: string;
   full_name: string;
   total: number;
@@ -212,4 +213,22 @@ export function getMppExpenses(slug: string, params?: { limit?: number }) {
   if (params?.limit != null) searchParams.set("limit", String(params.limit));
   const qs = searchParams.toString();
   return fetchApi<MppExpensesApiResponse>(`/politicians/${slug}/mpp-expenses${qs ? `?${qs}` : ""}`);
+}
+
+// --- BC lobbying activity reports (per-meeting logs) -------------------------
+
+export type BcCommsResponse = {
+  total: number;
+  items: LobbyCommItem[];
+  registry_note: string;
+};
+
+export function getBcLobbying(params?: { q?: string; subject?: string; limit?: number; offset?: number }) {
+  const searchParams = new URLSearchParams();
+  if (params?.q) searchParams.set("q", params.q);
+  if (params?.subject) searchParams.set("subject", params.subject);
+  if (params?.limit != null) searchParams.set("limit", String(params.limit));
+  if (params?.offset) searchParams.set("offset", String(params.offset));
+  const qs = searchParams.toString();
+  return fetchApi<BcCommsResponse>(`/lobbying/bc${qs ? `?${qs}` : ""}`);
 }
