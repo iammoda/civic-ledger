@@ -179,6 +179,8 @@ export function getOntarioRegistrations(params?: {
 export type MppLobbyingResponse = OntarioRegistrationsResponse & {
   slug: string;
   full_name: string;
+  office_count: number;
+  ministry_count: number;
 };
 
 export function getMppLobbyingRegistrations(slug: string, params?: { limit?: number; offset?: number }) {

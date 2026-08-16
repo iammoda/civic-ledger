@@ -16,10 +16,15 @@ export function MppLobbyingCard({ lobbying }: { lobbying: MppLobbyingResponse })
     <div>
       <SectionHeading title="Who is registered to lobby them" />
       <p className="pt-2 text-sm leading-6 text-stone-500">
-        {lobbying.total.toLocaleString("en-CA")} active registration{lobbying.total === 1 ? "" : "s"}{" "}
-        in Ontario&apos;s lobbyist registry name this MPP&apos;s office as a target. A registration means
-        licensed to lobby — <em>not</em> that a meeting happened. Being lobbied is part of the job; what
-        matters is that it&apos;s on the record.
+        {lobbying.total.toLocaleString("en-CA")} active registration{lobbying.total === 1 ? "" : "s"} in
+        Ontario&apos;s lobbyist registry name them —{" "}
+        {lobbying.ministry_count > 0 && lobbying.office_count > 0
+          ? `${lobbying.ministry_count.toLocaleString("en-CA")} target a ministry they lead, ${lobbying.office_count.toLocaleString("en-CA")} their constituency office`
+          : lobbying.ministry_count > 0
+            ? "targeting a ministry they lead"
+            : "naming their constituency office"}
+        . A registration means licensed to lobby — <em>not</em> that a meeting happened. Ministers get
+        lobbied because of the job; what matters is that it&apos;s on the record.
       </p>
       <div className="pt-2">
         {lobbying.items.map((item) => (

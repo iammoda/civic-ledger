@@ -132,7 +132,16 @@ export default async function PoliticianDetailPage({
       : null;
   const salarySourceUrl = isFederal ? SALARY_SOURCE_URL : MPP_SALARY_SOURCE_URL;
   const salaryAsOf = isFederal ? SALARY_AS_OF : MPP_SALARY_AS_OF;
-  const salaryNote = isFederal ? "set by law, not by the MP" : "base salary, set by law — role top-ups extra";
+  // Ontario role top-up AMOUNTS aren't published in a machine-readable place,
+  // so the note names the role and links the statute rather than guessing.
+  const mppTopUpRole = isOntarioMpp
+    ? (politician.roles ?? []).find((role) => /^(premier|minister|associate minister|attorney general|speaker)/i.test(role))
+    : undefined;
+  const salaryNote = isFederal
+    ? "set by law, not by the MP"
+    : mppTopUpRole
+      ? `base — their role as ${mppTopUpRole} adds a top-up set by statute`
+      : "base salary, set by law — cabinet, Speaker and leader roles add statutory top-ups";
 
   const surname = politician.full_name.trim().split(/\s+/).slice(-1)[0] || politician.full_name;
   const dissentCount = stats?.dissent_count;

@@ -193,3 +193,69 @@ def test_ontario_lobbying_endpoints(db) -> None:
             assert client.get("/v1/politicians/nobody/lobbying-registrations").status_code == 404
     finally:
         app.dependency_overrides.clear()
+
+
+def test_ministry_targets_resolve_to_sitting_minister(db) -> None:
+    from datetime import date as date_type
+
+    from app.ingestion.ontario_lobbying import (
+        _ontario_minister_index,
+        backfill_ministry_links,
+        resolve_ministry_target,
+    )
+    from app.models import PersonRole
+
+    minister = _ontario_mpp(db, riding="Etobicoke North")
+    db.add(
+        PersonRole(
+            person_id=minister.id, role_type="minister",
+            title_en="Minister of Transportation", is_current=True,
+            started_on=date_type(2025, 1, 1),
+        )
+    )
+    db.commit()
+
+    index = _ontario_minister_index(db)
+    assert resolve_ministry_target("Office of the Minister of Transportation", index) == minister.id
+    assert resolve_ministry_target("Ministry of Transportation", index) == minister.id
+    assert resolve_ministry_target("Ministry of Health", index) is None
+
+    # Upsert links ministry targets with target_kind=ministry.
+    detail = _detail()
+    detail.target_ministries = ["Ministry of Transportation"]
+    detail.target_mpp_offices = []
+    upsert_registration(db, _row(), detail, {}, index)
+    db.commit()
+    link = db.scalar(select(LobbyRegistrationMpp))
+    assert link.person_id == minister.id and link.target_kind == "ministry"
+
+    # Backfill is idempotent (person already linked).
+    assert backfill_ministry_links(db) == 0
+
+
+def test_backfill_links_existing_registrations(db) -> None:
+    from datetime import date as date_type
+
+    from app.ingestion.ontario_lobbying import backfill_ministry_links
+    from app.models import PersonRole
+
+    minister = _ontario_mpp(db, riding="Etobicoke North")
+    # Registration crawled BEFORE any roles existed: no links.
+    detail = _detail()
+    detail.target_ministries = ["Office of the Minister of Transportation"]
+    detail.target_mpp_offices = []
+    upsert_registration(db, _row(), detail, {}, {})
+    db.commit()
+    assert db.scalars(select(LobbyRegistrationMpp)).all() == []
+
+    db.add(
+        PersonRole(
+            person_id=minister.id, role_type="minister",
+            title_en="Minister of Transportation", is_current=True,
+            started_on=date_type(2025, 1, 1),
+        )
+    )
+    db.commit()
+    assert backfill_ministry_links(db) == 1
+    link = db.scalar(select(LobbyRegistrationMpp))
+    assert link.person_id == minister.id and link.target_kind == "ministry"

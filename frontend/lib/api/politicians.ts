@@ -91,8 +91,10 @@ export type CabinetMinister = {
   riding?: string | null;
 };
 
-export function getCabinet() {
-  return fetchApi<{ items: CabinetMinister[] }>("/politicians/roles/cabinet");
+export function getCabinet(jurisdiction: "ca" | "on" = "ca") {
+  return fetchApi<{ items: CabinetMinister[] }>(
+    `/politicians/roles/cabinet?jurisdiction=${jurisdiction}`
+  );
 }
 
 export type BallotRecord = {

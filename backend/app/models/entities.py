@@ -649,6 +649,9 @@ class LobbyRegistrationMpp(Base, TimestampMixin):
         ForeignKey("lobby_registrations.id", ondelete="CASCADE"), index=True
     )
     person_id: Mapped[int] = mapped_column(ForeignKey("people.id"), index=True)
+    # mpp_office: the filing names this member's constituency office.
+    # ministry: the filing targets a ministry/minister's office this person leads.
+    target_kind: Mapped[str] = mapped_column(String(16), default="mpp_office", index=True)
     riding_as_filed: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     registration: Mapped[LobbyRegistration] = relationship(back_populates="mpp_links")

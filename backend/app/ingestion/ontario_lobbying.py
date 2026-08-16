@@ -38,7 +38,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models import Chamber, LobbyRegistration, LobbyRegistrationMpp, Person, PersonMembership
+from app.models import Chamber, LobbyRegistration, LobbyRegistrationMpp, Person, PersonMembership, PersonRole
 
 logger = logging.getLogger(__name__)
 
@@ -345,11 +345,52 @@ def _ontario_mpp_index(db: Session) -> dict[str, int]:
     return {riding.lower(): person_id for riding, person_id in rows if riding}
 
 
+def _ontario_minister_index(db: Session) -> dict[str, int]:
+    """Normalized current-minister title -> person_id, Ontario assembly only.
+
+    Includes the Premier and associate ministers; keys are lowercase titles
+    ("minister of transportation", "premier", "attorney general").
+    """
+    rows = db.execute(
+        select(PersonRole.title_en, PersonRole.person_id)
+        .join(Person, PersonRole.person_id == Person.id)
+        .join(Chamber, Person.chamber_id == Chamber.id)
+        .where(
+            Chamber.slug == "on-assembly",
+            PersonRole.role_type == "minister",
+            PersonRole.is_current.is_(True),
+        )
+    ).all()
+    return {title.lower().strip(): person_id for title, person_id in rows if title}
+
+
+def resolve_ministry_target(target: str, minister_index: dict[str, int]) -> int | None:
+    """'Office of the Minister of Transportation' / 'Ministry of Transportation'
+    -> the sitting minister's person_id (None when the portfolio is vacant or
+    the string doesn't name a ministry)."""
+    text = re.sub(r"\s+", " ", target).strip().lower()
+    text = re.sub(r"^office of the ", "", text)
+    candidates = [text]
+    if text.startswith("ministry of "):
+        candidates.append("minister of " + text[len("ministry of "):])
+    if "premier" in text or text == "cabinet office":
+        candidates.append("premier")
+    if "attorney general" in text:
+        candidates.append("attorney general")
+        candidates.append("minister of the attorney general")
+    for candidate in candidates:
+        person_id = minister_index.get(candidate)
+        if person_id is not None:
+            return person_id
+    return None
+
+
 def upsert_registration(
     db: Session,
     row: GridRow,
     detail: RegistrationDetail,
     mpp_index: dict[str, int],
+    minister_index: dict[str, int] | None = None,
 ) -> LobbyRegistration:
     registration = db.scalar(
         select(LobbyRegistration).where(
@@ -377,7 +418,7 @@ def upsert_registration(
     registration.techniques = detail.techniques
     db.flush()
 
-    # Re-resolve MPP links from scratch (amendments change targets).
+    # Re-resolve person links from scratch (amendments change targets).
     for link in list(registration.mpp_links):
         db.delete(link)
     db.flush()
@@ -391,7 +432,22 @@ def upsert_registration(
                 LobbyRegistrationMpp(
                     registration_id=registration.id,
                     person_id=person_id,
+                    target_kind="mpp_office",
                     riding_as_filed=riding,
+                )
+            )
+    # Ministry targets -> the sitting minister (one link per person; an
+    # explicit constituency-office link wins over a ministry link).
+    for target in detail.target_ministries:
+        person_id = resolve_ministry_target(target, minister_index or {})
+        if person_id and person_id not in seen:
+            seen.add(person_id)
+            db.add(
+                LobbyRegistrationMpp(
+                    registration_id=registration.id,
+                    person_id=person_id,
+                    target_kind="ministry",
+                    riding_as_filed=None,
                 )
             )
     return registration
@@ -540,6 +596,7 @@ async def sync_ontario_lobbying(
         ).all()
     }
     mpp_index = _ontario_mpp_index(db)
+    minister_index = _ontario_minister_index(db)
 
     count = 0
     async with OntarioLobbyRegistryClient() as client:
@@ -567,7 +624,7 @@ async def sync_ontario_lobbying(
                 )
                 continue
             for row, detail in harvested:
-                upsert_registration(db, row, detail, mpp_index)
+                upsert_registration(db, row, detail, mpp_index, minister_index)
                 count += 1
             db.commit()
             if count and count % 100 < len(harvested):
@@ -575,3 +632,31 @@ async def sync_ontario_lobbying(
 
     db.commit()
     return count
+
+
+def backfill_ministry_links(db: Session) -> int:
+    """Resolve ministry targets to sitting ministers for registrations that
+    were crawled before roles existed (or after a cabinet shuffle)."""
+    minister_index = _ontario_minister_index(db)
+    if not minister_index:
+        return 0
+    created = 0
+    registrations = db.scalars(
+        select(LobbyRegistration).where(LobbyRegistration.target_ministries.is_not(None))
+    ).all()
+    for registration in registrations:
+        linked = {link.person_id for link in registration.mpp_links}
+        for target in (registration.target_ministries or "").split("\n"):
+            person_id = resolve_ministry_target(target, minister_index)
+            if person_id and person_id not in linked:
+                linked.add(person_id)
+                db.add(
+                    LobbyRegistrationMpp(
+                        registration_id=registration.id,
+                        person_id=person_id,
+                        target_kind="ministry",
+                    )
+                )
+                created += 1
+    db.commit()
+    return created

@@ -152,14 +152,29 @@ def list_politicians(
 
 
 @router.get("/roles/cabinet")
-def get_cabinet(db: Session = Depends(get_db)) -> dict:
-    """The current federal cabinet: PM first, then ministers by title.
+def get_cabinet(
+    jurisdiction: str = Query(default="ca", pattern="^(ca|on)$"),
+    db: Session = Depends(get_db),
+) -> dict:
+    """The current cabinet (federal by default, ?jurisdiction=on for Ontario):
+    PM/Premier first, then ministers by title.
 
     Registered ABOVE get_politician so "roles" isn't captured as a person slug.
     """
+    chamber_slug = "house" if jurisdiction == "ca" else "on-assembly"
+    chamber_people = (
+        select(Person.id)
+        .join(Chamber, Person.chamber_id == Chamber.id)
+        .where(Chamber.slug == chamber_slug)
+        .scalar_subquery()
+    )
     roles = db.scalars(
         select(PersonRole)
-        .where(PersonRole.is_current.is_(True), PersonRole.role_type == "minister")
+        .where(
+            PersonRole.is_current.is_(True),
+            PersonRole.role_type == "minister",
+            PersonRole.person_id.in_(chamber_people),
+        )
         .options(
             selectinload(PersonRole.person)
             .selectinload(Person.memberships)
@@ -182,7 +197,7 @@ def get_cabinet(db: Session = Depends(get_db)) -> dict:
             }
         )
     # "Prime Minister" leads; everyone else reads alphabetically by portfolio.
-    items.sort(key=lambda item: (item["title_en"] != "Prime Minister", item["title_en"]))
+    items.sort(key=lambda item: (item["title_en"] not in ("Prime Minister", "Premier"), item["title_en"]))
     return {"items": items}
 
 

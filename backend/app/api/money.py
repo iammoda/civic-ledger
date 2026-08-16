@@ -469,6 +469,10 @@ class MppLobbyingResponse(BaseModel):
     slug: str
     full_name: str
     total: int
+    # How the filings name this person: their constituency office directly,
+    # or a ministry/minister's office they lead.
+    office_count: int = 0
+    ministry_count: int = 0
     items: list[OntarioRegistrationItem]
     registry_note: str = ONTARIO_REGISTRY_NOTE
 
@@ -491,6 +495,14 @@ def mpp_lobbying_registrations(
         .where(LobbyRegistrationMpp.person_id == person.id, LobbyRegistration.status == "active")
     )
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    kind_counts = dict(
+        db.execute(
+            select(LobbyRegistrationMpp.target_kind, func.count())
+            .join(LobbyRegistration, LobbyRegistrationMpp.registration_id == LobbyRegistration.id)
+            .where(LobbyRegistrationMpp.person_id == person.id, LobbyRegistration.status == "active")
+            .group_by(LobbyRegistrationMpp.target_kind)
+        ).all()
+    )
     items = db.scalars(
         query.order_by(LobbyRegistration.last_amendment_date.desc().nullslast()).offset(offset).limit(limit)
     ).all()
@@ -498,5 +510,7 @@ def mpp_lobbying_registrations(
         slug=person.slug,
         full_name=person.full_name,
         total=total,
+        office_count=int(kind_counts.get("mpp_office", 0)),
+        ministry_count=int(kind_counts.get("ministry", 0)),
         items=[_registration_item(r) for r in items],
     )

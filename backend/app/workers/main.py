@@ -425,6 +425,9 @@ async def sync_ontario_lobbying_job(ctx: dict[str, Any]) -> None:
         db.commit()
         try:
             count = await sync_ontario_lobbying(db)
+            from app.ingestion.ontario_lobbying import backfill_ministry_links
+
+            backfill_ministry_links(db)
             run.item_count = count
             run.status = "succeeded"
         except Exception as exc:  # noqa: BLE001
@@ -453,6 +456,37 @@ async def sync_ontario_expenses_job(ctx: dict[str, Any]) -> None:
         try:
             count = await sync_ontario_expenses(db)
             run.item_count = count
+            run.status = "succeeded"
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            run.status = "failed"
+            run.error_message = str(exc)[:2000]
+        run.finished_at = datetime.now(timezone.utc)
+        db.commit()
+    finally:
+        db.close()
+
+
+async def sync_ontario_roles_job(ctx: dict[str, Any]) -> None:
+    """Weekly: Ontario MPP roles (Premier/ministers/PAs) from ola.org member
+    pages, then re-resolve lobbying-registration ministry targets."""
+    from datetime import datetime, timezone
+
+    from app.db.session import SessionLocal
+    from app.ingestion.ontario_lobbying import backfill_ministry_links
+    from app.ingestion.ontario_roles import sync_ontario_roles
+    from app.models import IngestionRun
+
+    db = SessionLocal()
+    try:
+        run = IngestionRun(source_name="ola", job_name="ontario_roles_sync", status="running")
+        db.add(run)
+        db.commit()
+        try:
+            count = await sync_ontario_roles(db)
+            linked = backfill_ministry_links(db)
+            run.item_count = count
+            run.metadata_json = {"roles": count, "ministry_links": linked}
             run.status = "succeeded"
         except Exception as exc:  # noqa: BLE001
             db.rollback()
@@ -568,6 +602,7 @@ class WorkerSettings:
         sync_ontario_job,
         sync_ontario_lobbying_job,
         sync_ontario_expenses_job,
+        sync_ontario_roles_job,
         sync_municipal_job,
         sync_opendata_votes_job,
         run_detectors_job,
@@ -587,6 +622,7 @@ class WorkerSettings:
         cron(sync_ontario_job, hour={6}, minute={30}),  # nightly 06:30 UTC
         cron(sync_ontario_lobbying_job, weekday=5, hour={4}, minute={0}),  # Saturdays
         cron(sync_ontario_expenses_job, day={3}, hour={5}, minute={0}),  # monthly, 3rd
+        cron(sync_ontario_roles_job, weekday=6, hour={5}, minute={0}),  # Sundays
         cron(sync_municipal_job, hour={9}, minute={0}),  # nightly 09:00 UTC
         cron(sync_opendata_votes_job, weekday=4, hour={4}, minute={0}),  # Fridays
     ]
